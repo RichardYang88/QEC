@@ -1,0 +1,13 @@
+import OK; [[5,1,3]] code & syndrome table validated on import
+noisy rho shape (32, 32) trace 1.0
+init loss 0.2804 init fid 0.7663
+phi_base grad norm 0.184027
+raw           0.7738
+perfect-code  0.9851
+zne           0.9937
+vd            0.995
+lindr         0.0312
+
+mini train (30 epochs, real grad):
+  val fid epoch1  0.7125  epoch30 0.7339
+SMOKE OK

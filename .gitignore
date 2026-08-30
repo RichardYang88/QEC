@@ -1,0 +1,16 @@
+# Python 项目示例
+echo "*.pyc
+__pycache__/
+venv/
+qenv/
+env/
+report/
+.venv/
+.env
+*.log
+.DS_Store
+.idea/
+.vscode/
+*.egg-info/
+dist/
+build/" > .gitignore
