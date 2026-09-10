@@ -1,16 +1,23 @@
-# Python 项目示例
-echo "*.pyc
+# Python
+*.pyc
 __pycache__/
 venv/
 qenv/
 env/
-report/
 .venv/
-.env
-*.log
+*.egg-info/
+dist/
+build/
+
+# IDE / OS
 .DS_Store
 .idea/
 .vscode/
-*.egg-info/
-dist/
-build/" > .gitignore
+
+# logs & secrets
+*.log
+.env
+.originq_token
+
+# generated reports (kept locally, not committed)
+report/
