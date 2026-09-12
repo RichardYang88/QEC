@@ -96,7 +96,9 @@ class VSCRWarm(nn.Module):
 
     def __init__(self, n_synd=16, phi_dim=m.PHI_DIM, hidden=64, ctx=24):
         super().__init__()
-        self.register_buffer('phi_dec', PHI_DEC)
+        # clone: register_buffer stores a REFERENCE; zeroing this buffer in an
+        # ablation must never mutate the global PHI_DEC.
+        self.register_buffer('phi_dec', PHI_DEC.clone())
         self.synd_emb = nn.Parameter(torch.randn(n_synd, ctx, dtype=torch.float64) * 0.1)
         self.hnet = nn.Sequential(
             nn.Linear(ctx, hidden, dtype=torch.float64), nn.Tanh(),

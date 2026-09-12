@@ -46,6 +46,14 @@ recovery without labels. On the $\code$ perfect code VSCR reproduces the
 optimal decoder to $<10^{-10}$ across depolarizing, amplitude-damping, mixed
 and coherent control-error channels while keeping every syndrome branch
 individually healthy---a property cold-started variational recovery lacks.
+Ablations isolate the essential ingredients: removing the syndrome
+projection collapses learned recovery on stochastic noise, an independent
+per-syndrome parameterization is statistically indistinguishable from the
+shared hypernetwork at this code size, and a per-branch semidefinite program
+certifies that the achieved fidelity is optimal over \emph{all} CPTP
+recoveries on the Pauli-mixture channels, while quantifying the small
+non-Pauli headroom ($\le3\times10^{-3}$) that amplitude-damping and coherent
+control errors leave in low-weight syndrome branches.
 The trained instrument compiles to
 fixed gate-level branch circuits that we verify against a density-matrix
 simulator to $<10^{-9}$, and we design a Pauli-frame benchmark protocol that
@@ -55,8 +63,10 @@ syndrome-conditioned recovery branch achieves post-selected logical fidelity
 $0.80$ ($95\%$ Wilson interval $[0.68,0.88]$) against an ideal reference of
 $1.000$, and we characterize the dominant hardware systematics---dysfunctional
 mid-circuit measurement and ancilla-relaxation satellites. Our results
-establish learned, hardware-executable recovery circuits as a practical route
-to quantum error correction beyond rigid Pauli decoding.
+establish learned, hardware-executable recovery circuits as a practical
+route to quantum error correction: label-free training starts at, and
+empirically saturates, the optimal-CPTP recovery ceiling while remaining
+compilable to fixed gate-level branch circuits.
 \end{abstract}
 
 \section*{Introduction}
@@ -95,7 +105,10 @@ recurrent decoders for topological
 codes~\cite{torlai_nn,baireuther_njp,meinerz_nn,wang_nn_boson},
 high-accuracy learned decoders for superconducting
 hardware~\cite{bausch_ml}, transformer architectures~\cite{tian_transformer}
-and variational circuit compilers~\cite{xu_vcc}. These decoders improve the
+and variational circuit compilers~\cite{xu_vcc}; on the quantum side,
+variational encoders/recoveries such as QVECTOR~\cite{johnson_qvector}
+optimize encoding and recovery circuits jointly for a device's noise.
+Classical decoders improve the
 classical processing step but never touch the quantum hardware: the
 corrective operation applied to the qubits remains a Pauli frame update.
 Complementarily, error-mitigation methods such as zero-noise
@@ -120,7 +133,13 @@ decoder is a critical point of the unsupervised branch-fidelity loss, so
 warm-started VSCR certifies and attains decoder-optimal recovery
 ($<10^{-10}$) on depolarizing, amplitude-damping, mixed and coherent noise
 while keeping every syndrome branch individually healthy, in sharp contrast
-to cold-started variational recovery; (iii)~an exact circuit-level compilation and
+to cold-started variational recovery---complemented by same-family controls
+(an independent per-syndrome variational recovery, a projection-free global
+variational unitary) and by a per-branch semidefinite-program ceiling
+showing that decoder parity is CPTP-optimal on the Pauli-type channels,
+with the small non-Pauli headroom left by amplitude-damping and coherent
+noise quantified and localized to low-weight branches;
+(iii)~an exact circuit-level compilation and
 verification pipeline (worst circuit--simulator deviation $<10^{-9}$) together
 with a Pauli-frame sampling protocol that emulates the depolarizing channel
 exactly on hardware; and (iv)~a feasibility demonstration of the full protocol
@@ -231,6 +250,77 @@ The distinguishing property of VSCR is that it is the only method in
 Fig.~\ref{fig:benchmark} whose output is a \emph{gate-level circuit} that a
 quantum processor can execute branch by branch.
 
+\subsection*{Same-family baselines, ablations and an optimality ceiling}
+
+The comparisons above pit VSCR against fixed decoders and oracle mitigation
+methods; three additional controls compare it against \emph{learned}
+recovery methods of the same variational-quantum family and establish how
+close the achieved fidelity is to the information-theoretic optimum
+(Fig.~\ref{fig:ablation}; ED Tables~5--7).
+\emph{(i)~Independent per-syndrome recovery (no hypernetwork).} Replacing
+the hypernetwork with a bare table of $16$ independent angle sets
+($960$ parameters, no sharing; identical ansatz, loss, optimizer and
+curriculum, decoder warm start) changes nothing material: the two
+architectures agree to within $1.1\times 10^{-9}$ in $\bar F$ across the
+full $p$-grid on all four channels (depolarizing $p=0.10$: table $0.9470$
+versus hypernetwork $0.9470$), and the table model's worst-branch
+conditional fidelity matches the decoder ($0.812$ versus $0.812$ at
+$p=0.15$). In the cold-start low-data regime the independent table is if
+anything stronger: trained on a fixed pool of $K$ logical states and
+evaluated on fresh states, it reaches the decoder at $K{=}4$ and $K{=}16$
+($\bar F=0.9470$) while the shared hypernetwork stalls at $0.879$--$0.892$
+with an unhealthy worst branch ($\min_s\mathrm{cf}_s\approx0.39$;
+ED Table~6). The hypernetwork is therefore a deployment and scaling choice
+at this code size---a table grows like $2^{n-k}$ while the hypernetwork
+keeps fixed size and provides the exact per-branch decoder warm-start
+construction---not a performance-critical component, and no claim of this
+work relies on it.
+\emph{(ii)~The projection is the load-bearing quantum ingredient.} A single
+global variational unitary without syndrome measurement---the recovery half
+of QVECTOR~\cite{johnson_qvector}, trained with the same ansatz and
+budget---collapses on stochastic noise ($\bar F=0.5908,\ 0.7712,\ 0.5229$
+at $p=0.10$ for depolarizing, amplitude damping and mixed noise, versus
+$0.9470/0.9848/0.9253$ for decoder and VSCR; the depolarizing value matches
+the raw-state fidelity within errors---the optimum of a unitary that cannot
+reduce entropy): the measurement-based instrument, by contrast, purifies
+every
+branch. On the purely coherent channel the same global unitary inverts most
+of the over-rotation ($\bar F=0.9962$ at $\varepsilon=0.10$), delimiting
+the one regime in which a measurement-free variational recovery is
+competitive.
+\emph{(iii)~Ceiling over all CPTP recoveries.} For each branch we solved
+exactly the semidefinite program for the optimal CPTP
+recovery~\cite{reimpell_werner} (a $4\times4$ Choi program after reducing
+the branch to the two-dimensional syndrome subspace; Methods). On the
+Pauli-type channels the ceiling \emph{is} the decoder: its excess over
+decoder fidelity is $\le4\times10^{-13}$ at $p\in\{0.05,0.10,0.15\}$
+depolarizing and $+9\times10^{-7}$ for the mixed channel at $p=0.10$, so
+under a projective syndrome readout \emph{no} recovery---learned or
+hand-designed, unitary or general CPTP, Pauli or continuous---can beat the
+values warm-started VSCR attains on these channels: it saturates the
+ceiling rather than merely tracking a baseline. Small non-Pauli headroom
+appears exactly where the noise is non-Pauli: $+7.2\times10^{-4}$ for
+amplitude damping at $p=0.10$, and $+1.0\times10^{-4}$/$+3.1\times10^{-3}$
+for coherent over-rotation at $\varepsilon=0.15/0.30$, where the ceiling
+reaches exactly $1.0$ (a perfect recovery exists). The headroom is
+concentrated in low-weight branches (e.g.\ conditional-fidelity headroom
+$+0.20$ on a branch of weight $1.8\times10^{-3}$ for amplitude damping;
+ED Table~7), and warm-started gradient training does not exploit it because
+the decoder point is stationary there---capturing it would require
+barrier-crossing moves or twirl-breaking training signals, a concrete
+direction for future learned-correction work rather than a gap in the
+present claims. Consistently, restricting the learned recovery to Pauli
+corrections collapses the unsupervised search to four logical classes per
+branch: for depolarizing noise the exhaustive optimum reproduces the
+perfect-code decoder table on every branch (cross-checked against
+brute-force Pauli sampling to $2\times10^{-16}$), while for the coherent
+channel ten low-weight branches prefer a different logical class (largest
+conditional-fidelity gain $+0.68$ on a branch of weight $3\times10^{-5}$):
+discrete moves invisible to local gradient descent but accounted for by the
+ceiling. The decoder baseline is thus itself the optimal Pauli-restricted
+learned recovery on Pauli-type noise, and VSCR generalizes it at zero cost
+wherever Pauli corrections are already optimal.
+
 \subsection*{Exact circuit compilation and a Pauli-frame hardware protocol}
 
 To move the trained instrument onto hardware we compile each branch to a
@@ -323,6 +413,23 @@ entered directly into the training channel---are identified by the same
 analysis and are the natural targets for hardware-in-the-loop training once
 shot budgets allow.
 
+The ablations sharpen what is and is not claimed. Within the
+projective-readout protocol the Pauli decoder is the \emph{optimal} recovery
+on the Pauli-type channels at every strength we tested (SDP ceiling over all
+CPTP maps, ED Table~7), so the decoder-parity of warm-started VSCR there is
+ceiling-saturation, not a missed opportunity; amplitude-damping and coherent
+noise leave a small non-Pauli headroom ($7\times10^{-4}$ and up to
+$3\times10^{-3}$, concentrated in low-weight branches) that local
+gradient-based training from the stationary decoder point does not exploit,
+marking the boundary between certification and genuine learned improvement.
+The projection---not the parameterization---is the essential quantum
+ingredient: removing it collapses learned recovery on stochastic noise
+(QVECTOR-style global unitary), while removing the hypernetwork (a
+per-syndrome independent table) leaves warm-started performance unchanged at
+$n=5$ and even dominates in the cold-start low-data regime; the shared
+architecture is motivated by $2^{n-k}$ syndrome-space scaling, not by
+accuracy at this code size.
+
 The hardware part of this work is deliberately a feasibility study, and its
 limitations are informative. Post-selection costs samples in proportion to
 $P(s)$, and on \texttt{WK\_C180} ancilla relaxation during the late-measure
@@ -334,8 +441,10 @@ recovery---is unavailable on this processor, which is why our protocol is
 branch-fixed and feedback-free; platforms with fast mid-circuit
 readout~\cite{sivak_breakeven,ryan_anderson_rt} could execute the same trained
 branches with real-time selection. Extending VSCR to larger codes requires
-only that the syndrome measurement remain projective: the hypernetwork scales
-linearly in the number of branches that share parameters, and branch circuits
+only that the syndrome measurement remain projective: a per-syndrome
+parameter table matches the hypernetwork at $n=5$ (ED Table~6) but grows
+like $2^{n-k}$, whereas the hypernetwork keeps fixed size and shares
+statistical strength across branches; branch circuits
 remain fixed-depth, though shot budgets grow with the syndrome count.
 Combining learned branch recoveries with classical decoders (VSCR refining
 the residual error after a lookup step) and with error
@@ -366,7 +475,14 @@ $R_s$ comprises $3$ layers of $\{R_z,R_x,R_z\}$ on each of $5$ qubits plus a
 ring of $R_{zz}(q,q{+}1\bmod 5)$, i.e.\ $60$ angles. The hypernetwork maps a
 learnable embedding $e_s\in\mathbb{R}^{24}$ through Linear$(24,64)$--tanh--
 Linear$(64,60)$ (output layer zero-initialised) to $\Delta\phi_s$; a shared
-offset $\phi_0$ is also learned. Training minimizes $1-F$ (Eq.~\ref{eq:F})
+offset $\phi_0$ is also learned. At the zero initialisation the hypernetwork
+is additionally at a symmetric gradient-stationary point (an all-zero
+tanh-MLP passes no gradient to its own weights or embedding), so with the
+decoder point itself stationary the warm training acts as a certification:
+parameters move only within Adam's $\epsilon=10^{-8}$ floor, consistent with
+the observed $<10^{-10}$ agreement with the decoder and with the ablation in
+which a freely parameterized per-syndrome table converges to the same fixed
+point. Training minimizes $1-F$ (Eq.~\ref{eq:F})
 with Adam over batches of $48$ random logical states and uniformly sampled
 $p$, in a three-stage curriculum (low-$p$, full-range, low-rate polish;
 $1700$ epochs per seed), for seeds $\{1234,2024\}$ per channel; selection uses
@@ -403,6 +519,40 @@ unphysical $F>1$ artefacts of unconstrained linear reconstruction. All three
 mitigation baselines are oracles (exact channel or copy access) and are
 reported as upper bounds only.
 
+\paragraph{Same-family baselines, ablations and the SDP ceiling.}
+\emph{VQR-ind}: a module holding a bare $(16,60)$ angle table warm-started
+at $\phi^{\rm dec}$, trained with the same loop (batch $48$, $\lambda=0$),
+curriculum and selection as VSCR (one seed, $1234$; VSCR reports the best of
+two). \emph{Global (no-projection) recovery}: one $60$-angle unitary trained
+cold from the identity for $600$ epochs (Adam, lr $10^{-2}$, batch $48$,
+$p$ uniform in the channel's training range) on
+$\mathbb{E}_\psi\langle\psi|U\rho_{\rm noisy}U^\dagger|\psi\rangle$---the
+recovery half of QVECTOR~\cite{johnson_qvector} with the encoding fixed to
+$\code$. \emph{Low-data protocol}: both architectures trained on a fixed
+pool of $K\in\{2,4,8,16\}$ Haar-random logical states (same pool and seed;
+warm: $400$ epochs at lr $3\times10^{-3}$; cold: $600$ epochs at lr
+$10^{-2}$ with the decoder warm start removed), evaluated on $200$ fresh
+states at $p=0.10$. \emph{CPTP ceiling}: after projection onto branch $s$
+the recovery problem reduces to $2\times2$ operators $A_k=W_s^\dagger K_k V$
+($K_k$ channel Kraus operators, $V$ the encoding isometry, $W_s$ an
+orthonormal basis of $\mathrm{im}\,P_s$); the unnormalised average branch
+fidelity of a CP trace-non-increasing map with Choi matrix $C_s$ (convention
+$C_s=(\mathrm{id}\otimes G_s)(\ket\Omega\bra\Omega)$) is the linear
+functional $2\,\mathrm{Tr}[C_s M_s]$ with the exact Haar average
+$M_s=\sum_k(\bar A_k\otimes I)\tfrac{I+2\Phi}{6}(A_k^{T}\otimes I)$, from
+the two-copy moment $\mathbb{E}_\psi[\bar X\otimes X]=(I+2\Phi)/6$.
+Maximizing over $C_s\succeq0$ with $\mathrm{Tr}_{\rm out}C_s\preceq I/2$
+(SLSQP on a Cholesky parameterization; starts: identity, decoder, random)
+gives $F_s^{\max}$, and $\bar F^{\rm CPTP}=\sum_s p_s F_s^{\max}$ with
+$p_s=\mathrm{Tr}\sum_k A_k^\dagger A_k/2$. Self-tests: the identity channel
+returns exactly $1$; at $p=0.05$ depolarizing the ceiling matches the
+decoder Monte-Carlo value to $<2\times10^{-4}$. \emph{Pauli-restricted
+search}: a Pauli recovery contributes to branch $s$ only if its syndrome
+equals $s$ (otherwise its output is orthogonal to the codespace), and the
+$64$ such Paulis act on the branch as four logical classes
+$C_s\cdot\{I,X_L,Z_L,X_LZ_L\}$; the exhaustive per-branch optimum was
+cross-checked against $60$ random Pauli strings.
+
 \paragraph{Hardware platform and protocol.}
 Experiments ran on OriginQ Wukong chip \texttt{WK\_C180} via
 pyQPanda3~\cite{pyqpanda3,originq_cloud} with
@@ -417,8 +567,8 @@ Feasibility data: $4$ circuits $\times$ $400$ shots ($369$--$371$ usable).
 
 \paragraph{Data and code availability.}
 Training/evaluation code (\texttt{ssvr\_qec.py}, \texttt{vscr\_paper.py},
-\texttt{vscr\_paper\_coh.py}), the hardware pipeline
-(\texttt{qcloud\_vscr\_new.py}), the feasibility analysis
+\texttt{vscr\_paper\_coh.py}, \texttt{vscr\_paper\_abl.py}), the hardware
+pipeline (\texttt{qcloud\_vscr\_new.py}), the feasibility analysis
 (\texttt{hw\_verify\_analysis.py}), trained angle sets, raw cloud returns and
 all figure source data are available in the accompanying repository; ideal
 reference tables and per-branch fidelities are provided as JSON/NumPy
@@ -466,6 +616,21 @@ linear combination and may slightly exceed the physical bound (visible in
 the coherent panel).}
 \label{fig:benchmark}
 \label{fig:coherent}
+\end{figure}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\textwidth]{fig_ablation.pdf}
+\caption{\textbf{Same-family baselines and ablations.} (a) Depolarizing
+$p=0.10$: perfect-code decoder, warm-started VSCR (hypernetwork), VQR-ind
+(per-syndrome independent angle table, no sharing), a global variational
+unitary without syndrome projection (QVECTOR-style), and the SDP optimal
+CPTP ceiling (hatched). The learned syndrome-conditioned architectures
+saturate the ceiling, which coincides with the decoder; removing the
+projection collapses recovery on stochastic noise. (b) Low-data regime:
+cold-started training on a fixed pool of $K$ logical states (depolarizing,
+evaluated at $p=0.10$ on $200$ fresh states); solid lines: average fidelity
+$\bar F$, dotted: worst-branch conditional fidelity $\min_s\mathrm{cf}_s$.}
+\label{fig:ablation}
 \end{figure}
 
 \begin{figure}[ht]

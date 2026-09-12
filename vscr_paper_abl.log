@@ -1,0 +1,76 @@
+nohup: 忽略输入
+=== E3 prelude: SDP self-test ===
+[sdp selftest] identity ceiling=1 OK; dep(0.05): ceiling=0.985112 vs decoder=0.985112 OK
+
+=== E1: VQR-ind training (depolarizing) ===
+    [ind/depolarizing] seed 1234: val_fid=0.9790 min cf=0.9091
+  ind[depolarizing] F(p=0.10)=0.946995 max|dF vs warm VSCR|=7.74e-12 min cf@0.15: ind=0.812195 dec=0.812195
+
+=== E1: VQR-ind training (amplitude_damping) ===
+    [ind/amplitude_damping] seed 1234: val_fid=0.9943 min cf=0.9644
+  ind[amplitude_damping] F(p=0.10)=0.984754 max|dF vs warm VSCR|=5.17e-11 min cf@0.15: ind=0.538167 dec=0.538167
+
+=== E1: VQR-ind training (mixed) ===
+    [ind/mixed] seed 1234: val_fid=0.9693 min cf=0.8696
+  ind[mixed] F(p=0.10)=0.925339 max|dF vs warm VSCR|=3.45e-10 min cf@0.15: ind=0.751334 dec=0.751334
+
+=== E1: VQR-ind training (coherent) ===
+    [ind/coherent] seed 1234: val_fid=1.0000 min cf=1.0000
+  ind[coherent] F(p=0.10)=0.999959 max|dF vs warm VSCR|=1.09e-09 min cf@0.15: ind=1.000000 dec=1.000000
+
+=== E4: global (no-projection) recovery (depolarizing) ===
+    [global/depolarizing] epoch 200: F=0.7727
+    [global/depolarizing] epoch 400: F=0.7811
+    [global/depolarizing] epoch 600: F=0.7575
+  global[depolarizing] F(p=0.10)=0.590807
+
+=== E4: global (no-projection) recovery (amplitude_damping) ===
+    [global/amplitude_damping] epoch 200: F=0.8903
+    [global/amplitude_damping] epoch 400: F=0.8957
+    [global/amplitude_damping] epoch 600: F=0.8802
+  global[amplitude_damping] F(p=0.10)=0.771153
+
+=== E4: global (no-projection) recovery (mixed) ===
+    [global/mixed] epoch 200: F=0.7271
+    [global/mixed] epoch 400: F=0.7369
+    [global/mixed] epoch 600: F=0.7094
+  global[mixed] F(p=0.10)=0.522893
+
+=== E4: global (no-projection) recovery (coherent) ===
+    [global/coherent] epoch 200: F=0.9996
+    [global/coherent] epoch 400: F=0.9995
+    [global/coherent] epoch 600: F=0.9995
+  global[coherent] F(p=0.10)=0.996229
+
+=== E2: low-data regime (depolarizing) ===
+  warm K=2: hyper F=0.9470 mincf=0.8717 | ind F=0.9470 mincf=0.8717
+  warm K=4: hyper F=0.9470 mincf=0.8717 | ind F=0.9470 mincf=0.8717
+  warm K=8: hyper F=0.9470 mincf=0.8717 | ind F=0.9470 mincf=0.8717
+  warm K=16: hyper F=0.9470 mincf=0.8717 | ind F=0.9470 mincf=0.8717
+  cold K=2: hyper F=0.8781 mincf=0.3893 | ind F=0.9057 mincf=0.3895
+  cold K=4: hyper F=0.8791 mincf=0.3872 | ind F=0.9470 mincf=0.8717
+  cold K=8: hyper F=0.8788 mincf=0.3889 | ind F=0.8789 mincf=0.3893
+  cold K=16: hyper F=0.8922 mincf=0.3890 | ind F=0.9470 mincf=0.8717
+
+=== E3: SDP CPTP ceilings ===
+  depolarizing p=0.05: CPTP=0.985112 dec=0.985112 dF=+4.14e-13 max branch gap=9.35e-01
+  depolarizing p=0.1: CPTP=0.946995 dec=0.946995 dF=+2.52e-13 max branch gap=8.72e-01
+  depolarizing p=0.15: CPTP=0.894240 dec=0.894240 dF=+2.27e-13 max branch gap=8.12e-01
+  amplitude_damping p=0.1: CPTP=0.985471 dec=0.984754 dF=+7.17e-04 max branch gap=9.50e-01
+  mixed p=0.1: CPTP=0.925340 dec=0.925339 dF=+9.23e-07 max branch gap=8.55e-01
+  coherent p=0.15: CPTP=0.999896 dec=0.999796 dF=+9.99e-05 max branch gap=1.00e+00
+  coherent p=0.3: CPTP=1.000000 dec=0.996879 dF=+3.12e-03 max branch gap=1.00e+00
+
+=== E5: Pauli-restricted learned recovery ===
+  dep_0.15: matches decoder=True max gain over I-class=0.00e+00 bruteforce dev=2.2e-16
+  coh_0.15: matches decoder=False max gain over I-class=6.78e-01 bruteforce dev=2.2e-16
+  figure: paper/figures/fig_ablation.pdf
+
+================ ABLATION SUMMARY ================
+depolarizing         ind F(p=.10)=0.946995 glob F(p=.10)=0.590807 max|dF(ind-warm)|=7.74e-12
+amplitude_damping    ind F(p=.10)=0.984754 glob F(p=.10)=0.771153 max|dF(ind-warm)|=5.17e-11
+mixed                ind F(p=.10)=0.925339 glob F(p=.10)=0.522893 max|dF(ind-warm)|=3.45e-10
+coherent             ind F(p=.10)=0.999959 glob F(p=.10)=0.996229 max|dF(ind-warm)|=1.09e-09
+ceilings: {'dep_0.05': 0.985112, 'dep_0.1': 0.946995, 'dep_0.15': 0.89424, 'ad_0.1': 0.985471, 'mixed_0.1': 0.92534, 'coh_0.15': 0.999896, 'coh_0.3': 1.0}
+decoder : {'dep_0.05': 0.985112, 'dep_0.1': 0.946995, 'dep_0.15': 0.89424, 'ad_0.1': 0.984754, 'mixed_0.1': 0.925339, 'coh_0.15': 0.999796, 'coh_0.3': 0.996879}
+total runtime 2132s

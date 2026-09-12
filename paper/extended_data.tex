@@ -1,6 +1,6 @@
 \documentclass[10pt,a4paper]{article}
 \usepackage[margin=2cm]{geometry}
-\usepackage{amsmath,booktabs,longtable,array}
+\usepackage{amsmath,amssymb,booktabs,longtable,array}
 \usepackage{graphicx}
 \graphicspath{{figures/}}
 \begin{document}
@@ -88,4 +88,75 @@ anc@key[5:9], rev  & 124 & 44 \\
 wrong hypothesis (it counts selected shots, not decoded-data hits); the
 data-hit column is the decisive evidence and motivated the corrected
 \texttt{detect\_layout} scoring (lexicographic: data hits, then selected).
+
+\subsection*{ED Table 5: method landscape}
+Taxonomy of all recovery methods benchmarked in this work. VSCR is the only
+method that combines a learned/variational \emph{quantum unitary} recovery
+with projective syndrome conditioning; the ablations (VQR-ind, global
+unitary) remove one ingredient at a time, and the SDP row is the
+information-theoretic ceiling over all CPTP recoveries given the projective
+readout (no circuit; not executable).
+\begin{longtable}{lccccc}
+\toprule method & projection $P_s$ & unitary recovery & learned & labels needed & trainable params \\ \midrule
+Raw (no recovery) & -- & -- & -- & -- & 0 \\
+Perfect-code decoder & \checkmark & Pauli $C_s$ (fixed) & -- & -- & 0 \\
+ZNE / VD / LinDR-phys (oracles) & -- & -- & LinDR fit & oracle access & $1024^2$ (LinDR) \\
+Global variational unitary (QVECTOR-style) & -- & \checkmark & \checkmark & -- & 60 \\
+VQR-ind (per-syndrome table, no sharing) & \checkmark & \checkmark & \checkmark & -- & 960 \\
+VSCR warm (hypernetwork, ours) & \checkmark & \checkmark & \checkmark & -- & 5944 \\
+SDP optimal CPTP recovery (ceiling) & \checkmark & general CPTP & -- (solved) & channel model & --- \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 6: same-family baselines and architecture ablations}
+All rows use the identical unsupervised loss, ansatz, optimizer and
+curriculum budget (VQR-ind: one seed; VSCR: best of two seeds as in the main
+text). $\bar F$ at $p=0.10$ ($\varepsilon=0.10$ for coherent) over $200$
+fresh Haar-random logical states; ``global'' = single variational unitary
+without syndrome projection; $\Delta_{\rm ind}$ = max $|\bar F$ difference
+between VQR-ind and warm VSCR over the full $p$-grid. Low-data block:
+depolarizing $p=0.10$ fidelity after training on a fixed pool of $K$ logical
+states (warm/cold start; $400/600$ epochs).
+\begin{longtable}{lccccc}
+\toprule channel & decoder & VSCR warm & VQR-ind & $\Delta_{\rm ind}$ & global (no proj.) \\ \midrule
+depolarizing & 0.9470 & 0.9470 & 0.9470 & 7.74\times 10^{-12} & 0.5908 \\
+amplitude damping & 0.9848 & 0.9848 & 0.9848 & 5.17\times 10^{-11} & 0.7712 \\
+mixed & 0.9253 & 0.9253 & 0.9253 & 3.45\times 10^{-10} & 0.5229 \\
+coherent & 1.0000 & 1.0000 & 1.0000 & 1.09\times 10^{-9} & 0.9962 \\
+\bottomrule\end{longtable}
+\begin{longtable}{lcccc}
+\toprule low-data ($p=0.10$) & $K=2$ & $K=4$ & $K=8$ & $K=16$ \\ \midrule
+warm hypernet $\bar F$ & 0.9470 & 0.9470 & 0.9470 & 0.9470 \\
+warm VQR-ind $\bar F$ & 0.9470 & 0.9470 & 0.9470 & 0.9470 \\
+cold hypernet $\bar F$ & 0.8781 & 0.8791 & 0.8788 & 0.8922 \\
+cold VQR-ind $\bar F$ & 0.9057 & 0.9470 & 0.8789 & 0.9470 \\
+cold hypernet min cf$_s$ & 0.3893 & 0.3872 & 0.3889 & 0.3890 \\
+cold VQR-ind min cf$_s$ & 0.3895 & 0.8717 & 0.3893 & 0.8717 \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 7: SDP optimal-CPTP-recovery ceiling}
+Per channel and strength: $\bar F^{\rm CPTP}$ = optimal average fidelity
+over ALL trace-preserving recoveries (any Kraus structure) acting after the
+projective syndrome readout, from the exact $4\times4$-Choi semidefinite
+program per branch; $\bar F^{\rm dec}$ = perfect-code decoder (200-state
+MC); $\Delta\bar F$ = ceiling $-$ decoder; $g_{\max}$ = largest per-branch
+gap $F_s^{\max}-\mathrm{cf}_s^{\rm dec}$ over branches with $P(s)>10^{-3}$;
+``top branch'' = largest gap over ALL branches with $P(s)>10^{-9}$ (weight
+in parentheses): the non-Pauli headroom of the amplitude-damping and
+coherent channels is concentrated in low-weight branches.
+Pauli-restricted exhaustive search (4 logical classes per branch): for
+depolarizing $p=0.15$ it reproduces the decoder table on every branch (max
+gain of other classes $0.0e+00$; brute-force cross-check over random Pauli
+strings $2.2e-16$); for coherent $\varepsilon=0.15$, 10 branches prefer a
+different logical class, all of weight $\le10^{-3}$ (largest
+conditional-fidelity gain $+0.68$ on branch $s=11$, weight $3.1e-05$).
+\begin{longtable}{lccccc}
+\toprule channel / strength & $\bar F^{\rm CPTP}$ & $\bar F^{\rm dec}$ & $\Delta\bar F$ & $g_{\max}$ & top branch gap (weight) \\ \midrule
+dep 0.05 & 0.985112 & 0.985112 & +4.14e-13 & 5.10e-13 & +0.000 (7.7e-01) \\
+dep 0.1 & 0.946995 & 0.946995 & +2.52e-13 & 5.69e-13 & +0.000 (2.7e-02) \\
+dep 0.15 & 0.894240 & 0.894240 & +2.27e-13 & 6.79e-13 & +0.000 (3.7e-02) \\
+ad 0.1 & 0.985471 & 0.984754 & +7.17e-04 & 1.95e-01 & +0.195 (1.8e-03) \\
+mixed 0.1 & 0.925340 & 0.925339 & +9.23e-07 & 2.40e-04 & +0.000 (3.4e-02) \\
+coh 0.15 & 0.999896 & 0.999796 & +9.99e-05 & 1.20e-07 & +0.681 (3.1e-05) \\
+coh 0.3 & 1.000000 & 0.996879 & +3.12e-03 & 7.96e-06 & +0.682 (4.8e-04) \\
+\bottomrule\end{longtable}
 \end{document}

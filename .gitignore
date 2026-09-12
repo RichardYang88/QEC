@@ -15,7 +15,7 @@ build/
 .vscode/
 
 # logs & secrets
-*.log
+#*.log
 .env
 .originq_token
 

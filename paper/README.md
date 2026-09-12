@@ -21,15 +21,18 @@ Number placeholders (`@TOKEN@`) are filled from the analysis artifacts by
 ```bash
 cd ..                                  # repo root
 ./qenv/bin/python vscr_paper.py        # warm-start training + benchmarks + figs
+./qenv/bin/python vscr_paper_coh.py    # coherent-channel supplement (Fig. 3c)
+./qenv/bin/python vscr_paper_abl.py    # same-family baselines + SDP ceiling + ablations
 ./qenv/bin/python hw_verify_analysis.py# hardware feasibility fig + numbers
 ./qenv/bin/python make_schematic.py    # Fig. 1
 cd paper && ./qenv/bin/python fill_numbers.py && ./qenv/bin/python make_ed.py
 ```
 
 Artifacts consumed by the manuscript:
-`vscr_paper_results.npz`, `vscr_angles_paper_{dep,ad,mixed}.npz`,
+`vscr_paper_results.npz`, `vscr_angles_paper_{dep,ad,mixed,coh}.npz`,
+`vscr_paper_abl_results.npz`, `vscr_angles_abl_ind_{dep,ad,mixed,coh}.npz`,
 `paper_numbers.json`, `hw_feasibility_numbers.json`,
-`paper/figures/fig_{schematic,training,branch_cf,sim_benchmark,sim_ler,hw_feasibility}.pdf`.
+`paper/figures/fig_{schematic,training,branch_cf,sim_benchmark,sim_ler,coherent,ablation,hw_feasibility}.pdf`.
 
 **Never overwrite `vscr_angles_dep.npz`** — it is the v1 snapshot whose
 branch circuits produced the WK_C180 feasibility data (Fig. 4).
@@ -75,3 +78,28 @@ full benchmark as a revision/strengthener.
 - The identity branch ($s=0$) failure on WK_C180 (2.4% expected bitstring) is
   reported, not hidden; it motivates the readout-mitigation design of the
   full benchmark.
+- Same-family ablations (`vscr_paper_abl.py`, ED Tables 5–7): a per-syndrome
+  independent parameter table (VQR-ind) matches the warm hypernetwork to
+  ≤1.1e-9 at n=5 and is **stronger** in the cold-start low-data regime —
+  the hypernetwork's justification is asymptotic ($2^{n-k}$ branch scaling)
+  and deployment (single model, exact per-branch decoder warm-start
+  construction), not superior fidelity at this code size. No claim of the
+  paper relies on the hypernetwork.
+- The SDP ceiling shows the Pauli decoder is optimal among ALL CPTP
+  recoveries (given the projective readout) on the Pauli-type channels
+  (depolarizing: ≤4e-13; mixed: +9e-7). Amplitude damping (+7.2e-4) and
+  coherent over-rotation (+1e-4 … +3.1e-3, ceiling exactly 1.0 at ε=0.30)
+  leave small non-Pauli headroom concentrated in low-weight branches that
+  warm-start gradient training does not exploit (decoder point stationary;
+  Pauli-class search finds discrete +0.65-0.68 cf gains on weight-3e-5
+  branches). VSCR's claim is *ceiling saturation without labels* on
+  Pauli-type noise, never "beating the decoder".
+- QVECTOR-style global unitary recovery (no projection) partially inverts
+  purely coherent errors (F̄=0.9962 at ε=0.10) — the one tested regime where
+  a measurement-free variational recovery is competitive; it collapses to
+  raw-state level on stochastic channels (0.52–0.77 vs 0.925–0.985).
+- Reproducibility note: `abl_fix_gaps.py` repaired the E3 branch-gap column
+  after a `register_buffer` aliasing bug (zeroing a cold-start model's
+  `phi_dec` buffer mutated the global `PHI_DEC`); root cause fixed in
+  `vscr_paper.py` (clone on register). All other run outputs were
+  unaffected (they consume `m.C_SYNDS` or pre-corruption artifacts).

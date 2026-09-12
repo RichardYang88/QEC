@@ -33,6 +33,9 @@ repl = {
     '@COH010DEC@': f"{NUM['coh_p010']['Perfect-code decoder']:.4f}",
     '@WORSTVER@': sci(NUM['hardware_frame_numbers']['worst_circuit_vs_simulator']),
 }
+# NOTE: ablation/ceiling numbers (vscr_paper_abl.py) are hard-coded in
+# main.tex from paper_numbers.json['abl'] and verified against
+# vscr_paper_abl.log; ED Tables 5-7 are generated from the same JSON.
 
 src = open(TEX).read()
 missing = [t for t in repl if t not in src]
