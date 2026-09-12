@@ -1,0 +1,205 @@
+{
+ "cdr": [
+  {
+   "t": "Error mitigation with Clifford quantum-circuit data",
+   "a": "Czarnik",
+   "y": 2021,
+   "j": "Quantum",
+   "v": "5",
+   "p": "592",
+   "doi": "10.22331/q-2021-11-26-592"
+  },
+  {
+   "t": "Extension of Clifford Data Regression Methods for Quantum Error Mitigation",
+   "a": "P\u00e9rez-Guijarro",
+   "y": 2024,
+   "j": "ICASSP 2024 - 2024 IEEE International Conference o",
+   "v": "",
+   "p": "9691-9695",
+   "doi": "10.1109/icassp48485.2024.10446476"
+  },
+  {
+   "t": "Extension of Clifford Data Regression Methods for Quantum Error Mitigation",
+   "a": "P\u00e9rez-Guijarro",
+   "y": 2026,
+   "j": "IEEE Transactions on Quantum Engineering",
+   "v": "7",
+   "p": "1-22",
+   "doi": "10.1109/tqe.2026.3677541"
+  }
+ ],
+ "vncdr": [
+  {
+   "t": "Extension of Clifford Data Regression Methods for Quantum Error Mitigation",
+   "a": "P\u00e9rez-Guijarro",
+   "y": 2026,
+   "j": "IEEE Transactions on Quantum Engineering",
+   "v": "7",
+   "p": "1-22",
+   "doi": "10.1109/tqe.2026.3677541"
+  },
+  {
+   "t": "Extension of Clifford Data Regression Methods for Quantum Error Mitigation",
+   "a": "P\u00e9rez-Guijarro",
+   "y": 2024,
+   "j": "ICASSP 2024 - 2024 IEEE International Conference o",
+   "v": "",
+   "p": "9691-9695",
+   "doi": "10.1109/icassp48485.2024.10446476"
+  },
+  {
+   "t": "Error mitigation with Clifford quantum-circuit data",
+   "a": "Czarnik",
+   "y": 2021,
+   "j": "Quantum",
+   "v": "5",
+   "p": "592",
+   "doi": "10.22331/q-2021-11-26-592"
+  }
+ ],
+ "bausch22": [
+  {
+   "t": "Learning high-accuracy error decoding for quantum processors",
+   "a": "Bausch",
+   "y": 2024,
+   "j": "Nature",
+   "v": "635",
+   "p": "834-840",
+   "doi": "10.1038/s41586-024-08148-8"
+  },
+  {
+   "t": "Artificial neural network syndrome decoding on IBM quantum processors",
+   "a": "Hall",
+   "y": 2024,
+   "j": "Physical Review Research",
+   "v": "6",
+   "p": "L032004",
+   "doi": "10.1103/physrevresearch.6.l032004"
+  },
+  {
+   "t": "Programming and learning quantum processors",
+   "a": "Votto",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.70675/34b4880fze6edz4148z95c8zdc4cc25ffd1a"
+  }
+ ],
+ "ion832b": [
+  {
+   "t": "Planar Fault-Tolerant Circuits for Non-Clifford Gates on the 2D Color Code",
+   "a": "Bauer",
+   "y": 2026,
+   "j": "PRX Quantum",
+   "v": "7",
+   "p": "020367",
+   "doi": "10.1103/p7c9-x1m9"
+  },
+  {
+   "t": "Fault-Tolerant Logical Clifford Gates from Code Automorphisms",
+   "a": "Sayginel",
+   "y": 2025,
+   "j": "PRX Quantum",
+   "v": "6",
+   "p": "030343",
+   "doi": "10.1103/vf7v-cpq9"
+  },
+  {
+   "t": "Cross-Cap Defects and Fault-Tolerant Logical Gates in the Surface Code and the Honeycomb Floquet Code",
+   "a": "Kobayashi",
+   "y": 2024,
+   "j": "PRX Quantum",
+   "v": "5",
+   "p": "020360",
+   "doi": "10.1103/prxquantum.5.020360"
+  }
+ ],
+ "pyqpanda": [
+  {
+   "t": "Sample Quantum Framework Application",
+   "a": "?",
+   "y": 2002,
+   "j": "Practical Statecharts in C/C++",
+   "v": "",
+   "p": "321-340",
+   "doi": "10.1201/9781482280807-16"
+  },
+  {
+   "t": "Introducing the Quantum Framework",
+   "a": "?",
+   "y": 2002,
+   "j": "Practical Statecharts in C/C++",
+   "v": "",
+   "p": "205-230",
+   "doi": "10.1201/9781482280807-13"
+  },
+  {
+   "t": "Design of the Quantum Framework",
+   "a": "?",
+   "y": 2002,
+   "j": "Practical Statecharts in C/C++",
+   "v": "",
+   "p": "231-280",
+   "doi": "10.1201/9781482280807-14"
+  }
+ ],
+ "wukong2": [
+  {
+   "t": "Quantum comparator circuit on superconducting quantum computer",
+   "a": "?",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.58837/chula.the.2019.156"
+  },
+  {
+   "t": "Superconducting Quantum Computer Systems",
+   "a": "?",
+   "y": 2022,
+   "j": "Principles of Superconducting Quantum Computers",
+   "v": "",
+   "p": "63-105",
+   "doi": "10.1002/9781119750758.ch4"
+  },
+  {
+   "t": "Entanglement in\n            <scp>IBMQ</scp>\n            superconducting quantum computer with 53 qubits",
+   "a": "Fei",
+   "y": 2020,
+   "j": "Quantum Engineering",
+   "v": "2",
+   "p": "",
+   "doi": "10.1002/que2.48"
+  }
+ ],
+ "quantinuum_logical": [
+  {
+   "t": "Quantum Error Correction using cat qubits",
+   "a": "Marquet",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.70675/6748815fz4d8fz484dz94cfz143f5f473a21"
+  },
+  {
+   "t": "Enhanced Entanglement Protection of Logical Qubits by a Hybrid Quantum Error Correction and Entanglement Purif",
+   "a": "Bonde",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.21203/rs.3.rs-9355732/v1"
+  },
+  {
+   "t": "Autonomous quantum error correction with superconducting qubits",
+   "a": "Cohen",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.70675/acf9e621z2685z4313za041z0fc72ffb08d1"
+  }
+ ]
+}

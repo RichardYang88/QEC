@@ -296,6 +296,15 @@ def apply_mixed(rho, p, gamma):
     return rho
 
 
+def apply_coherent(rho, eps):
+    """Systematic coherent over-rotation: identical Rx(eps) on every qubit
+    (calibration-type control error).  NOT a Pauli mixture."""
+    U = I_full
+    for q in range(N):
+        U = U @ embed_gate(Rx(torch.tensor(eps, dtype=DTYPE)), [q])
+    return U @ rho @ U.conj().T
+
+
 def noisy_state(psi_enc, p, noise='depolarizing'):
     """Build the noisy density matrix from a pure encoded state."""
     rho = torch.outer(psi_enc, psi_enc.conj())
@@ -305,6 +314,8 @@ def noisy_state(psi_enc, p, noise='depolarizing'):
         rho = apply_amplitude_damping(rho, p)
     elif noise == 'mixed':
         rho = apply_mixed(rho, p, 0.5 * p)
+    elif noise == 'coherent':
+        rho = apply_coherent(rho, p)
     else:
         raise ValueError(noise)
     return rho

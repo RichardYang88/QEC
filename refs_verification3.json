@@ -1,0 +1,495 @@
+{
+ "below_threshold": [
+  {
+   "t": "Quantum error correction below the surface code threshold",
+   "a": "?",
+   "y": 2024,
+   "j": "Nature",
+   "v": "638",
+   "p": "920-926",
+   "doi": "10.1038/s41586-024-08449-y"
+  },
+  {
+   "t": "Author Correction: Quantum error correction below the surface code threshold",
+   "a": "?",
+   "y": 2026,
+   "j": "Nature",
+   "v": "653",
+   "p": "E5-E5",
+   "doi": "10.1038/s41586-026-10559-8"
+  },
+  {
+   "t": "Experimental Quantum Error Correction below the Surface Code Threshold via All-Microwave Leakage Suppression",
+   "a": "He",
+   "y": 2025,
+   "j": "Physical Review Letters",
+   "v": "135",
+   "p": "260601",
+   "doi": "10.1103/rqkg-dw31"
+  }
+ ],
+ "scaling": [
+  {
+   "t": "Suppressing quantum errors by scaling a surface code logical qubit",
+   "a": "?",
+   "y": 2023,
+   "j": "Nature",
+   "v": "614",
+   "p": "676-681",
+   "doi": "10.1038/s41586-022-05434-1"
+  },
+  {
+   "t": "Logical-qubit operations in an error-detecting surface code",
+   "a": "Marques",
+   "y": 2021,
+   "j": "Nature Physics",
+   "v": "18",
+   "p": "80-86",
+   "doi": "10.1038/s41567-021-01423-9"
+  },
+  {
+   "t": "Logical-qubit operations in an error-detecting surface code",
+   "a": "Marques",
+   "y": 2021,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.21203/rs.3.rs-380732/v1"
+  }
+ ],
+ "ryan_anderson": [
+  {
+   "t": "Realization of real-time fault-tolerant quantum error correction",
+   "a": "Ryan-Anderson",
+   "y": 2022,
+   "j": "Quantum Computing, Communication, and Simulation I",
+   "v": "",
+   "p": "7",
+   "doi": "10.1117/12.2614870"
+  },
+  {
+   "t": "Realization of Real-Time Fault-Tolerant Quantum Error Correction",
+   "a": "Ryan-Anderson",
+   "y": 2021,
+   "j": "Physical Review X",
+   "v": "11",
+   "p": "041058",
+   "doi": "10.1103/physrevx.11.041058"
+  },
+  {
+   "t": "Fault-tolerant quantum error correction",
+   "a": "Djordjevic",
+   "y": 2022,
+   "j": "Quantum Communication, Quantum Networks, and Quant",
+   "v": "",
+   "p": "563-598",
+   "doi": "10.1016/b978-0-12-822942-2.00009-1"
+  }
+ ],
+ "bosonic_sup": [
+  {
+   "t": "Exponential suppression of bit or phase errors with cyclic error correction",
+   "a": "?",
+   "y": 2021,
+   "j": "Nature",
+   "v": "595",
+   "p": "383-387",
+   "doi": "10.1038/s41586-021-03588-y"
+  },
+  {
+   "t": "Scaling Up Bit-Flip Quantum Error Correction",
+   "a": "Feroz",
+   "y": 2020,
+   "j": "7th International Conference on Networking, System",
+   "v": "",
+   "p": "100-106",
+   "doi": "10.1145/3428363.3428372"
+  },
+  {
+   "t": "Exponential Error Suppression for Near-Term Quantum Devices",
+   "a": "Koczor",
+   "y": 2021,
+   "j": "Physical Review X",
+   "v": "11",
+   "p": "031057",
+   "doi": "10.1103/physrevx.11.031057"
+  }
+ ],
+ "fowler": [
+  {
+   "t": "Surface codes: Towards practical large-scale quantum computation",
+   "a": "Fowler",
+   "y": 2012,
+   "j": "Physical Review A",
+   "v": "86",
+   "p": "032324",
+   "doi": "10.1103/physreva.86.032324"
+  },
+  {
+   "t": "Towards practical quantum LDPC codes",
+   "a": "Roffe",
+   "y": 2021,
+   "j": "Quantum Views",
+   "v": "5",
+   "p": "63",
+   "doi": "10.22331/qv-2021-11-30-63"
+  },
+  {
+   "t": "Recent progress towards large-scale integrated photonic quantum computation",
+   "a": "Zhu",
+   "y": 2026,
+   "j": "npj Nanophotonics",
+   "v": "3",
+   "p": "20",
+   "doi": "10.1038/s44310-026-00114-8"
+  }
+ ],
+ "torlai": [
+  {
+   "t": "Neural Decoder for Topological Codes",
+   "a": "Torlai",
+   "y": 2017,
+   "j": "Physical Review Letters",
+   "v": "119",
+   "p": "030501",
+   "doi": "10.1103/physrevlett.119.030501"
+  },
+  {
+   "t": "Scalable Neural Decoder for Topological Surface Codes",
+   "a": "Meinerz",
+   "y": 2022,
+   "j": "Physical Review Letters",
+   "v": "128",
+   "p": "080505",
+   "doi": "10.1103/physrevlett.128.080505"
+  },
+  {
+   "t": "Neural network decoder for topological color codes with circuit level noise",
+   "a": "Baireuther",
+   "y": 2019,
+   "j": "New Journal of Physics",
+   "v": "21",
+   "p": "013003",
+   "doi": "10.1088/1367-2630/aaf29e"
+  }
+ ],
+ "knill": [
+  {
+   "t": "Theory of quantum error-correcting codes",
+   "a": "Knill",
+   "y": 1997,
+   "j": "Physical Review A",
+   "v": "55",
+   "p": "900-911",
+   "doi": "10.1103/physreva.55.900"
+  },
+  {
+   "t": "Error Correcting Codes in Quantum Theory",
+   "a": "Steane",
+   "y": 1996,
+   "j": "Physical Review Letters",
+   "v": "77",
+   "p": "793-797",
+   "doi": "10.1103/physrevlett.77.793"
+  },
+  {
+   "t": "Quantum Error Correcting Codes",
+   "a": "?",
+   "y": 2008,
+   "j": "Quantum Computing",
+   "v": "",
+   "p": "211-246",
+   "doi": "10.1201/9781420012293-16"
+  }
+ ],
+ "vncdr": [
+  {
+   "t": "Extension of Clifford Data Regression Methods for Quantum Error Mitigation",
+   "a": "P\u00e9rez-Guijarro",
+   "y": 2024,
+   "j": "ICASSP 2024 - 2024 IEEE International Conference o",
+   "v": "",
+   "p": "9691-9695",
+   "doi": "10.1109/icassp48485.2024.10446476"
+  },
+  {
+   "t": "Extension of Clifford Data Regression Methods for Quantum Error Mitigation",
+   "a": "P\u00e9rez-Guijarro",
+   "y": 2026,
+   "j": "IEEE Transactions on Quantum Engineering",
+   "v": "7",
+   "p": "1-22",
+   "doi": "10.1109/tqe.2026.3677541"
+  },
+  {
+   "t": "Regression\u2010based variable clustering for data reduction",
+   "a": "McClelland",
+   "y": 2002,
+   "j": "Statistics in Medicine",
+   "v": "21",
+   "p": "921-941",
+   "doi": "10.1002/sim.1063"
+  }
+ ],
+ "wukong": [
+  {
+   "t": "Superconducting Quantum Chip Design and Simulation",
+   "a": "Saslow",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.31979/etd.fwn5-m7hc"
+  },
+  {
+   "t": "A Superconducting Quantum Chip Architecture Design Method for Quantum Programs",
+   "a": "Liang",
+   "y": 2023,
+   "j": "2023 3rd International Symposium on Computer Techn",
+   "v": "",
+   "p": "1115-1121",
+   "doi": "10.1109/isctis58954.2023.10213168"
+  },
+  {
+   "t": "Superconducting Quantum Computer Systems",
+   "a": "?",
+   "y": 2022,
+   "j": "Principles of Superconducting Quantum Computers",
+   "v": "",
+   "p": "63-105",
+   "doi": "10.1002/9781119750758.ch4"
+  }
+ ],
+ "petz": [
+  {
+   "t": "Sufficient subalgebras and the relative entropy of states of a von Neumann algebra",
+   "a": "Petz",
+   "y": 1986,
+   "j": "Communications in Mathematical Physics",
+   "v": "105",
+   "p": "123-131",
+   "doi": "10.1007/bf01212345"
+  },
+  {
+   "t": "Relative entropy for von Neumann subalgebras",
+   "a": "Gao",
+   "y": 2020,
+   "j": "International Journal of Mathematics",
+   "v": "31",
+   "p": "2050046",
+   "doi": "10.1142/s0129167x20500469"
+  },
+  {
+   "t": "VON NEUMANN ENTROPY AND RELATIVE POSITION BETWEEN SUBALGEBRAS",
+   "a": "CHODA",
+   "y": 2013,
+   "j": "International Journal of Mathematics",
+   "v": "24",
+   "p": "1350066",
+   "doi": "10.1142/s0129167x13500663"
+  }
+ ],
+ "ion832": [
+  {
+   "t": "Implementing fault-tolerant non-Clifford gates using the [[8,3,2]] color code",
+   "a": "Honciuc Menendez",
+   "y": 2024,
+   "j": "Physical Review A",
+   "v": "109",
+   "p": "062438",
+   "doi": "10.1103/physreva.109.062438"
+  },
+  {
+   "t": "Planar Fault-Tolerant Circuits for Non-Clifford Gates on the 2D Color Code",
+   "a": "Bauer",
+   "y": 2026,
+   "j": "PRX Quantum",
+   "v": "7",
+   "p": "020367",
+   "doi": "10.1103/p7c9-x1m9"
+  },
+  {
+   "t": "Fault-Tolerant Logical Clifford Gates from Code Automorphisms",
+   "a": "Sayginel",
+   "y": 2025,
+   "j": "PRX Quantum",
+   "v": "6",
+   "p": "030343",
+   "doi": "10.1103/vf7v-cpq9"
+  }
+ ],
+ "em_review": [
+  {
+   "t": "Quantum error mitigation",
+   "a": "Cai",
+   "y": 2023,
+   "j": "Reviews of Modern Physics",
+   "v": "95",
+   "p": "045005",
+   "doi": "10.1103/revmodphys.95.045005"
+  },
+  {
+   "t": "Compressed quantum error mitigation",
+   "a": "Tepaske",
+   "y": 2023,
+   "j": "Physical Review B",
+   "v": "107",
+   "p": "L201114",
+   "doi": "10.1103/physrevb.107.l201114"
+  },
+  {
+   "t": "Superposed Quantum Error Mitigation",
+   "a": "Miguel-Ramiro",
+   "y": 2023,
+   "j": "Physical Review Letters",
+   "v": "131",
+   "p": "230601",
+   "doi": "10.1103/physrevlett.131.230601"
+  }
+ ],
+ "transformer": [
+  {
+   "t": "Transformer-Based Quantum Error Decoding Enhanced by QGANs: Towards Scalable Surface Code Correction Algorithm",
+   "a": "Tian",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.21203/rs.3.rs-5704833/v1"
+  },
+  {
+   "t": "QECOOL: On-Line Quantum Error Correction with a Superconducting Decoder for Surface Code",
+   "a": "Ueno",
+   "y": 2021,
+   "j": "2021 58th ACM/IEEE Design Automation Conference (D",
+   "v": "",
+   "p": "451-456",
+   "doi": "10.1109/dac18074.2021.9586326"
+  },
+  {
+   "t": "Transformer-based quantum error decoding enhanced by QGANs: towards scalable surface code correction algorithm",
+   "a": "Tian",
+   "y": 2025,
+   "j": "EPJ Quantum Technology",
+   "v": "12",
+   "p": "76",
+   "doi": "10.1140/epjqt/s40507-025-00383-w"
+  }
+ ],
+ "rl_dec": [
+  {
+   "t": "Adaptive Reinforcement Learning for Autonomous Quantum Error Correction in Surface Codes",
+   "a": "Mohammed Shibah",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.2139/ssrn.5765046"
+  },
+  {
+   "t": "FPGA-Based Syndrome Decoder for Quantum Error Correction: Design and Simulation",
+   "a": "Sarkarov",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.36227/techrxiv.174063286.68174234/v1"
+  },
+  {
+   "t": "Adaptive Co-Design of Quantum Machine Learning Algorithms and Error Correction Protocols using Reinforcement L",
+   "a": "Maes",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.31219/osf.io/5jte9_v1"
+  }
+ ],
+ "qaoa_dec": [
+  {
+   "t": "QECOOL: On-Line Quantum Error Correction with a Superconducting Decoder for Surface Code",
+   "a": "Ueno",
+   "y": 2021,
+   "j": "2021 58th ACM/IEEE Design Automation Conference (D",
+   "v": "",
+   "p": "451-456",
+   "doi": "10.1109/dac18074.2021.9586326"
+  },
+  {
+   "t": "RESCUED: Robust Quantum Error Correction with Surface Code in Noisy Channels Using Ensemble Decoder",
+   "a": "Barua",
+   "y": 2023,
+   "j": "2023 IEEE International Conference on Telecommunic",
+   "v": "",
+   "p": "01-05",
+   "doi": "10.1109/ictp60248.2023.10490966"
+  },
+  {
+   "t": "Resgru: Syndrome decoder for heavy-hexagon quantum error correction code",
+   "a": "Kumar",
+   "y": 2026,
+   "j": "Physica Scripta",
+   "v": "101",
+   "p": "285102",
+   "doi": "10.1088/1402-4896/ae87e2"
+  }
+ ],
+ "alphaqubit": [
+  {
+   "t": "Deep learning-assisted video list decoding in error-prone video transmission systems",
+   "a": "Zhang",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.70675/1d0878eez4905z432az9623zbee74e1a454f"
+  },
+  {
+   "t": "Decoding algorithms for quantum error correcting codes",
+   "a": "?",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.15581/10171/69884"
+  },
+  {
+   "t": "Deep Learning-Optimized, Fabrication Error-Tolerant Photonic Crystal Nanobeam Cavities for Scalable On-Chip Di",
+   "a": "?",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.1021/acsaom.5c00060.s001"
+  }
+ ],
+ "quantinuum25": [
+  {
+   "t": "",
+   "a": "?",
+   "y": 2022,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.61686/agmfl63114"
+  },
+  {
+   "t": "Planar fault-tolerant logical measurements with low qubit overhead",
+   "a": "Yang",
+   "y": 2026,
+   "j": "npj Quantum Information",
+   "v": "",
+   "p": "",
+   "doi": "10.1038/s41534-026-01310-2"
+  },
+  {
+   "t": "Repeated multi-qubit readout and feedback with a mixed-species trapped-ion register",
+   "a": "Negnevitsky",
+   "y": 2018,
+   "j": "Nature",
+   "v": "563",
+   "p": "527-531",
+   "doi": "10.1038/s41586-018-0668-z"
+  }
+ ]
+}

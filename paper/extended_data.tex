@@ -1,0 +1,91 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,booktabs,longtable,array}
+\usepackage{graphicx}
+\graphicspath{{figures/}}
+\begin{document}
+\section*{Extended Data Tables --- VSCR $[\![5,1,3]\!]$ manuscript}
+
+\subsection*{ED Table 1: exact ideal reference of the hardware benchmark}
+Zero-noise per-frame circuit fidelity $F=\sum_s F_s$ (dense statevector,
+late-measure branch circuits compiled from the trained depolarizing model)
+for logical states $\ket{0},\ket{+}$; every single-Pauli frame is corrected
+exactly, so the $p$-dependent ideal benchmark value follows from Pauli-frame
+averaging, $F(p)=1-O(p^2)$. Worst circuit-vs-density-matrix deviation
+$7.99\times 10^{-15}$. Frames are single-qubit Pauli injections.
+\begin{longtable}{llcc}
+\toprule frame & correction $C_s$ & $F(\ket{0})$ & $F(\ket{+})$ \\ \midrule
+IIIII & $0$ & 1.000000 & 1.000000 \\
+XIIII & $1$ & 1.000000 & 1.000000 \\
+IIZII & $2$ & 1.000000 & 1.000000 \\
+IIIIX & $3$ & 1.000000 & 1.000000 \\
+IIIIZ & $4$ & 1.000000 & 1.000000 \\
+IZIII & $5$ & 1.000000 & 1.000000 \\
+IIIXI & $6$ & 1.000000 & 1.000000 \\
+IIIIY & $7$ & 1.000000 & 1.000000 \\
+IXIII & $8$ & 1.000000 & 1.000000 \\
+IIIZI & $9$ & 1.000000 & 1.000000 \\
+ZIIII & $10$ & 1.000000 & 1.000000 \\
+YIIII & $11$ & 1.000000 & 1.000000 \\
+IIXII & $12$ & 1.000000 & 1.000000 \\
+IYIII & $13$ & 1.000000 & 1.000000 \\
+IIYII & $14$ & 1.000000 & 1.000000 \\
+IIIYI & $15$ & 1.000000 & 1.000000 \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 2: per-branch conditional fidelity $\mathrm{cf}_s$}
+Depolarizing channel; $p=0.05$ and $p=0.15$; perfect-code decoder vs
+cold-started v1 model vs warm-started paper model.
+\begin{longtable}{lccc|ccc}
+\toprule & \multicolumn{3}{c}{$p=0.05$} & \multicolumn{3}{c}{$p=0.15$} \\
+branch $s$ ($C_s$) & dec & cold & warm & dec & cold & warm \\ \midrule
+0 (IIIII) & 0.9999 & 0.9999 & 0.9999 & 0.9959 & 0.9959 & 0.9959 \\
+1 (XIIII) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+2 (IIZII) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+3 (IIIIX) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+4 (IIIIZ) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+5 (IZIII) & 0.9345 & 0.6509 & 0.9345 & 0.8122 & 0.6085 & 0.8122 \\
+6 (IIIXI) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+7 (IIIIY) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+8 (IXIII) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+9 (IIIZI) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+10 (ZIIII) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+11 (YIIII) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+12 (IIXII) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+13 (IYIII) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+14 (IIYII) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+15 (IIIYI) & 0.9345 & 0.9345 & 0.9345 & 0.8122 & 0.8122 & 0.8122 \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 3: WK\_C180 feasibility statistics}
+$400$ shots requested per circuit; $n$ usable; $P_{\rm exp}$ probability of
+the expected bitstring; sel/hit post-selected counts; $F_s$ with Wilson
+95\% interval; TV = total-variation distance to the exact ideal joint
+distribution.
+\begin{longtable}{lclcccccc}
+\toprule circuit & scheme & $s$ & $n$ & $P_{\rm exp}^{\rm hw}$ & $P_{\rm exp}^{\rm ideal}$ & sel & hit & $F_s$ [95\% CI] & TV \\ \midrule
+A & mid & 0 & 369 & 0.000 & 1.000 & 0 & 0 & -- -- & 1.000 \\
+B & mid & 12 & 366 & 0.000 & 1.000 & 44 & 0 & 0.00 [0.00,0.08] & 1.000 \\
+C & late & 0 & 370 & 0.024 & 1.000 & 25 & 9 & 0.36 [0.20,0.55] & 0.976 \\
+D & late & 12 & 371 & 0.119 & 1.000 & 55 & 44 & 0.80 [0.68,0.88] & 0.881 \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 4: bitstring-layout hypothesis evidence}
+Branch-consistency scores over the four feasibility circuits (pre-fix
+scoring) and data-hit evidence that established the final layout
+(raw key $=[a_3a_2a_1a_0][d_4d_3d_2d_1d_0]$, i.e.\ reverse(key)$[5{:}9]$ =
+syndrome). Circuit D ($s=12$) discriminates: only the reversed-ancilla
+hypothesis yields data hits.
+\begin{tabular}{lcc}
+\toprule hypothesis & consistency score & data hits (D) \\ \midrule
+anc@key[0:4], fwd  & 46  & 0 \\
+anc@key[5:9], fwd  & 192 & 0 \\
+anc@key[0:4], rev  & 179 & 0 \\
+anc@key[5:9], rev  & 124 & 44 \\
+\bottomrule\end{tabular}
+
+\vspace{6pt}\noindent\emph{Note.} The consistency score alone favours a
+wrong hypothesis (it counts selected shots, not decoded-data hits); the
+data-hit column is the decisive evidence and motivated the corrected
+\texttt{detect\_layout} scoring (lexicographic: data hits, then selected).
+\end{document}

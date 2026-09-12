@@ -218,7 +218,8 @@ def verify_encoder(U_enc):
 # 2) trained VSCR angles -> recovery gate lists R_s
 # ---------------------------------------------------------------------
 def load_angles(noise='depolarizing', retrain=False):
-    path = f'vscr_angles_{"dep" if noise == "depolarizing" else noise}.npz'
+    env = os.environ.get('VSCR_ANGLES_FILE')
+    path = env if env else f'vscr_angles_{"dep" if noise == "depolarizing" else noise}.npz'
     if os.path.exists(path) and not retrain:
         return np.load(path)['phi']
     torch.manual_seed(0)
@@ -507,20 +508,22 @@ def counts_to_branch_stats(counts, s_idx, anc_slice=slice(0, 4), rev=False):
 def detect_layout(meta, results):
     hypotheses = [(slice(0, 4), False), (slice(5, 9), False),
                   (slice(0, 4), True), (slice(5, 9), True)]
-    best, best_score = hypotheses[0], -1
+    best, best_score = hypotheses[0], (-1, -1)
     for hyp in hypotheses:
         anc_slice, rev = hyp
-        score = 0
+        hits = sel = 0
         for (psi, p, fr, s), counts in zip(meta, results):
-            n_sel, _ = counts_to_branch_stats(counts, s, anc_slice, rev)
-            score += n_sel
+            n_sel, n_hit = counts_to_branch_stats(counts, s, anc_slice, rev)
+            hits += n_hit
+            sel += n_sel
         print(f'[layout] hypothesis anc@key[{anc_slice.start}:{anc_slice.stop}] rev={rev}: '
-              f'score {score}')
-        if score > best_score:
-            best, best_score = hyp, score
+              f'data-hits {hits}, selected {sel}')
+        # hits are the discriminating signal (sel alone favors all-zero keys)
+        if (hits, sel) > best_score:
+            best, best_score = hyp, (hits, sel)
     anc_slice, rev = best
     print(f'[layout] CHOSEN: ancilla bits at key[{anc_slice.start}:{anc_slice.stop}] rev={rev} '
-          f'(branch-consistency score {best_score})')
+          f'(data-hits {best_score[0]}, selected {best_score[1]})')
     return anc_slice, rev
 
 
@@ -801,9 +804,9 @@ def submit_cloud(gate_lists, token, chip_id='WK_C180_2', shots=4000,
             res = job.result()
             raw_all.extend(_extract_counts_list(res, len(part), shots))
             print(f'[cloud]   batch {off // chunk + 1}: received', flush=True)
-        if dump_raw:
-            with open(dump_raw, 'w') as f:
-                json.dump(raw_all, f, default=str, ensure_ascii=False, indent=1)
+            if dump_raw:  # incremental save: keep partial data if quota dies mid-run
+                with open(dump_raw, 'w') as f:
+                    json.dump(raw_all, f, default=str, ensure_ascii=False, indent=1)
         results = raw_all
     else:
         for i, gates in enumerate(gate_lists):
@@ -964,6 +967,10 @@ def main():
                          'set_specified_block (default: auto-query '
                          'best_qubit_blocks(9) on the chip)')
     ap.add_argument('--tag', default=None)
+    ap.add_argument('--analyze', default=None,
+                    help='offline mode: path to a raw dump JSON '
+                         '(--dump-raw output); analyze it instead of '
+                         'submitting to the cloud (no token needed)')
     args = ap.parse_args()
 
     if args.mode in ('cloud', 'sample') and not HAS_PYQPANDA3:
@@ -984,16 +991,34 @@ def main():
         return
 
     # ---- cloud mode ----
-    if not args.token:
-        print('ERROR: no token. Register at http://qcloud.originqc.com.cn/, '
-              'get API Key, then pass --token or set ORIGINQ_TOKEN.')
-        sys.exit(2)
     psis = args.states.split(',')
     p_values = [float(x) for x in args.p_values.split(',')]
     plan = build_plan(psis, p_values, args.frames)
     gate_lists, meta = plan_progs(plan, phi, late_measure=args.late_measure)
     print(f'[cloud] plan: {len(plan)} points x 16 branches = {len(gate_lists)} circuits, '
           f'{args.shots} shots each')
+    if args.analyze:
+        results = json.load(open(args.analyze))
+        print(f'[analyze] loaded {len(results)} count-dicts from {args.analyze}')
+        assert len(results) == len(gate_lists), \
+            f'dump has {len(results)} circuits but plan expects {len(gate_lists)}'
+        anc_slice, rev = detect_layout(meta, results)
+        agg = aggregate(plan, meta, results, args.shots, anc_slice, rev)
+        for key, entries in sorted(agg.items()):
+            hw = np.mean([e[1] for e in entries])
+            ide = np.mean([e[3] for e in entries])
+            print(f'  psi={key[0]} p={key[1]}: HW={hw:.4f}  '
+                  f'ideal-sim={ide:.4f}  gap={hw - ide:+.4f}')
+        p_grid = np.linspace(0.0, max(p_values) * 1.25, 12)
+        curves = dense_reference_curves(phi, psis, p_grid)
+        tag = args.tag or ('analyze_' +
+                           os.path.basename(args.analyze).replace('.json', ''))
+        save_and_plot(agg, curves, p_grid, tag)
+        return
+    if not args.token:
+        print('ERROR: no token. Register at http://qcloud.originqc.com.cn/, '
+              'get API Key, then pass --token or set ORIGINQ_TOKEN.')
+        sys.exit(2)
     t0 = time.time()
     block = None
     if args.block:

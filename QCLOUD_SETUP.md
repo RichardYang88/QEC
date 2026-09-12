@@ -72,6 +72,10 @@ export ORIGINQ_TOKEN='...'
 
 ## 五、实测记录(2026-09-08 深夜)与 pyqpanda 3.8.5 注意事项
 
+> **⚠️ 已废弃**:本节及 `qcloud_auto.py` 守护进程走的是旧 `pyqpanda` QCloud 接口,
+> 该接口对此账号已不可用(芯片枚举/维护状态均失效)。现行可用路径见 **第六节**
+> (`pyqpanda3.qcloud` + 字符串芯片 ID `WK_C180`)。
+
 token 已写入 `.originq_token`(已加入 .gitignore,勿提交),认证已通过。
 实测发现的坑与已实施的修复(全部已在 `qcloud_vscr.py` 中落实):
 
@@ -99,3 +103,78 @@ tail -f qcloud_auto.log     # 观察进度
 任一芯片接受任务后,自动执行完整实验(128 电路 × 4000 shots,每 32 条一批
 提交,batch 失败自动降级为逐条 `--no-batch`),并生成
 `qcloud_results_full_chip<id>.json` + `figures/fig_qcloud_hardware_full_chip<id>.png`。
+
+## 六、pyqpanda3 真机协议最终结论(2026-09-10 深夜实测,现行方案)
+
+现行管线:`qcloud_vscr_new.py`(pyqpanda3)+ `QCloudService.backend('WK_C180')`。
+芯片 ID 为字符串:`WK_C180`(队列较短,首选)、`WK_C180_2`(排队任务多)、
+`PQPUMESH8`、`HanYuan_01`(离线)。在线状态可用 `service.backends()` 免费查询。
+
+### 6.1 三个决定成败的实测发现
+
+| # | 发现 | 证据 | 对策 |
+|---|---|---|---|
+| 1 | **无 QCloudOptions 的默认提交返回近均匀垃圾**(trial 16×2000,最高 key 仅 3.4%,任何位序假设 data-hits=0) | `raw_trial_batch.json` | `QCloudOptions`:`set_amend(True)` + `set_mapping(True)` + `set_optimization(True)` + `set_specified_block(best_qubit_blocks(9))` |
+| 2 | **WK_C180 上中间测量(mid-measure)会毁掉数据比特的后续计算**:即使带正确 options,mid 变体仍全无信号(sel=97 而 hit=0);late 变体出现真实信号 | `qcloud_verify_options.py` → `raw_verify_options.json`:late+IIXII+s=12 电路 top key `'001100000'`(44/371),anc 位反转=`'1100'`=s12,data=`'00000'`,**F_s=0.80**;伴随 `'000100000'`(50)=a1 辅助比特 T1 弛豫/读出头 flip 峰 | 全量实验必须 `--late-measure`。副作用:辅助比特在 recovery+decode 期间空闲,弛豫使症候读数偏向低权重 → 该系统性效应计入硬件基准(与理想仿真的 gap 的一部分) |
+| 3 | **返回位序 = 整串反转的 cb0..cb8**,即 string=`[c3c2c1c0|c8c7c6c5c4]`;且旧 `detect_layout` 用 Σselected 打分会被全零 key 骗过(错选 `[5:9]rev=False`) | 4 假设 hits 对比:`(slice(5,9),rev=True)` hits=53,其余 ≈9 | `detect_layout` 已改为 **(data-hits, selected) 字典序**打分,离线验证选择正确 |
+
+最优物理比特块(`backend.best_qubit_blocks(9)`,免费查询):
+`[147, 155, 157, 164, 165, 166, 174, 175, 176]`(submit_cloud 会自动查询并固定)。
+
+### 6.2 配额(QPU time)现状 — 当前阻塞点
+
+- 报错 `RuntimeError: QPU time is insufficient. Please purchase more.` = **真机机时**
+  不足(注意:网站"账户余额"充值 ≠ 真机机时,机时需在控制台单独购买/申请)。
+- 时间线:22:23 全量 4000 shots 跑到 batch2 时机时耗尽(batch1 的 128K shots
+  数据未落盘,教训 → 已改为**每 chunk 增量写盘**);充值后 1600-shots 验证任务
+  成功;随后 32×1000 全量与 16×100 探针**均被拒** → 机时又见底。
+- 全量预算:128 电路 × 1000 shots = **128K shots**(4 个任务 × 32 电路,
+  每 chunk 恰为 2 个完整数据点,中途断掉已得数据可分析)。
+  更省: `--shots 500`(64K,单点误差 ±2%)。
+
+### 6.3 机时到账后的运行手册
+
+```bash
+cd /home/yqc/github/QEC
+# 1) (可选)最小探针:1 个数据点 × 100 shots = 1600 shots,端到端验证管线
+./qenv/bin/python -u qcloud_probe_point.py
+
+# 2) 全量实验(late-measure + options + 最优块,增量落盘 qcloud_raw_full.json)
+bash launch_full.sh          # 等价命令见脚本内;日志 qcloud_full.log
+tail -f qcloud_full.log
+
+# 3) 输出: qcloud_results_full_late_1000.json
+#          figures/fig_qcloud_hardware_full_late_1000.png
+#    (真机点+误差棒 vs 同帧理想仿真 x vs 密集参考曲线)
+```
+
+手动等价命令:
+
+```bash
+./qenv/bin/python -u qcloud_vscr_new.py --mode cloud \
+    --chip-id WK_C180 --token "$(cat .originq_token)" \
+    --shots 1000 --p-values 0.02,0.08 --frames 2 --states 0,+ \
+    --late-measure --chunk 32 --job-timeout 21600 \
+    --dump-raw qcloud_raw_full.json --tag full_late_1000
+```
+
+新增 CLI:`--no-options`(退回无 options 提交,不推荐)、
+`--block "147,155,..."`(手动指定物理块,默认自动查询)。
+
+### 6.4 论文模型角度与离线分析(2026-09 论文定稿配套)
+
+- 论文仿真模型为 **warm-start VSCR**(见 `vscr_paper.py`),角度文件
+  `vscr_angles_paper_{dep,ad,mixed}.npz`;真机全量运行前请设置
+  `export VSCR_ANGLES_FILE=$PWD/vscr_angles_paper_dep.npz`
+  (`load_angles` 支持该环境变量覆盖默认的 `vscr_angles_dep.npz`)。
+  `vscr_angles_dep.npz`(v1)保留不动——4 电路可行性数据由它产生。
+- 新增 `--analyze <raw.json>` 离线分析模式:读取 `--dump-raw` 落盘的
+  原始 counts 列表,按当前 CLI 的 plan(需与提交时一致的
+  `--p-values/--frames/--states/--late-measure/--shots`)重建 meta,
+  执行 detect_layout → aggregate → 绘图,无需 token。例:
+  ```bash
+  ./qenv/bin/python -u qcloud_vscr_new.py --mode cloud \
+      --analyze qcloud_raw_full.json --p-values 0.02,0.08 \
+      --frames 2 --states 0,+ --late-measure --shots 1000 --tag full_paper
+  ```
+- 全量数据接入论文的完整流程见 `paper/HW_FULL_INTEGRATION.md`。

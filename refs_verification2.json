@@ -1,0 +1,686 @@
+{
+ "ryan_anderson": [
+  {
+   "t": "Fault-Tolerant Quantum Error Correction and Fault-Tolerant Quantum Computing",
+   "a": "Djordjevic",
+   "y": 2012,
+   "j": "Quantum Information Processing and Quantum Error C",
+   "v": "",
+   "p": "405-456",
+   "doi": "10.1016/b978-0-12-385491-9.00011-3"
+  },
+  {
+   "t": "Fault-Tolerant Quantum Error Correction and Fault-Tolerant Quantum Computing",
+   "a": "Djordjevic",
+   "y": 2021,
+   "j": "Quantum Information Processing, Quantum Computing,",
+   "v": "",
+   "p": "469-530",
+   "doi": "10.1016/b978-0-12-821982-9.00017-4"
+  },
+  {
+   "t": "Quantum Error Correction and Fault Tolerant Quantum Computing",
+   "a": "?",
+   "y": null,
+   "j": "SpringerReference",
+   "v": "",
+   "p": "",
+   "doi": "10.1007/springerreference_60607"
+  },
+  {
+   "t": "Fault-Tolerant Quantum Computing",
+   "a": "?",
+   "y": 2008,
+   "j": "Quantum Error Correction and Fault Tolerant Quantu",
+   "v": "",
+   "p": "137-193",
+   "doi": "10.1201/b15868-6"
+  }
+ ],
+ "bausch_ml": [
+  {
+   "t": "Learning high-accuracy error decoding for quantum processors",
+   "a": "Bausch",
+   "y": 2024,
+   "j": "Nature",
+   "v": "635",
+   "p": "834-840",
+   "doi": "10.1038/s41586-024-08148-8"
+  },
+  {
+   "t": "Benchmarking Quantum Material Simulations on NISQ Processors: Accuracy, Error Mitigation, and Algorithm Scalin",
+   "a": "Prajapati",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.21203/rs.3.rs-9519021/v1"
+  },
+  {
+   "t": "Reference-State Error Mitigation: A Strategy for High Accuracy Quantum Computation of Chemistry",
+   "a": "?",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.1021/acs.jctc.2c00807.s001"
+  },
+  {
+   "t": "Predicting the Temporal Variability of Error Rates in Superconducting Quantum Processors: Mitigating Error Acc",
+   "a": "Rodr\u00edguez-Soriano",
+   "y": 2025,
+   "j": "IEEE Software",
+   "v": "42",
+   "p": "90-97",
+   "doi": "10.1109/ms.2025.3572982"
+  }
+ ],
+ "bosonic_sup": [
+  {
+   "t": "Selective Quantum Error Correction for Variational Quantum Classifiers: Exact Error-Suppression Bounds and Tra",
+   "a": "Prasad",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.36227/techrxiv.175743242.27149404/v1"
+  },
+  {
+   "t": "Thermodynamics of quantum error correction : The entropy production of a measurement-free fault-tolerant bit-f",
+   "a": "Bossard",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.70675/8ac4c7b7zad79z43f7zbd7fzbd921bb9fb80"
+  },
+  {
+   "t": "Multiplicative Back-Action Suppression in Topologically Engineered Cat-Qubit Readout: Combining Spatial and Ph",
+   "a": "Perera Burrell",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.2139/ssrn.5750322"
+  },
+  {
+   "t": "error-correction bit",
+   "a": "?",
+   "y": null,
+   "j": "SpringerReference",
+   "v": "",
+   "p": "",
+   "doi": "10.1007/springerreference_13814"
+  }
+ ],
+ "fowler": [
+  {
+   "t": "Surface codes: Towards practical large-scale quantum computation",
+   "a": "Fowler",
+   "y": 2012,
+   "j": "Physical Review A",
+   "v": "86",
+   "p": "032324",
+   "doi": "10.1103/physreva.86.032324"
+  },
+  {
+   "t": "A Game of Surface Codes: Large-Scale Quantum Computing with Lattice Surgery",
+   "a": "Litinski",
+   "y": 2019,
+   "j": "Quantum",
+   "v": "3",
+   "p": "128",
+   "doi": "10.22331/q-2019-03-05-128"
+  },
+  {
+   "t": "Towards practical quantum LDPC codes",
+   "a": "Roffe",
+   "y": 2021,
+   "j": "Quantum Views",
+   "v": "5",
+   "p": "63",
+   "doi": "10.22331/qv-2021-11-30-63"
+  },
+  {
+   "t": "Large-scale quantum computers",
+   "a": "?",
+   "y": 2012,
+   "j": "Quantum Information, Computation and Communication",
+   "v": "",
+   "p": "124-128",
+   "doi": "10.1017/cbo9781139028509.013"
+  }
+ ],
+ "torlai": [
+  {
+   "t": "Neural Decoder for Topological Codes",
+   "a": "Torlai",
+   "y": 2017,
+   "j": "Physical Review Letters",
+   "v": "119",
+   "p": "030501",
+   "doi": "10.1103/physrevlett.119.030501"
+  },
+  {
+   "t": "Scalable Neural Decoder for Topological Surface Codes",
+   "a": "Meinerz",
+   "y": 2022,
+   "j": "Physical Review Letters",
+   "v": "128",
+   "p": "080505",
+   "doi": "10.1103/physrevlett.128.080505"
+  },
+  {
+   "t": "Neural Network Decoder for topological PlanarSurface Codes with Depolarizing noise model",
+   "a": "GAN",
+   "y": 2024,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.21203/rs.3.rs-4579308/v1"
+  },
+  {
+   "t": "A Simple Decoder for Topological Codes",
+   "a": "Wootton",
+   "y": 2015,
+   "j": "Entropy",
+   "v": "17",
+   "p": "1946-1957",
+   "doi": "10.3390/e17041946"
+  }
+ ],
+ "knill": [
+  {
+   "t": "Quantum Error-Correcting Codes",
+   "a": "?",
+   "y": 2024,
+   "j": "Essays on Coding Theory",
+   "v": "",
+   "p": "404-423",
+   "doi": "10.1017/9781009283403.017"
+  },
+  {
+   "t": "ERROR CORRECTING CODES",
+   "a": "?",
+   "y": 2020,
+   "j": "A Quantum Leap in Information Theory",
+   "v": "",
+   "p": "115-136",
+   "doi": "10.1142/9789811201554_0010"
+  },
+  {
+   "t": "Information Theory and Classical Error Correcting Codes",
+   "a": "Djordjevic",
+   "y": 2021,
+   "j": "Quantum Information Processing, Quantum Computing,",
+   "v": "",
+   "p": "193-250",
+   "doi": "10.1016/b978-0-12-821982-9.00009-5"
+  },
+  {
+   "t": "On asymmetric quantum error-correcting codes",
+   "a": "Martianus",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.32657/10356/46253"
+  }
+ ],
+ "quantinuum": [
+  {
+   "t": "Enhanced Entanglement Protection of Logical Qubits by a Hybrid Quantum Error Correction and Entanglement Purif",
+   "a": "Bonde",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.21203/rs.3.rs-9355732/v1"
+  },
+  {
+   "t": "Quantum Error Correction using cat qubits",
+   "a": "Marquet",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.70675/6748815fz4d8fz484dz94cfz143f5f473a21"
+  },
+  {
+   "t": "Autonomous quantum error correction with superconducting qubits",
+   "a": "Cohen",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.70675/acf9e621z2685z4313za041z0fc72ffb08d1"
+  },
+  {
+   "t": "Molecular Nanomagnets as Qubits with Embedded Quantum-Error Correction",
+   "a": "?",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.1021/acs.jpclett.0c02213.s001"
+  }
+ ],
+ "vncdr": [
+  {
+   "t": "icenReg: Regression Models for Interval Censored Data",
+   "a": "?",
+   "y": 2015,
+   "j": "CRAN: Contributed Packages",
+   "v": "",
+   "p": "",
+   "doi": "10.32614/cran.package.icenreg"
+  },
+  {
+   "t": "Regularization and Variable Selection for Parametric Models",
+   "a": "?",
+   "y": 2011,
+   "j": "Regression for Categorical Data",
+   "v": "",
+   "p": "143-180",
+   "doi": "10.1017/cbo9780511842061.007"
+  },
+  {
+   "t": "Causal inference using regression on the treatment variable",
+   "a": "?",
+   "y": 2006,
+   "j": "Data Analysis Using Regression and Multilevel/Hier",
+   "v": "",
+   "p": "167-198",
+   "doi": "10.1017/cbo9780511790942.012"
+  },
+  {
+   "t": "Table 3: Best regression models between LIDAR data (independent variable) and field-based Forestereo data (dep",
+   "a": "?",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.7717/peerj.10158/table-3"
+  }
+ ],
+ "wukong": [
+  {
+   "t": "Superconducting Quantum Computer Systems",
+   "a": "?",
+   "y": 2022,
+   "j": "Principles of Superconducting Quantum Computers",
+   "v": "",
+   "p": "63-105",
+   "doi": "10.1002/9781119750758.ch4"
+  },
+  {
+   "t": "Quantum comparator circuit on superconducting quantum computer",
+   "a": "?",
+   "y": null,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.58837/chula.the.2019.156"
+  },
+  {
+   "t": "",
+   "a": "?",
+   "y": 2018,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.3030/820363"
+  },
+  {
+   "t": "SQUIDs as computer elements",
+   "a": "Wolf",
+   "y": 1977,
+   "j": "SQUID - Superconducting Quantum Interference Devic",
+   "v": "",
+   "p": "519-540",
+   "doi": "10.1515/9783110887495-041"
+  }
+ ],
+ "five_qubit_sc": [
+  {
+   "t": "Improved error correction with leakage reduction units built into qubit measurement in a superconducting quant",
+   "a": "Anonymous",
+   "y": 2026,
+   "j": "PRX Quantum",
+   "v": "",
+   "p": "",
+   "doi": "10.1103/y66v-988s"
+  },
+  {
+   "t": "Simulation of the five-qubit quantum error correction code on superconducting qubits",
+   "a": "Simakov",
+   "y": 2022,
+   "j": "Physical Review A",
+   "v": "105",
+   "p": "032409",
+   "doi": "10.1103/physreva.105.032409"
+  },
+  {
+   "t": "Entanglement evolution in a five qubit error correction code",
+   "a": "Weinstein",
+   "y": 2010,
+   "j": "Quantum Information Processing",
+   "v": "10",
+   "p": "533-542",
+   "doi": "10.1007/s11128-010-0216-8"
+  },
+  {
+   "t": "Analog Hawking Radiation on a 156-Qubit Superconducting Quantum Processor",
+   "a": "icard",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.21203/rs.3.rs-8618767/v1"
+  }
+ ],
+ "ml_dec_review": [
+  {
+   "t": "Quantum Machine Learning",
+   "a": "Djordjevic",
+   "y": 2021,
+   "j": "Quantum Information Processing, Quantum Computing,",
+   "v": "",
+   "p": "619-701",
+   "doi": "10.1016/b978-0-12-821982-9.00007-1"
+  },
+  {
+   "t": "Two-Stage Neural Residual Decoding for FastSurface-Code Quantum Error Correction",
+   "a": "Chen",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.21203/rs.3.rs-10123128/v1"
+  },
+  {
+   "t": "Vibe Decoding Quantum Error Correction with CUDA",
+   "a": "Koutsioumpas",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.59350/t3fpj-z4f45"
+  },
+  {
+   "t": "Vibe Decoding Quantum Error Correction with CUDA",
+   "a": "Koutsioumpas",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.59350/qxsf5-r9s02"
+  }
+ ],
+ "transformer": [
+  {
+   "t": "FPGA-Based Syndrome Decoder for Quantum Error Correction: Design and Simulation",
+   "a": "Sarkarov",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.36227/techrxiv.174063286.68174234/v1"
+  },
+  {
+   "t": "Cheaper Qubits by Bounded Belief Matching: A Practical Per-Shot Decoder for Quantum Error Correction",
+   "a": "Bousabaa",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.2139/ssrn.7236858"
+  },
+  {
+   "t": "Multidimensional Bose quantum error correction based on neural network decoder",
+   "a": "Wang",
+   "y": 2022,
+   "j": "npj Quantum Information",
+   "v": "8",
+   "p": "134",
+   "doi": "10.1038/s41534-022-00650-z"
+  },
+  {
+   "t": "Correction: Corrigendum: Fault-tolerant quantum computation with a soft-decision decoder for error correction ",
+   "a": "Goto",
+   "y": 2015,
+   "j": "Scientific Reports",
+   "v": "5",
+   "p": "5771",
+   "doi": "10.1038/srep05771"
+  }
+ ],
+ "rl_dec": [
+  {
+   "t": "Adaptive Reinforcement Learning for Autonomous Quantum Error Correction in Surface Codes",
+   "a": "Mohammed Shibah",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.2139/ssrn.5765046"
+  },
+  {
+   "t": "Adaptive Co-Design of Quantum Machine Learning Algorithms and Error Correction Protocols using Reinforcement L",
+   "a": "Maes",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.31219/osf.io/5jte9_v1"
+  },
+  {
+   "t": "Quantum error correction for the toric code using deep reinforcement learning",
+   "a": "Andreasson",
+   "y": 2019,
+   "j": "Quantum",
+   "v": "3",
+   "p": "183",
+   "doi": "10.22331/q-2019-09-02-183"
+  },
+  {
+   "t": "Vibe Decoding Quantum Error Correction with CUDA",
+   "a": "Koutsioumpas",
+   "y": 2026,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.59350/t3fpj-z4f45"
+  }
+ ],
+ "qaoa_dec": [
+  {
+   "t": "Optimization-based quantum error correction",
+   "a": "Fletcher",
+   "y": 2013,
+   "j": "Quantum Error Correction",
+   "v": "",
+   "p": "327-348",
+   "doi": "10.1017/cbo9781139034807.015"
+  },
+  {
+   "t": "FPGA-Based Syndrome Decoder for Quantum Error Correction: Design and Simulation",
+   "a": "Sarkarov",
+   "y": 2025,
+   "j": "",
+   "v": "",
+   "p": "",
+   "doi": "10.36227/techrxiv.174063286.68174234/v1"
+  },
+  {
+   "t": "Optimization of Decoder Priors for Accurate Quantum Error Correction",
+   "a": "Sivak",
+   "y": 2024,
+   "j": "Physical Review Letters",
+   "v": "133",
+   "p": "150603",
+   "doi": "10.1103/physrevlett.133.150603"
+  },
+  {
+   "t": "A Quantum Approximate Optimization Algorithm-Based Decoder Architecture for NextG Wireless Channel Codes",
+   "a": "Kasi",
+   "y": 2024,
+   "j": "2024 IEEE International Conference on Quantum Comp",
+   "v": "",
+   "p": "368-379",
+   "doi": "10.1109/qce60285.2024.00051"
+  }
+ ],
+ "petz": [
+  {
+   "t": "Decoding quantum information via the Petz recovery map",
+   "a": "Beigi",
+   "y": 2016,
+   "j": "Journal of Mathematical Physics",
+   "v": "57",
+   "p": "082203",
+   "doi": "10.1063/1.4961515"
+  },
+  {
+   "t": "The Petz (lite) recovery map for the scrambling channel",
+   "a": "Nakayama",
+   "y": 2023,
+   "j": "Progress of Theoretical and Experimental Physics",
+   "v": "2023",
+   "p": "123B04",
+   "doi": "10.1093/ptep/ptad147"
+  },
+  {
+   "t": "Strengthened monotonicity of relative entropy via pinched Petz recovery map",
+   "a": "Sutter",
+   "y": 2016,
+   "j": "2016 IEEE International Symposium on Information T",
+   "v": "",
+   "p": "760-764",
+   "doi": "10.1109/isit.2016.7541401"
+  },
+  {
+   "t": "Reversing Lindblad Dynamics via Continuous Petz Recovery Map",
+   "a": "Kwon",
+   "y": 2022,
+   "j": "Physical Review Letters",
+   "v": "128",
+   "p": "020403",
+   "doi": "10.1103/physrevlett.128.020403"
+  }
+ ],
+ "ion832": [
+  {
+   "t": "Planar Fault-Tolerant Circuits for Non-Clifford Gates on the 2D Color Code",
+   "a": "Bauer",
+   "y": 2026,
+   "j": "PRX Quantum",
+   "v": "7",
+   "p": "020367",
+   "doi": "10.1103/p7c9-x1m9"
+  },
+  {
+   "t": "Implementing fault-tolerant non-Clifford gates using the [[8,3,2]] color code",
+   "a": "Honciuc Menendez",
+   "y": 2024,
+   "j": "Physical Review A",
+   "v": "109",
+   "p": "062438",
+   "doi": "10.1103/physreva.109.062438"
+  },
+  {
+   "t": "Fault-Tolerant Logical Clifford Gates from Code Automorphisms",
+   "a": "Sayginel",
+   "y": 2025,
+   "j": "PRX Quantum",
+   "v": "6",
+   "p": "030343",
+   "doi": "10.1103/vf7v-cpq9"
+  },
+  {
+   "t": "Fault-tolerant non-Clifford Gottesman-Kitaev-Preskill gates using polynomial phase gates and on-demand noise b",
+   "a": "Nguyen",
+   "y": 2026,
+   "j": "Physical Review Research",
+   "v": "8",
+   "p": "033107",
+   "doi": "10.1103/2pg9-nsn8"
+  }
+ ],
+ "em_review": [
+  {
+   "t": "Hybrid Quantum-Classical Algorithms and Quantum Error Mitigation",
+   "a": "Endo",
+   "y": 2021,
+   "j": "Journal of the Physical Society of Japan",
+   "v": "90",
+   "p": "032001",
+   "doi": "10.7566/jpsj.90.032001"
+  },
+  {
+   "t": "Quantum error mitigation",
+   "a": "Cai",
+   "y": 2023,
+   "j": "Reviews of Modern Physics",
+   "v": "95",
+   "p": "045005",
+   "doi": "10.1103/revmodphys.95.045005"
+  },
+  {
+   "t": "Practical Quantum Error Mitigation for Near-Future Applications",
+   "a": "Endo",
+   "y": 2018,
+   "j": "Physical Review X",
+   "v": "8",
+   "p": "031027",
+   "doi": "10.1103/physrevx.8.031027"
+  },
+  {
+   "t": "Quantum Error Mitigation using Symmetry Expansion",
+   "a": "Cai",
+   "y": 2021,
+   "j": "Quantum",
+   "v": "5",
+   "p": "548",
+   "doi": "10.22331/q-2021-09-21-548"
+  }
+ ],
+ "quantinuum25": [
+  {
+   "t": "Fault-Tolerant Quantum Error Correction and Fault-Tolerant Quantum Computing",
+   "a": "Djordjevic",
+   "y": 2012,
+   "j": "Quantum Information Processing and Quantum Error C",
+   "v": "",
+   "p": "405-456",
+   "doi": "10.1016/b978-0-12-385491-9.00011-3"
+  },
+  {
+   "t": "Fault-Tolerant Quantum Error Correction and Fault-Tolerant Quantum Computing",
+   "a": "Djordjevic",
+   "y": 2021,
+   "j": "Quantum Information Processing, Quantum Computing,",
+   "v": "",
+   "p": "469-530",
+   "doi": "10.1016/b978-0-12-821982-9.00017-4"
+  },
+  {
+   "t": "Quantum Error Correction and Fault Tolerant Quantum Computing",
+   "a": "?",
+   "y": null,
+   "j": "SpringerReference",
+   "v": "",
+   "p": "",
+   "doi": "10.1007/springerreference_60607"
+  },
+  {
+   "t": "Fault-Tolerant Quantum Computing",
+   "a": "?",
+   "y": 2008,
+   "j": "Quantum Error Correction and Fault Tolerant Quantu",
+   "v": "",
+   "p": "137-193",
+   "doi": "10.1201/b15868-6"
+  }
+ ]
+}
