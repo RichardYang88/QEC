@@ -1,0 +1,39 @@
+
+=== depolarizing p=0.07 ===
+  s=0000  w=0.6960  ceiling=3.4374  decoder=1.0000
+  s=0001  w=0.0203  ceiling=0.5076  decoder=1.0000
+  s=0010  w=0.0203  ceiling=0.2782  decoder=1.0000
+  s=0011  w=0.0203  ceiling=0.2460  decoder=1.0000
+  s=0100  w=0.0203  ceiling=0.3256  decoder=1.0000
+  s=0101  w=0.0203  ceiling=0.3102  decoder=1.0000
+  s=0110  w=0.0203  ceiling=0.1990  decoder=1.0000
+  s=0111  w=0.0203  ceiling=0.3067  decoder=1.0000
+  s=1000  w=0.0203  ceiling=0.3237  decoder=1.0000
+  s=1001  w=0.0203  ceiling=0.1989  decoder=1.0000
+  s=1010  w=0.0203  ceiling=0.5662  decoder=1.0000
+  s=1011  w=0.0203  ceiling=0.3563  decoder=1.0000
+  s=1100  w=0.0203  ceiling=0.2460  decoder=1.0000
+  s=1101  w=0.0203  ceiling=0.3538  decoder=1.0000
+  s=1110  w=0.0203  ceiling=0.3178  decoder=1.0000
+  s=1111  w=0.0203  ceiling=0.3083  decoder=1.0000
+  TOTAL exp fidelity: ceiling=2.4907  decoder=1.0000  (w_sum=1.0000)
+
+=== amplitude_damping p=0.07 ===
+  s=0000  w=0.8355  ceiling=3.4375  decoder=1.0000
+  s=0001  w=0.0160  ceiling=0.5070  decoder=1.0000
+  s=0010  w=0.0009  ceiling=0.2770  decoder=1.0000
+  s=0011  w=0.0160  ceiling=0.2461  decoder=1.0000
+  s=0100  w=0.0009  ceiling=0.3263  decoder=1.0000
+  s=0101  w=0.0009  ceiling=0.3107  decoder=1.0000
+  s=0110  w=0.0160  ceiling=0.1990  decoder=1.0000
+  s=0111  w=0.0160  ceiling=0.3066  decoder=1.0000
+  s=1000  w=0.0160  ceiling=0.3238  decoder=1.0000
+  s=1001  w=0.0009  ceiling=0.1985  decoder=1.0000
+  s=1010  w=0.0009  ceiling=0.5656  decoder=1.0000
+  s=1011  w=0.0160  ceiling=0.3563  decoder=1.0000
+  s=1100  w=0.0160  ceiling=0.2461  decoder=1.0000
+  s=1101  w=0.0160  ceiling=0.3536  decoder=1.0000
+  s=1110  w=0.0160  ceiling=0.3177  decoder=1.0000
+  s=1111  w=0.0160  ceiling=0.3085  decoder=1.0000
+  TOTAL exp fidelity: ceiling=2.9242  decoder=1.0000  (w_sum=1.0000)
+PROBE18 DONE

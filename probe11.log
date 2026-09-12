@@ -1,0 +1,5 @@
+nohup: 忽略输入
+seed 1234: val-gap total=0.0107  worst syndromes: 1110:0.0107, 0000:0.0000, 1100:0.0000  (107s)
+seed 2024: val-gap total=0.0055  worst syndromes: 0101:0.0055, 0000:0.0000, 1000:0.0000  (106s)
+seed 777: val-gap total=0.0166  worst syndromes: 0011:0.0055, 1100:0.0055, 0010:0.0055  (106s)
+PROBE11 DONE

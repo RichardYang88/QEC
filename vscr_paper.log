@@ -1,0 +1,38 @@
+nohup: 忽略输入
+[warm-start] R_s == C_s (phase-exact); fidelity == decoder: VERIFIED
+
+=== depolarizing: training warm VSCR (2 seeds) ===
+    [depolarizing] seed 1234: val_fid=0.9790 min syndrome cf=0.9091
+    [depolarizing] seed 2024: val_fid=0.9790 min syndrome cf=0.9091
+  fitting physical LinDR (depolarizing) ...
+  evaluating (depolarizing, n_test=200) ...
+
+=== amplitude_damping: training warm VSCR (2 seeds) ===
+    [amplitude_damping] seed 1234: val_fid=0.9943 min syndrome cf=0.9644
+    [amplitude_damping] seed 2024: val_fid=0.9943 min syndrome cf=0.9644
+  fitting physical LinDR (amplitude_damping) ...
+  evaluating (amplitude_damping, n_test=200) ...
+
+=== mixed: training warm VSCR (2 seeds) ===
+    [mixed] seed 1234: val_fid=0.9693 min syndrome cf=0.8696
+    [mixed] seed 2024: val_fid=0.9693 min syndrome cf=0.8696
+  fitting physical LinDR (mixed) ...
+  evaluating (mixed, n_test=200) ...
+
+=== ablation: random-walk updates from warm init ===
+
+=== figures ===
+  figure: paper/figures/fig_sim_benchmark.pdf
+  figure: paper/figures/fig_sim_ler.pdf
+  figure: paper/figures/fig_training.pdf
+  figure: paper/figures/fig_branch_cf.pdf
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[hardware-ref] circuit==simulator verified, worst diff 7.99e-15
+
+================ PAPER NUMBERS ================
+dep_p010 {"Raw": 0.5908, "Perfect-code decoder": 0.947, "ZNE (oracle)": 0.957, "VD (oracle)": 0.9758, "LinDR-phys (oracle)": 0.9963, "VSCR cold-start": 0.9403, "VSCR warm (ours)": 0.947}
+ad_p010 {"Raw": 0.7712, "Perfect-code decoder": 0.9848, "ZNE (oracle)": 0.9959, "VD (oracle)": 0.9823, "LinDR-phys (oracle)": 0.9997, "VSCR warm (ours)": 0.9848}
+mx_p010 {"Raw": 0.5229, "Perfect-code decoder": 0.9253, "ZNE (oracle)": 0.9118, "VD (oracle)": 0.9572, "LinDR-phys (oracle)": 0.999, "VSCR warm (ours)": 0.9253}
+min_cf_dep_p015 {'decoder': 0.8121951219512269, 'cold_v1': 0.6084545187510783, 'warm': 0.8121951219447923}
+min_cf_dep_p005 {'decoder': 0.9345209817893881, 'cold_v1': 0.6509499028292256, 'warm': 0.9345209817819844}
+total runtime 3313s

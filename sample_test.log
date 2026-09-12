@@ -1,0 +1,13 @@
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[angles] loaded phi (16, 60)
+
+=== EXACT VERIFICATION: circuit vs simulator ===
+  p=0.05  psi=0   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.11e-15
+worst |circuit - simulator| = 5.107e-15
+VERIFICATION PASSED
+
+=== CPUQVM SAMPLING SMOKE TEST ===
+  frame=IIIII (no error): top outcomes [('000000000', 400)]
+    branch s=0(0000): selected 400/400, data-hit 400 -> F_s=1.000
+  frame=IIXII (X on q2 -> syndrome of SYND_TABLE): top outcomes [('110000000', 400)]
+    branch s=12(1100): selected 400/400, data-hit 400 -> F_s=1.000

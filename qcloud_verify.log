@@ -1,0 +1,48 @@
+nohup: 忽略输入
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[verify] chip=WK_C180 shots/circuit=400 block=auto
+[cloud] backend: WK_C180
+[cloud] options: amend+mapping+optimization=True, specified_block=[147, 155, 157, 164, 165, 166, 174, 175, 176]
+[cloud]   batch 1: submitting 4 circuits ...
+[cloud]   batch 1: received
+
+===== per-circuit diagnostics =====
+[mid] frame=IIIII s=0(0000) total=369 F_ideal_frame=1.000
+   top3 = [('011010011', 25), ('000100000', 21), ('110110000', 21)]
+   P(expected '000000000') = 0.000   P(reversed '000000000') = 0.000
+   anc@[0:4]   : sel=   0 hit=   0 F_s=nan
+   anc@[0:4]rev: sel=  97 hit=   0 F_s=0.000
+   anc@[5:9]   : sel=  97 hit=   0 F_s=0.000
+   anc@[5:9]rev: sel=   0 hit=   0 F_s=nan
+[mid] frame=IIXII s=12(1100) total=366 F_ideal_frame=1.000
+   top3 = [('111010000', 39), ('001110010', 17), ('011100000', 15)]
+   P(expected '110000000') = 0.000   P(reversed '000000011') = 0.000
+   anc@[0:4]   : sel=  17 hit=   0 F_s=0.000
+   anc@[0:4]rev: sel=  12 hit=   0 F_s=0.000
+   anc@[5:9]   : sel=  19 hit=   0 F_s=0.000
+   anc@[5:9]rev: sel=  44 hit=   0 F_s=0.000
+[late] frame=IIIII s=0(0000) total=370 F_ideal_frame=1.000
+   top3 = [('011110001', 22), ('101001000', 15), ('010110100', 14)]
+   P(expected '000000000') = 0.024   P(reversed '000000000') = 0.024
+   anc@[0:4]   : sel=  25 hit=   9 F_s=0.360
+   anc@[0:4]rev: sel=  63 hit=   9 F_s=0.143
+   anc@[5:9]   : sel=  63 hit=   9 F_s=0.143
+   anc@[5:9]rev: sel=  25 hit=   9 F_s=0.360
+[late] frame=IIXII s=12(1100) total=371 F_ideal_frame=1.000
+   top3 = [('000100000', 50), ('001100000', 44), ('100110110', 17)]
+   P(expected '110000000') = 0.000   P(reversed '000000011') = 0.000
+   anc@[0:4]   : sel=   4 hit=   0 F_s=0.000
+   anc@[0:4]rev: sel=   7 hit=   0 F_s=0.000
+   anc@[5:9]   : sel=  13 hit=   0 F_s=0.000
+   anc@[5:9]rev: sel=  55 hit=  44 F_s=0.800
+
+===== detect_layout over all 4 circuits =====
+[layout] hypothesis anc@key[0:4] rev=False: score 46
+[layout] hypothesis anc@key[5:9] rev=False: score 192
+[layout] hypothesis anc@key[0:4] rev=True: score 179
+[layout] hypothesis anc@key[5:9] rev=True: score 124
+[layout] CHOSEN: ancilla bits at key[5:9] rev=False (branch-consistency score 192)
+chosen: anc_slice=slice(5, 9, None) rev=False
+
+max expected-key probability per circuit: ['0.000', '0.000', '0.024', '0.000']
+VERDICT: still garbage-like -> do NOT run the full experiment; inspect raw_verify_options.json

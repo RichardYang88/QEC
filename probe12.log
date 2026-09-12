@@ -1,0 +1,11 @@
+nohup: 忽略输入
+before repair: gap_sum=0.0107 worst=1110:0.0107 (107s)
+repair weights: [ 1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1.  1. 51.  1.]
+repair 400@0.001: val=0.9686 gap_sum=0.0107 worst=1110:0.0107 (127s)
+repair 800@0.0003: val=0.9686 gap_sum=0.0107 worst=1110:0.0107 (165s)
+p=0.04: VSCR 0.9829   dec 0.9903   zne 0.9967
+p=0.07: VSCR 0.9604   dec 0.9721   zne 0.9838
+p=0.1: VSCR 0.9332   dec 0.9470   zne 0.9570
+p=0.15: VSCR 0.8816   dec 0.8942   zne 0.8770
+p=0.2: VSCR 0.8169   dec 0.8339   zne 0.7559
+PROBE12 DONE

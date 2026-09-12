@@ -1,0 +1,8 @@
+nohup: 忽略输入
+stage 600@0.03: val=0.8970 locked=7.0/16 (30s)
+stage 600@0.03: val=0.8999 locked=7.0/16 (60s)
+stage 1500@0.003: val=0.8999 locked=7.0/16 (133s)
+p=0.04: VSCR 0.9340   decoder 0.9903
+p=0.1: VSCR 0.8401   decoder 0.9470
+p=0.2: VSCR 0.7113   decoder 0.8339
+PROBE8 DONE

@@ -1,0 +1,8 @@
+real_chip_type members: {'origin_wuyuan_d3': 7, 'origin_wuyuan_d4': 5, 'origin_wuyuan_d5': 2, 'origin_72': 72}
+init ok
+prog built
+Traceback (most recent call last):
+  File "/tmp/qc_cloud_probe.py", line 26, in <module>
+    ir = cpu.get_originir(prog)
+         ^^^^^^^^^^^^^^^^
+AttributeError: 'pyqpanda.pyQPanda.CPUQVM' object has no attribute 'get_originir'

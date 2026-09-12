@@ -1,0 +1,16 @@
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[probe] 16 circuits x 100 shots
+[cloud] backend: WK_C180
+[cloud] options: amend+mapping+optimization=True, specified_block=[147, 155, 157, 164, 165, 166, 174, 175, 176]
+[cloud]   batch 1: submitting 16 circuits ...
+Traceback (most recent call last):
+  File "/home/yqc/github/QEC/qcloud_probe_point.py", line 24, in <module>
+    res = q.submit_cloud(gates, tok, chip_id='WK_C180', shots=100, batch=True,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 801, in submit_cloud
+    job = _run_job(backend, progs, shots, options=options)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 615, in _run_job
+    return backend.run(prog_or_list, shots, options=options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: QPU time is insufficient. Please purchase more.

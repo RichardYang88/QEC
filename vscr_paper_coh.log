@@ -1,0 +1,13 @@
+nohup: 忽略输入
+=== coherent: training warm VSCR ===
+    [coherent] seed 1234: val_fid=1.0000 min syndrome cf=1.0000
+    [coherent] seed 2024: val_fid=1.0000 min syndrome cf=1.0000
+  fitting physical LinDR (coherent) ...
+  evaluating (coherent, n_test=200) ...
+  figure: paper/figures/fig_coherent.pdf
+
+=== COHERENT NUMBERS ===
+p=0.10: {"Raw": 0.9876, "Perfect-code decoder": 1.0, "ZNE (oracle)": 1.0025, "VD (oracle)": 0.9876, "LinDR-phys (oracle)": 1.0, "VSCR cold-start": 1.0, "VSCR warm (ours)": 1.0}
+warm-dec per p: [0. 0. 0. 0. 0. 0. 0. 0. 0. 0.]
+min_cf_coh_p015: {'decoder': 0.9999998801495235, 'cold_v1': 0.9999944863679516, 'warm': 0.9999998801495247}
+runtime 1146s

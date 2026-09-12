@@ -1,0 +1,25 @@
+real_chip_type members: {'origin_wuyuan_d3': 7, 'origin_wuyuan_d4': 5, 'origin_wuyuan_d5': 2, 'origin_72': 72}
+init_qvm ok
+prog built
+ORIGINIR >>>
+QINIT 2
+CREG 2
+H q[0]
+CNOT q[0],q[1]
+MEASURE q[0],c[0]
+MEASURE q[1],c[1]
+<<< ORIGINIR
+submitting OriginIR string to chip 2 ...
+CHIP 2 FAIL: RuntimeError: json parse failed : Quantum computer under maintenance. Please try again later.
+Traceback (most recent call last):
+  File "/tmp/qc_cloud_probe.py", line 39, in <module>
+    res = cloud.real_chip_measure(ir, shot=100, chip_id=chip,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qenv/lib/python3.11/site-packages/pyqpanda/OriginService/QCloudMachine.py", line 1172, in real_chip_measure
+    result_json = self._submit_and_query(task_msg)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qenv/lib/python3.11/site-packages/pyqpanda/OriginService/QCloudMachine.py", line 515, in _submit_and_query
+    task_id = super().parse_get_task_id(recv_string)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: json parse failed : Quantum computer under maintenance. Please try again later.
+PROBE DONE

@@ -1,0 +1,14 @@
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[angles] loaded phi (16, 60)
+
+=== EXACT VERIFICATION: circuit vs simulator ===
+  p=0.0   psi=0   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.11e-15
+  p=0.0   psi=+   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.33e-15
+  p=0.05  psi=0   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.11e-15
+  p=0.05  psi=0   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.11e-15
+  p=0.05  psi=0   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.11e-15
+  p=0.05  psi=+   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.33e-15
+  p=0.05  psi=+   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.33e-15
+  p=0.05  psi=+   frame=IIIII  circuit=1.000000  sim=1.000000  |diff|=5.33e-15
+worst |circuit - simulator| = 5.329e-15
+VERIFICATION PASSED

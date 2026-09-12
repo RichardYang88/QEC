@@ -1,0 +1,10 @@
+nohup: 忽略输入
+seed 1234: val=0.9582 min_cf=0.3790 locked=14/16 (106s)
+seed 2024: val=0.9434 min_cf=0.3809 locked=12/16 (106s)
+  p=0.04: VSCR 0.9644   dec 0.9903
+  p=0.07: VSCR 0.9312   dec 0.9721
+  p=0.1: VSCR 0.8987   dec 0.9470
+  p=0.15: VSCR 0.8500   dec 0.8942
+  p=0.2: VSCR 0.7744   dec 0.8339
+seed 777: val=0.9737 min_cf=0.6371 locked=15/16 (105s)
+PROBE21 DONE

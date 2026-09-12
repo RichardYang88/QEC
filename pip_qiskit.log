@@ -1,0 +1,11 @@
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Requirement already satisfied: qiskit in ./qenv/lib/python3.11/site-packages (2.5.2)
+Requirement already satisfied: numpy<3,>=2.0 in ./qenv/lib/python3.11/site-packages (from qiskit) (2.4.6)
+Requirement already satisfied: scipy>=1.14 in ./qenv/lib/python3.11/site-packages (from qiskit) (1.17.1)
+Requirement already satisfied: rustworkx>=0.15.0 in ./qenv/lib/python3.11/site-packages (from qiskit) (0.18.1)
+Requirement already satisfied: dill>=0.3 in ./qenv/lib/python3.11/site-packages (from qiskit) (0.4.1)
+Requirement already satisfied: stevedore>=3.0.0 in ./qenv/lib/python3.11/site-packages (from qiskit) (5.9.1)
+Requirement already satisfied: typing-extensions in ./qenv/lib/python3.11/site-packages (from qiskit) (4.16.0)
+
+[notice] A new release of pip is available: 24.0 -> 26.2.1
+[notice] To update, run: pip install --upgrade pip

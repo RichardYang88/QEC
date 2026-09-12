@@ -1,0 +1,4 @@
+nohup: 忽略输入
+stage 600@0.03: val=0.9484 locked_syndromes=5.0/16 (29s)
+stage 600@0.03: val=0.9679 locked_syndromes=6.0/16 (56s)
+stage 3000@0.003: val=0.9686 locked_syndromes=6.0/16 (196s)

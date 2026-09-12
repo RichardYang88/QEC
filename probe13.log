@@ -1,0 +1,6 @@
+nohup: 忽略输入
+base: gap_sum=0.0107 worst=1110:0.0107 (106s)
+sgd 300@0.001: gap_sum=0.0107 worst=1110:0.0107 (117s)
+sgd 300@0.003: gap_sum=0.0107 worst=1110:0.0107 (128s)
+sgd 300@0.01: gap_sum=0.0107 worst=1110:0.0107 (139s)
+PROBE13 DONE

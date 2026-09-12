@@ -1,0 +1,75 @@
+nohup: 忽略输入
+Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
+Collecting pyqpanda
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/c6/c8/9fb901ca3bdaf97d2ed8cbcbe2490e8e39c94c48d0b6d1ffc9a928db15be/pyqpanda-3.8.5-cp311-none-manylinux1_x86_64.whl (12.4 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.4/12.4 MB 30.4 MB/s eta 0:00:00
+Requirement already satisfied: numpy>=1.17 in ./qenv/lib/python3.11/site-packages (from pyqpanda) (2.4.6)
+Requirement already satisfied: matplotlib>=3.7 in ./qenv/lib/python3.11/site-packages (from pyqpanda) (3.11.1)
+Collecting pydot (from pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/7e/32/a7125fb28c4261a627f999d5fb4afff25b523800faed2c30979949d6facd/pydot-4.0.1-py3-none-any.whl (37 kB)
+Requirement already satisfied: scipy in ./qenv/lib/python3.11/site-packages (from pyqpanda) (1.17.1)
+Collecting mypy>=1.14 (from pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/4a/ff/6b97d58aa0f79a5ab9b472db1f6d6df1b11a51d74d0c08ab3760d3a613ba/mypy-2.3.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (15.1 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 15.1/15.1 MB 32.5 MB/s eta 0:00:00
+Collecting requests (from pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl (73 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 73.1/73.1 kB 12.5 MB/s eta 0:00:00
+Collecting snowland-smx (from pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/5d/08/20f096845399cbe633ba3cf7de8b3a1582befa168859bd938e74463f1355/snowland_smx-1.0.0.post2-py3-none-any.whl (88 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 88.0/88.0 kB 15.5 MB/s eta 0:00:00
+Collecting Cython (from pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/3f/9b/dd726d11b2aff24f0c3fa68ce9e3934097a058aca471a8cc9888aeae5471/cython-3.3.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (3.5 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.5/3.5 MB 33.5 MB/s eta 0:00:00
+Collecting gmssl (from pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/41/b1/01d707a2edfaad77715b2d27e5fbf14b6bcd34dd72ea179a5facfe4b1dd7/gmssl-3.2.2-py3-none-any.whl (10 kB)
+Requirement already satisfied: networkx in ./qenv/lib/python3.11/site-packages (from pyqpanda) (3.6.1)
+Requirement already satisfied: contourpy>=1.0.1 in ./qenv/lib/python3.11/site-packages (from matplotlib>=3.7->pyqpanda) (1.3.3)
+Requirement already satisfied: cycler>=0.10 in ./qenv/lib/python3.11/site-packages (from matplotlib>=3.7->pyqpanda) (0.12.1)
+Requirement already satisfied: fonttools>=4.28.2 in ./qenv/lib/python3.11/site-packages (from matplotlib>=3.7->pyqpanda) (4.63.0)
+Requirement already satisfied: kiwisolver>=1.3.1 in ./qenv/lib/python3.11/site-packages (from matplotlib>=3.7->pyqpanda) (1.5.1)
+Requirement already satisfied: packaging>=20.0 in ./qenv/lib/python3.11/site-packages (from matplotlib>=3.7->pyqpanda) (26.3)
+Requirement already satisfied: pillow>=9 in ./qenv/lib/python3.11/site-packages (from matplotlib>=3.7->pyqpanda) (12.3.0)
+Requirement already satisfied: pyparsing>=3 in ./qenv/lib/python3.11/site-packages (from matplotlib>=3.7->pyqpanda) (3.3.2)
+Requirement already satisfied: python-dateutil>=2.7 in ./qenv/lib/python3.11/site-packages (from matplotlib>=3.7->pyqpanda) (2.9.0.post0)
+Requirement already satisfied: typing_extensions>=4.6.0 in ./qenv/lib/python3.11/site-packages (from mypy>=1.14->pyqpanda) (4.16.0)
+Collecting mypy_extensions>=1.0.0 (from mypy>=1.14->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/79/7b/2c79738432f5c924bef5071f933bcc9efd0473bac3b4aa584a6f7c1c8df8/mypy_extensions-1.1.0-py3-none-any.whl (5.0 kB)
+Collecting pathspec>=1.0.0 (from mypy>=1.14->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/f1/d9/7fb5aa316bc299258e68c73ba3bddbc499654a07f151cba08f6153988714/pathspec-1.1.1-py3-none-any.whl (57 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 57.3/57.3 kB 9.1 MB/s eta 0:00:00
+Collecting librt>=0.13.0 (from mypy>=1.14->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/0f/e1/7a65eb5dedb1f00aebd948cdd8e17add48bf066cab3514e9daf84ab45a6c/librt-0.15.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (516 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 516.0/516.0 kB 30.6 MB/s eta 0:00:00
+Collecting ast-serialize<1.0.0,>=0.6.0 (from mypy>=1.14->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/31/ce/e6e0a311c16f84f13528f1cb32dec1ce68102711070c10c0c688a6c3cdf5/ast_serialize-0.10.0-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.3 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 33.6 MB/s eta 0:00:00
+Collecting pycryptodomex (from gmssl->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/c8/a9/8862616a85cf450d2822dbd4fff1fcaba90877907a6ff5bc2672cafe42f8/pycryptodomex-3.23.0-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.3 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.3/2.3 MB 36.0 MB/s eta 0:00:00
+Collecting charset_normalizer<4,>=2 (from requests->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/0d/35/731ac04aa0a097fc1c97f0994c375bdb230c6c96619db794208fe664e9ce/charset_normalizer-3.5.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (262 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 262.3/262.3 kB 29.8 MB/s eta 0:00:00
+Collecting idna<4,>=2.5 (from requests->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/57/b0/0e52c878c53f245edd3a11020f20979b3f490f245af532c7cae3027754b5/idna-3.19-py3-none-any.whl (68 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 68.5/68.5 kB 12.0 MB/s eta 0:00:00
+Collecting urllib3<3,>=1.26 (from requests->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl (131 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 131.1/131.1 kB 22.2 MB/s eta 0:00:00
+Collecting certifi>=2023.5.7 (from requests->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl (136 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 137.0/137.0 kB 18.5 MB/s eta 0:00:00
+Collecting cryptography (from snowland-smx->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/85/66/6ccca4722987ddedaa7fc9c3f4708af7431f5535666c174350830888c6b7/cryptography-50.0.1-cp311-abi3-manylinux_2_34_x86_64.whl (4.7 MB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.7/4.7 MB 33.2 MB/s eta 0:00:00
+Requirement already satisfied: six>=1.5 in ./qenv/lib/python3.11/site-packages (from python-dateutil>=2.7->matplotlib>=3.7->pyqpanda) (1.17.0)
+Collecting cffi>=2.0.0 (from cryptography->snowland-smx->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/f7/a4/4399daaf8f7dfee9d7c3327fdb0426ee041cc63edc358b93911ceb2bfc7a/cffi-2.1.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (217 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 217.8/217.8 kB 23.6 MB/s eta 0:00:00
+Collecting pycparser (from cffi>=2.0.0->cryptography->snowland-smx->pyqpanda)
+  Downloading https://pypi.tuna.tsinghua.edu.cn/packages/0c/c3/44f3fbbfa403ea2a7c779186dc20772604442dde72947e7d01069cbe98e3/pycparser-3.0-py3-none-any.whl (48 kB)
+     ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 48.2/48.2 kB 7.0 MB/s eta 0:00:00
+Installing collected packages: urllib3, pydot, pycryptodomex, pycparser, pathspec, mypy_extensions, librt, idna, Cython, charset_normalizer, certifi, ast-serialize, requests, mypy, gmssl, cffi, cryptography, snowland-smx, pyqpanda
+Successfully installed Cython-3.3.0 ast-serialize-0.10.0 certifi-2026.7.22 cffi-2.1.1 charset_normalizer-3.5.1 cryptography-50.0.1 gmssl-3.2.2 idna-3.19 librt-0.15.0 mypy-2.3.1 mypy_extensions-1.1.0 pathspec-1.1.1 pycparser-3.0 pycryptodomex-3.23.0 pydot-4.0.1 pyqpanda-3.8.5 requests-2.34.2 snowland-smx-1.0.0.post2 urllib3-2.7.0
+
+[notice] A new release of pip is available: 24.0 -> 26.2.1
+[notice] To update, run: pip install --upgrade pip

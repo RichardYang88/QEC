@@ -1,0 +1,82 @@
+[09-10 22:21:21] driver start; chip=WK_C180
+[09-10 22:21:21] RUN trial-batch: --mode cloud --chip-id WK_C180 --token TOKEN --shots 2000 --p-values 0.05 --frames 1 --states 0 --dump-raw raw_trial_batch.json --chunk 32 --tag trial_batch
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[angles] loaded phi (16, 60)
+[cloud] plan: 1 points x 16 branches = 16 circuits, 2000 shots each
+[cloud] backend: WK_C180
+[cloud]   batch 1: submitting 16 circuits ...
+[cloud]   batch 1: received
+[cloud] all results received in 77s
+[layout] hypothesis anc@key[0:4] rev=False: score 1906
+[layout] hypothesis anc@key[5:9] rev=False: score 1609
+[layout] hypothesis anc@key[0:4] rev=True: score 1968
+[layout] hypothesis anc@key[5:9] rev=True: score 2294
+[layout] CHOSEN: ancilla bits at key[5:9] rev=True (branch-consistency score 2294)
+  psi=0 p=0.05: HW=0.1663  ideal-sim=1.0000  gap=-0.8337
+[out] qcloud_results_trial_batch.json + figures/fig_qcloud_hardware_trial_batch.png
+[09-10 22:22:40] trial-batch: exit=0 after 79s
+[09-10 22:22:40] trial OK (batch=True, late_measure=False); FULL experiment starts in 30 s
+[09-10 22:23:10] RUN full-batch-4000: --mode cloud --chip-id WK_C180 --token TOKEN --p-values 0.02,0.08 --frames 2 --states 0,+ --dump-raw qcloud_raw_full.json --shots 4000 --chunk 32 --tag full_wk4000
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[angles] loaded phi (16, 60)
+[cloud] plan: 8 points x 16 branches = 128 circuits, 4000 shots each
+[cloud] backend: WK_C180
+[cloud]   batch 1: submitting 32 circuits ...
+[cloud]   batch 1: received
+[cloud]   batch 2: submitting 32 circuits ...
+[cloud]   batch 2: received
+[cloud]   batch 3: submitting 32 circuits ...
+Traceback (most recent call last):
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 959, in <module>
+    main()
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 942, in main
+    results = submit_cloud(gate_lists, args.token, chip_id=args.chip_id,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 750, in submit_cloud
+    job = _run_job(backend, progs, shots)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 594, in _run_job
+    return backend.run(prog_or_list, shots=shots)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: QPU time is insufficient. Please purchase more.
+[09-10 22:26:38] full-batch-4000: exit=1 after 208s
+[09-10 22:26:38] RUN full-nobatch-4000: --mode cloud --chip-id WK_C180 --token TOKEN --p-values 0.02,0.08 --frames 2 --states 0,+ --dump-raw qcloud_raw_full.json --shots 4000 --no-batch --tag full_wk4000nb
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[angles] loaded phi (16, 60)
+[cloud] plan: 8 points x 16 branches = 128 circuits, 4000 shots each
+[cloud] backend: WK_C180
+Traceback (most recent call last):
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 959, in <module>
+    main()
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 942, in main
+    results = submit_cloud(gate_lists, args.token, chip_id=args.chip_id,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 762, in submit_cloud
+    job = _run_job(backend, prog, shots)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 594, in _run_job
+    return backend.run(prog_or_list, shots=shots)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: QPU time is insufficient. Please purchase more.
+[09-10 22:26:39] full-nobatch-4000: exit=1 after 1s
+[09-10 22:26:39] RUN full-batch-2000: --mode cloud --chip-id WK_C180 --token TOKEN --p-values 0.02,0.08 --frames 2 --states 0,+ --dump-raw qcloud_raw_full.json --shots 2000 --chunk 32 --tag full_wk2000
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[angles] loaded phi (16, 60)
+[cloud] plan: 8 points x 16 branches = 128 circuits, 2000 shots each
+[cloud] backend: WK_C180
+[cloud]   batch 1: submitting 32 circuits ...
+Traceback (most recent call last):
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 959, in <module>
+    main()
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 942, in main
+    results = submit_cloud(gate_lists, args.token, chip_id=args.chip_id,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 750, in submit_cloud
+    job = _run_job(backend, progs, shots)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 594, in _run_job
+    return backend.run(prog_or_list, shots=shots)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: QPU time is insufficient. Please purchase more.
+[09-10 22:26:41] full-batch-2000: exit=1 after 2s
+[09-10 22:26:41] FULL EXPERIMENT FAILED on all attempts

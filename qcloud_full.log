@@ -1,0 +1,19 @@
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[angles] loaded phi (16, 60)
+[cloud] plan: 8 points x 16 branches = 128 circuits, 1000 shots each
+[cloud] backend: WK_C180
+[cloud] options: amend+mapping+optimization=True, specified_block=[147, 155, 157, 164, 165, 166, 174, 175, 176]
+[cloud]   batch 1: submitting 32 circuits ...
+Traceback (most recent call last):
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 1021, in <module>
+    main()
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 1003, in main
+    results = submit_cloud(gate_lists, args.token, chip_id=args.chip_id,
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 801, in submit_cloud
+    job = _run_job(backend, progs, shots, options=options)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/yqc/github/QEC/qcloud_vscr_new.py", line 615, in _run_job
+    return backend.run(prog_or_list, shots, options=options)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: QPU time is insufficient. Please purchase more.

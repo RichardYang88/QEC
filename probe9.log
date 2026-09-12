@@ -1,0 +1,16 @@
+nohup: 忽略输入
+
+########## depolarizing ##########
+  stage 800@0.03 b=192: val=0.9502 locked=1.0/16 (99s)
+  stage 1200@0.003 b=192: val=0.9502 locked=1.0/16 (245s)
+  p=0.04: VSCR 0.9688   dec 0.9903   zne 0.9967
+  p=0.1: VSCR 0.9067   dec 0.9470   zne 0.9570
+  p=0.2: VSCR 0.7882   dec 0.8339   zne 0.7559
+
+########## amplitude_damping ##########
+  stage 800@0.03 b=192: val=0.9810 locked=4.0/16 (126s)
+  stage 1200@0.003 b=192: val=0.9810 locked=4.0/16 (324s)
+  p=0.04: VSCR 0.9886   dec 0.9975   zne 0.9997
+  p=0.1: VSCR 0.9637   dec 0.9846   zne 0.9959
+  p=0.2: VSCR 0.9210   dec 0.9448   zne 0.9691
+PROBE9 DONE

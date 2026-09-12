@@ -1,0 +1,10 @@
+nohup: 忽略输入
+bad syndromes after joint training: ['0011:0.637', '0111:0.381', '1011:0.381', '1101:0.381', '1110:0.381', '1111:0.381']
+  repaired s=0011: cf now 0.6363
+  repaired s=0111: cf now 0.3813
+  repaired s=1011: cf now 0.3813
+  repaired s=1101: cf now 0.3872
+  repaired s=1110: cf now 0.3813
+  repaired s=1111: cf now 0.3814
+p=0.07: FreePhi+repair 0.9109   dec 0.9721
+PROBE16 DONE
