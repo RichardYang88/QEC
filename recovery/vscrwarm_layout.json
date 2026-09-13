@@ -1,0 +1,47 @@
+{
+ "init": "(self, n_synd=16, phi_dim=60, hidden=64, ctx=24, emb_scale=0.5)",
+ "state_dict_shapes": {
+  "synd_emb": [
+   16,
+   24
+  ],
+  "phi_base": [
+   60
+  ],
+  "phi_dec": [
+   16,
+   60
+  ],
+  "phi_extra": [
+   16,
+   60
+  ],
+  "hnet.0.weight": [
+   64,
+   24
+  ],
+  "hnet.0.bias": [
+   64
+  ],
+  "hnet.2.weight": [
+   60,
+   64
+  ],
+  "hnet.2.bias": [
+   60
+  ]
+ },
+ "params": [
+  "synd_emb",
+  "phi_base",
+  "hnet.0.weight",
+  "hnet.0.bias",
+  "hnet.2.weight",
+  "hnet.2.bias"
+ ],
+ "buffers": [
+  "phi_dec",
+  "phi_extra"
+ ],
+ "set_phi_doc": "Install an explicit per-syndrome angle table via `phi_extra`.\n\nThe refined table produced by `refine_per_syndrome` is a free\n(16, PHI_DIM) array, which need not lie in the image of `hnet`; storing\nthe difference in the residual buffer makes `forward()` return it\nexactly, so `evaluate_paper`, `cf_table`, `hardware_frame_numbers` and\nthe plotting code all see the refined recovery unchanged."
+}
