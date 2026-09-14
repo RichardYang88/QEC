@@ -11,7 +11,21 @@ corrections can and do exceed rigid Pauli decoding.
 Outputs: vscr_angles_paper_coh.npz, paper/figures/fig_coherent.pdf|png,
 and merges coh_* fields into paper_numbers.json.
 """
-import json, time
+import json, os, time
+
+# Pin the native thread pools BEFORE numpy/torch are imported; see the note on
+# `ssvr_qec._pin_blas_threads` for why this matters on this host.
+for _v in ('OMP_NUM_THREADS', 'MKL_NUM_THREADS', 'OPENBLAS_NUM_THREADS',
+           'NUMEXPR_NUM_THREADS', 'OPENBLAS_MAIN_FREE'):
+    os.environ.setdefault(_v, '1')
+# See the long note in ssvr_qec.py: this host intermittently SIGSEGV/SIGILLs in
+# tiny complex128 kernels when a process is free to MIGRATE across its hybrid
+# P-/E-core cluster. Importing ssvr_qec pins us to one CPU, which fixes it
+# (measured: unpinned core-dumps within ~2e4 calls; pinned runs 4e5 clean).
+# OPENBLAS_CORETYPE is for determinism only -- it is NOT the fix, since the
+# faults reproduce under every coretype including AVX-only SANDYBRIDGE.
+os.environ.setdefault('OPENBLAS_CORETYPE', 'HASWELL')
+
 import numpy as np
 import torch
 import matplotlib
@@ -42,7 +56,11 @@ def main():
     with torch.no_grad():
         cold_R = m.recovery_unitary_batch(torch.tensor(cold_phi, dtype=torch.float64))
     print('  evaluating (coherent, n_test=200) ...', flush=True)
-    res = vp.evaluate_paper(model, A, vp.P_VALUES, 'coherent', cold_R=cold_R)
+    res, audit = vp.evaluate_paper(model, A, vp.P_VALUES, 'coherent',
+                                   cold_R=cold_R)
+    # FIX C audit: this is the channel where the UNPROJECTED Richardson-ZNE
+    # estimator exceeds 1, which is why ZNE is reported as 'ZNE-phys'.
+    zne_over = vp.zne_unphysical_overshoot(vp.P_VALUES, 'coherent')
 
     with torch.no_grad():
         R_warm = m.recovery_unitary_batch(model())
@@ -52,9 +70,15 @@ def main():
     cf_warm, _ = vp.cf_table(R_warm, 'coherent', 0.15)
 
     # ---- figure ----
+    # FIX C: y-axis capped at the physical ceiling.  VD is absent from `res`
+    # because on a unitary channel rho is pure, rho^2 = rho, and the k=2
+    # virtual-distillation estimator is algebraically identical to Raw --
+    # `evaluate_paper` asserts that identity and drops the duplicate curve.
     fig, ax = plt.subplots(figsize=(3.8, 2.9))
+    ax.axhline(1.0, color='k', lw=0.7, ls=':', zorder=0)
     for nm in res:
         F = np.array(res[nm]['F']); E = np.array(res[nm]['F_sem'])
+        assert F.max() <= 1.0 + 1e-9, (nm, float(F.max()))
         ax.plot(vp.P_VALUES, F, marker=vp.PAPER_MARKERS[nm], ms=3.5, lw=1.4,
                 color=vp.PAPER_COLORS[nm], label=nm)
         if E.max() > 0.002:
@@ -63,7 +87,10 @@ def main():
     ax.set_xlabel('coherent over-rotation $\\varepsilon$ (rad)')
     ax.set_ylabel('average recovery fidelity $\\bar{F}$')
     ax.grid(alpha=0.3, lw=0.5)
-    ax.set_ylim(0.25, 1.03)
+    ax.set_ylim(0.25, 1.0)
+    ax.annotate('physical ceiling $\\bar{F}=1$', xy=(0.985, 1.0),
+                xycoords=('axes fraction', 'data'), ha='right', va='top',
+                fontsize=6.5, color='k')
     ax.legend(fontsize=6.5, loc='lower left')
     for tag in ('pdf', 'png'):
         fig.savefig(f'paper/figures/fig_coherent.{tag}')
@@ -74,6 +101,8 @@ def main():
     num = json.load(open('paper_numbers.json'))
     i10 = int(np.where(vp.P_VALUES == 0.10)[0][0])
     num['infos_coh'] = infos
+    num['coh_eval_audit'] = audit
+    num['coh_zne_unphysical_overshoot'] = zne_over
     num['coh_p010'] = {nm: res[nm]['F'][i10] for nm in res}
     num['coh_full_curves'] = {nm: res[nm]['F'] for nm in res}
     num['coh_full_sem'] = {nm: res[nm]['F_sem'] for nm in res}

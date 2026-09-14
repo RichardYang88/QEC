@@ -216,6 +216,114 @@ conditional-fidelity gain $+%.2f$ on branch $s=%d$, weight $%.1e$).""" % (
           f"{gaps[j]:+.3f} ({ps[j]:.1e}) \\\\")
     A(r'\bottomrule\end{longtable}')
 
+# ---------------- ED Table 8: decoder saddle, refinement and floor ----------
+# Data from the Fix A/B stage that `vscr_paper.train_warm_best` now runs: the
+# separable per-syndrome refinement plus the decoder floor.
+_ref = {}
+for _n, _infos in list(NUM.get('infos', {}).items()):
+    _r = [x for x in _infos if x.get('stage') == 'refine']
+    if _r:
+        _ref[_n] = _r[0]
+_r = [x for x in NUM.get('infos_coh', []) if x.get('stage') == 'refine']
+if _r:
+    _ref['coherent'] = _r[0]
+if _ref:
+    A(r"""
+\subsection*{ED Table 8: the decoder saddle, the separable refinement and the floor}
+Per channel, over the $p$-average of that channel's training curriculum.
+$\bar F^{\rm dec}$ = exact Pauli-decoder objective; $\bar F^{\rm grad}$ = what
+multi-seed gradient training alone returns; $\bar F^{\rm ref}$ = after the
+separable per-syndrome refinement; $\bar F^{\rm cert}$ = certified ceiling of the
+per-syndrome-unitary family; ``used'' = which candidate the decoder floor
+selected. Headroom is $\bar F^{\rm cert}-\bar F^{\rm dec}$, i.e.\ exactly the
+eigenvalue gap above the saddle, and ``captured'' is the fraction of it the
+refinement recovers. $\Delta\phi$ and spread are
+$\max_s\lVert\phi_s-\phi^{\rm dec}_s\rVert_\infty$ and
+$\max_{s,s'}\lVert\Delta\phi_s-\Delta\phi_{s'}\rVert_\infty$ for the table
+actually used; a spread of $\sim10^{-16}$ means the decoder was retained, so no
+learned deviation was claimed. Note that $\bar F^{\rm grad}$ falls \emph{below}
+$\bar F^{\rm dec}$ on depolarizing and mixed noise: with an identically vanishing
+gradient, Adam normalizes round-off and random-walks, which is precisely what the
+floor exists to prevent.""")
+    A(r'\begin{longtable}{lccccccc}')
+    A(r'\toprule channel & $\bar F^{\rm dec}$ & $\bar F^{\rm grad}$ & '
+      r'$\bar F^{\rm ref}$ & $\bar F^{\rm cert}$ & headroom & captured & '
+      r'used \\ \midrule')
+    for _n in ('depolarizing', 'amplitude_damping', 'mixed', 'coherent'):
+        if _n not in _ref:
+            continue
+        r = _ref[_n]
+        _head = r['F_cert'] - r['F_decoder']
+        # When the certified headroom is zero the capture fraction is 0/0 and any
+        # number printed for it is meaningless -- the honest entry is "n/a".
+        if r.get('headroom_is_zero') or abs(_head) <= 1e-12:
+            _cap = r'n/a ($0$)'
+        else:
+            _cap = ('%.4f\\%%'
+                    % (100 * r.get('capture_vs_decoder', r['capture_frac'])))
+        A(f"{_n.replace('_', ' ')} & {r['F_decoder']:.9f} & "
+          f"{r['F_grad']:.9f} & {r['F_refined']:.9f} & {r['F_cert']:.9f} & "
+          f"{_head:+.2e} & {_cap} & "
+          f"{r['picked']} \\\\")
+    A(r'\bottomrule\end{longtable}')
+    A(r'\begin{longtable}{lcccc}')
+    A(r'\toprule channel & blocks improved & $\Delta\phi$ & spread & '
+      r'objective $==$ production to \\ \midrule')
+    for _n in ('depolarizing', 'amplitude_damping', 'mixed', 'coherent'):
+        if _n not in _ref:
+            continue
+        r = _ref[_n]
+        A(f"{_n.replace('_', ' ')} & {r['n_improved']}/16 & "
+          f"{r['branch_deviation']:.2e} & {r['syndrome_spread']:.2e} & "
+          f"{r['prod_err']:.1e} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+# ---------------- ED Table 9: physical-projection and Petz audits -----------
+_zne = NUM.get('zne_unphysical_overshoot', {})
+_zc = NUM.get('coh_zne_unphysical_overshoot', {})
+if _zne or _zc:
+    A(r"""
+\subsection*{ED Table 9: unphysical ZNE overshoot audit, and the Petz baseline}
+Left: the RAW (unprojected) Richardson-ZNE estimator
+$\langle\psi|3\rho(p)-3\rho(2p)+\rho(3p)|\psi\rangle$ over $60$ Haar-random
+logical states. It is an unbounded linear functional, so nothing constrains it to
+$[0,1]$; on the coherent channel it exceeds $1$ for every state at every strength,
+reaching $1.1306$ at $\varepsilon=0.30$, whereas on the three incoherent channels
+it never does. That asymmetry is why the artefact survived unnoticed, and it is
+why all reported ZNE numbers are the physically projected estimator and every
+fidelity axis is capped at $1$. Right: the noise-adapted Petz recovery channel at
+$p=0.10$, a genuine CPTP recovery given the exact noise model.""")
+    A(r'\begin{longtable}{lccc|cc}')
+    A(r'\toprule channel & $p$ & $\max F_{\rm raw}$ & $n(F>1)$ & '
+      r'Petz $\bar F$ @ $p{=}0.10$ & decoder $\bar F$ @ $p{=}0.10$ \\ \midrule')
+    _petz = {'depolarizing': (NUM['dep_p010'].get('Petz recovery (2024)'),
+                              NUM['dep_p010']['Perfect-code decoder']),
+             'amplitude_damping': (NUM['ad_p010'].get('Petz recovery (2024)'),
+                                   NUM['ad_p010']['Perfect-code decoder']),
+             'mixed': (NUM['mx_p010'].get('Petz recovery (2024)'),
+                       NUM['mx_p010']['Perfect-code decoder']),
+             'coherent': (NUM.get('coh_p010', {}).get('Petz recovery (2024)'),
+                          NUM.get('coh_p010', {}).get('Perfect-code decoder'))}
+    _all = [(c, pp) for c, oo in _zne.items() for pp in oo.items()]
+    _all += [('coherent', pp) for pp in _zc.items()]
+    _seen = set()
+    for _c, (_p, _v) in _all:
+        if _c in _seen:
+            continue
+        _seen.add(_c)
+        _mx = max(v['max_F_raw_zne'] for v in
+                  (_zne.get(_c, {}) if _c != 'coherent' else _zc).values())
+        _no = sum(v['n_over_1'] for v in
+                  (_zne.get(_c, {}) if _c != 'coherent' else _zc).values())
+        _nt = sum(v['n_test'] for v in
+                  (_zne.get(_c, {}) if _c != 'coherent' else _zc).values())
+        _pz, _dc = _petz.get(_c, (None, None))
+        A(f"{_c.replace('_', ' ')} & $\\le0.30$ & {_mx:.8f} & "
+          f"{_no}/{_nt} & "
+          f"{('%.6f' % _pz) if _pz is not None else '---'} & "
+          f"{('%.6f' % _dc) if _dc is not None else '---'} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
 A(r'\end{document}')
 open(os.path.join(ROOT, 'extended_data.tex'), 'w').write('\n'.join(lines))
 print('wrote paper/extended_data.tex,', len(lines), 'lines')

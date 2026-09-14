@@ -12,7 +12,7 @@ late-measure branch circuits compiled from the trained depolarizing model)
 for logical states $\ket{0},\ket{+}$; every single-Pauli frame is corrected
 exactly, so the $p$-dependent ideal benchmark value follows from Pauli-frame
 averaging, $F(p)=1-O(p^2)$. Worst circuit-vs-density-matrix deviation
-$7.99\times 10^{-15}$. Frames are single-qubit Pauli injections.
+$5.44\times 10^{-15}$. Frames are single-qubit Pauli injections.
 \begin{longtable}{llcc}
 \toprule frame & correction $C_s$ & $F(\ket{0})$ & $F(\ket{+})$ \\ \midrule
 IIIII & $0$ & 1.000000 & 1.000000 \\
@@ -118,18 +118,18 @@ depolarizing $p=0.10$ fidelity after training on a fixed pool of $K$ logical
 states (warm/cold start; $400/600$ epochs).
 \begin{longtable}{lccccc}
 \toprule channel & decoder & VSCR warm & VQR-ind & $\Delta_{\rm ind}$ & global (no proj.) \\ \midrule
-depolarizing & 0.9470 & 0.9470 & 0.9470 & 7.74\times 10^{-12} & 0.5908 \\
-amplitude damping & 0.9848 & 0.9848 & 0.9848 & 5.17\times 10^{-11} & 0.7712 \\
-mixed & 0.9253 & 0.9253 & 0.9253 & 3.45\times 10^{-10} & 0.5229 \\
-coherent & 1.0000 & 1.0000 & 1.0000 & 1.09\times 10^{-9} & 0.9962 \\
+depolarizing & 0.9470 & 0.9470 & 0.9470 & 0.00\times 10^{0} & 0.5908 \\
+amplitude damping & 0.9848 & 0.9863 & 0.9863 & 2.29\times 10^{-9} & 0.7712 \\
+mixed & 0.9253 & 0.9253 & 0.9253 & 0.00\times 10^{0} & 0.5229 \\
+coherent & 1.0000 & 1.0000 & 1.0000 & 2.99\times 10^{-10} & 0.9962 \\
 \bottomrule\end{longtable}
 \begin{longtable}{lcccc}
 \toprule low-data ($p=0.10$) & $K=2$ & $K=4$ & $K=8$ & $K=16$ \\ \midrule
 warm hypernet $\bar F$ & 0.9470 & 0.9470 & 0.9470 & 0.9470 \\
 warm VQR-ind $\bar F$ & 0.9470 & 0.9470 & 0.9470 & 0.9470 \\
-cold hypernet $\bar F$ & 0.8781 & 0.8791 & 0.8788 & 0.8922 \\
+cold hypernet $\bar F$ & 0.9057 & 0.9060 & 0.9061 & 0.9059 \\
 cold VQR-ind $\bar F$ & 0.9057 & 0.9470 & 0.8789 & 0.9470 \\
-cold hypernet min cf$_s$ & 0.3893 & 0.3872 & 0.3889 & 0.3890 \\
+cold hypernet min cf$_s$ & 0.3894 & 0.3879 & 0.3889 & 0.3895 \\
 cold VQR-ind min cf$_s$ & 0.3895 & 0.8717 & 0.3893 & 0.8717 \\
 \bottomrule\end{longtable}
 
@@ -146,17 +146,67 @@ coherent channels is concentrated in low-weight branches.
 Pauli-restricted exhaustive search (4 logical classes per branch): for
 depolarizing $p=0.15$ it reproduces the decoder table on every branch (max
 gain of other classes $0.0e+00$; brute-force cross-check over random Pauli
-strings $2.2e-16$); for coherent $\varepsilon=0.15$, 10 branches prefer a
+strings $2.2e-16$); for coherent $\varepsilon=0.15$, 0 branches prefer a
 different logical class, all of weight $\le10^{-3}$ (largest
-conditional-fidelity gain $+0.68$ on branch $s=11$, weight $3.1e-05$).
+conditional-fidelity gain $+0.00$ on branch $s=-1$, weight $0.0e+00$).
 \begin{longtable}{lccccc}
 \toprule channel / strength & $\bar F^{\rm CPTP}$ & $\bar F^{\rm dec}$ & $\Delta\bar F$ & $g_{\max}$ & top branch gap (weight) \\ \midrule
-dep 0.05 & 0.985112 & 0.985112 & +4.14e-13 & 5.10e-13 & +0.000 (7.7e-01) \\
-dep 0.1 & 0.946995 & 0.946995 & +2.52e-13 & 5.69e-13 & +0.000 (2.7e-02) \\
-dep 0.15 & 0.894240 & 0.894240 & +2.27e-13 & 6.79e-13 & +0.000 (3.7e-02) \\
-ad 0.1 & 0.985471 & 0.984754 & +7.17e-04 & 1.95e-01 & +0.195 (1.8e-03) \\
-mixed 0.1 & 0.925340 & 0.925339 & +9.23e-07 & 2.40e-04 & +0.000 (3.4e-02) \\
-coh 0.15 & 0.999896 & 0.999796 & +9.99e-05 & 1.20e-07 & +0.681 (3.1e-05) \\
-coh 0.3 & 1.000000 & 0.996879 & +3.12e-03 & 7.96e-06 & +0.682 (4.8e-04) \\
+dep 0.05 & 0.985112 & 0.985112 & +3.90e-13 & 4.80e-13 & +1.000 (7.7e-01) \\
+dep 0.1 & 0.946995 & 0.946995 & +2.35e-13 & 3.70e-13 & +0.999 (5.9e-01) \\
+dep 0.15 & 0.894240 & 0.894240 & +2.49e-13 & 6.25e-13 & +0.996 (4.5e-01) \\
+ad 0.1 & 0.986538 & 0.984754 & +1.78e-03 & 1.95e-01 & +1.000 (7.7e-01) \\
+mixed 0.1 & 0.925340 & 0.925339 & +9.23e-07 & 2.40e-04 & +0.998 (5.2e-01) \\
+coh 0.1 & 1.000000 & 0.999959 & +4.06e-05 & 1.05e-08 & +1.000 (9.9e-01) \\
+coh 0.15 & 1.000000 & 0.999796 & +2.04e-04 & 1.20e-07 & +1.000 (5.5e-03) \\
+coh 0.3 & 1.000000 & 0.996879 & +3.12e-03 & 7.96e-06 & +1.000 (8.9e-01) \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 8: the decoder saddle, the separable refinement and the floor}
+Per channel, over the $p$-average of that channel's training curriculum.
+$\bar F^{\rm dec}$ = exact Pauli-decoder objective; $\bar F^{\rm grad}$ = what
+multi-seed gradient training alone returns; $\bar F^{\rm ref}$ = after the
+separable per-syndrome refinement; $\bar F^{\rm cert}$ = certified ceiling of the
+per-syndrome-unitary family; ``used'' = which candidate the decoder floor
+selected. Headroom is $\bar F^{\rm cert}-\bar F^{\rm dec}$, i.e.\ exactly the
+eigenvalue gap above the saddle, and ``captured'' is the fraction of it the
+refinement recovers. $\Delta\phi$ and spread are
+$\max_s\lVert\phi_s-\phi^{\rm dec}_s\rVert_\infty$ and
+$\max_{s,s'}\lVert\Delta\phi_s-\Delta\phi_{s'}\rVert_\infty$ for the table
+actually used; a spread of $\sim10^{-16}$ means the decoder was retained, so no
+learned deviation was claimed. Note that $\bar F^{\rm grad}$ falls \emph{below}
+$\bar F^{\rm dec}$ on depolarizing and mixed noise: with an identically vanishing
+gradient, Adam normalizes round-off and random-walks, which is precisely what the
+floor exists to prevent.
+\begin{longtable}{lccccccc}
+\toprule channel & $\bar F^{\rm dec}$ & $\bar F^{\rm grad}$ & $\bar F^{\rm ref}$ & $\bar F^{\rm cert}$ & headroom & captured & used \\ \midrule
+depolarizing & 0.955524560 & 0.955524519 & 0.955524559 & 0.955524560 & +0.00e+00 & n/a ($0$) & decoder \\
+amplitude damping & 0.987894552 & 0.987894552 & 0.989154346 & 0.989294324 & +1.40e-03 & 89.9999\% & refined \\
+mixed & 0.937977191 & 0.937977132 & 0.937977191 & 0.937977191 & -6.83e-14 & n/a ($0$) & decoder \\
+coherent & 0.999951843 & 0.999951843 & 0.999999994 & 0.999999995 & +4.82e-05 & 99.9996\% & refined \\
+\bottomrule\end{longtable}
+\begin{longtable}{lcccc}
+\toprule channel & blocks improved & $\Delta\phi$ & spread & objective $==$ production to \\ \midrule
+depolarizing & 14/16 & 0.00e+00 & 4.30e-16 & 2.2e-16 \\
+amplitude damping & 5/16 & 5.60e+00 & 9.29e+00 & 1.1e-16 \\
+mixed & 16/16 & 0.00e+00 & 4.22e-16 & 5.3e-14 \\
+coherent & 15/16 & 6.58e+00 & 1.20e+01 & 4.4e-16 \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 9: unphysical ZNE overshoot audit, and the Petz baseline}
+Left: the RAW (unprojected) Richardson-ZNE estimator
+$\langle\psi|3\rho(p)-3\rho(2p)+\rho(3p)|\psi\rangle$ over $60$ Haar-random
+logical states. It is an unbounded linear functional, so nothing constrains it to
+$[0,1]$; on the coherent channel it exceeds $1$ for every state at every strength,
+reaching $1.1306$ at $\varepsilon=0.30$, whereas on the three incoherent channels
+it never does. That asymmetry is why the artefact survived unnoticed, and it is
+why all reported ZNE numbers are the physically projected estimator and every
+fidelity axis is capped at $1$. Right: the noise-adapted Petz recovery channel at
+$p=0.10$, a genuine CPTP recovery given the exact noise model.
+\begin{longtable}{lccc|cc}
+\toprule channel & $p$ & $\max F_{\rm raw}$ & $n(F>1)$ & Petz $\bar F$ @ $p{=}0.10$ & decoder $\bar F$ @ $p{=}0.10$ \\ \midrule
+depolarizing & $\le0.30$ & 0.99999288 & 0/600 & 0.907433 & 0.946995 \\
+amplitude damping & $\le0.30$ & 0.99999947 & 0/600 & 0.988461 & 0.984754 \\
+mixed & $\le0.30$ & 0.99998058 & 0/600 & 0.875064 & 0.925339 \\
+coherent & $\le0.30$ & 1.13059204 & 600/600 & 1.000000 & 0.999959 \\
 \bottomrule\end{longtable}
 \end{document}
