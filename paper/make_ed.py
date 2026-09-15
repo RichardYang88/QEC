@@ -324,6 +324,121 @@ $p=0.10$, a genuine CPTP recovery given the exact noise model.""")
           f"{('%.6f' % _dc) if _dc is not None else '---'} \\\\")
     A(r'\bottomrule\end{longtable}')
 
+# --------- ED Table 10: the measured scope of decoder stationarity ------------
+SB = os.path.join(ROOT, '..', 'stationarity_boundary.json')
+if os.path.exists(SB):
+    _sb = json.load(open(SB))
+    _s = _sb['summary']
+    _rows = _sb['rows']
+    A(r"""
+\subsection*{ED Table 10: the measured scope of decoder stationarity}
+Is $\phi^{\rm dec}$ stationary only because the Haar ensemble twirls the logical
+state? Each of the nine channels is scored by ten functionals: the exact Haar
+average, three complex two-designs (which agree with the Haar closed form to
+machine precision precisely because they are two-designs), five ensembles that
+are \emph{not} two-designs, and two hardware-style benchmarks that replace the
+state fidelity by the recovered logical $\langle Z_L\rangle$. Columns report the
+largest gradient norm at $\phi^{\rm dec}$ within each functional group, and the
+smallest control gradient---the same autograd and finite-difference machinery
+evaluated at a random angle table, which must be large for a zero to mean
+anything. The central difference at $\phi^{\rm dec}$ is \emph{bitwise} zero in
+every one of the $90$ pairs. Totals: %d two-design and %d non-two-design pairs,
+all stationary; max gradient %s, min control %s.""" % (
+        _s['n_2designs'], _s['n_non_designs'],
+        sci(_s['max_grad_at_decoder']), sci(_s['min_control_grad'])))
+    A(r'\begin{longtable}{llcccccc}')
+    A(r'\toprule channel & class & headroom & landscape & '
+      r'\multicolumn{1}{c}{max grad} & \multicolumn{1}{c}{max grad} & '
+      r'\multicolumn{1}{c}{max grad} & min control \\')
+    A(r' & & & & 2-design & non-2-design & $\langle Z_L\rangle$ & grad \\ '
+      r'\midrule')
+    _seen = []
+    for _r in _rows:
+        if _r['channel'] not in [c for c, _ in _seen]:
+            _seen.append((_r['channel'], _r))
+    for _c, _r0 in _seen:
+        _g = [_r for _r in _rows if _r['channel'] == _c]
+        _by = {}
+        for _r in _g:
+            _k = ('observable_Z' if _r['loss'] == 'observable_Z'
+                  else ('2design' if _r['ensemble_class'] == '2-design'
+                        else 'non2design'))
+            _by[_k] = max(_by.get(_k, 0.0), _r['grad_autograd'], _r['grad_fd'])
+        _ctl = min(min(_r['control_grad_autograd'], _r['control_grad_fd'])
+                   for _r in _g)
+        A(f"{_c.replace('_', ' ')} & {_r0['channel_class']} & "
+          f"{sci(_r0['headroom'])} & {_r0['landscape']} & "
+          f"{sci(_by['2design'])} & {sci(_by['non2design'])} & "
+          f"{sci(_by['observable_Z'])} & {sci(_ctl)} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+# --------- ED Table 11: exact code-size scaling and the readout law -----------
+SC = os.path.join(ROOT, '..', 'scaling_results.json')
+if os.path.exists(SC):
+    _sc = json.load(open(SC))
+    A(r"""
+\subsection*{ED Table 11: exact code-size scaling, the Petz comparator, and the
+readout law}
+Every entry is exact rather than extrapolated: the reduced-branch formalism
+expresses the decoder fidelity, the per-branch-unitary ceiling (the optimum of
+the family VSCR occupies), the optimal-CPTP ceiling and the noise-adapted Petz
+fidelity as functions of $2\times2$ blocks alone, so $[\![7,1,3]\!]$ and
+$[\![9,1,3]\!]$ cost the same $4\times4$ Rayleigh quotient and Choi program per
+branch as $[\![5,1,3]\!]$. The $n=5$ rows reproduce the audited numbers of ED
+Tables 7 and 9. $\eta^\ast$ is the per-ancilla readout error at which the
+\emph{absolute} headroom drops below $10^{-3}$, the resolution scale of a
+benchmark; ``---'' means it already starts below that scale. The mixed channel
+needs a dense $8^n$ Kraus set and is evaluated at $n=5$ only.""")
+    A(r'\begin{longtable}{llccccccc}')
+    A(r'\toprule code & channel & $p$ & $\bar F^{\rm dec}$ & '
+      r'$\bar F^{\rm unit}$ & $\bar F^{\rm CPTP}$ & headroom (unit.) & Petz & '
+      r'$\eta^\ast$ \\ \midrule')
+    for _name, _cd in _sc['codes'].items():
+        for _key, _p in _cd['points'].items():
+            _ch, _pv = _key.rsplit('_', 1)
+            _eta = _p['eta_headroom_below_resolvable']
+            A(f"$[\\![{_name}]\\!]$ & "
+              f"{_ch.replace('_', ' ')} & {_pv} & "
+              f"{_p['F_dec']:.9f} & {_p['F_unit']:.9f} & "
+              f"{_p['F_cptp']:.9f} & {sci(_p['headroom_unit'])} & "
+              f"{_p['F_petz']:.9f} & "
+              f"{('---' if _eta is None else '%.4f' % _eta)} \\\\")
+        A(r'\midrule')
+    A(r'\bottomrule\end{longtable}')
+
+    A(r"""
+\paragraph*{ED Table 11b: verification of the readout suppression law.}
+A per-ancilla readout error $\eta$ maps the true syndrome $s$ to an observed
+$\tilde s$, and the instrument then applies $R_{\tilde s}$. For a Pauli recovery
+every cross-branch block $V^\dagger C_{\tilde s}W_s$ with $\tilde s\neq s$
+vanishes identically, so the $2^{(n-k)}\times2^{(n-k)}$ readout-error sum
+collapses onto its diagonal and the fidelity obeys the exact law
+$\bar F(\eta)=(1-\eta)^{n-k}\bar F(0)$. The \emph{relative} advantage of VSCR over
+the decoder is therefore preserved unchanged by readout noise, while the
+\emph{absolute} headroom shrinks by $(1-\eta)^{n-k}$---which is what $\eta^\ast$
+above quantifies. The first two columns are the exact block norms measured on
+each code (they are the reason the law holds); the last two compare the law
+against a direct evaluation of the full cross-branch sum at $\eta=0.01$ and
+$\eta=0.05$, reporting only the $2(n-k)$ pairs that are nonzero out of
+$2^{2(n-k)}$.""")
+    A(r'\begin{longtable}{lccccc}')
+    A(r'\toprule code & $n{-}k$ & syndromes & '
+      r'$\max_{\tilde s\neq s}\lvert V^\dagger C_{\tilde s}W_s\rvert$ & '
+      r'$\lVert V^\dagger C_sW_s-I\rVert$ & '
+      r'max $\lvert$exact$-$law$\rvert$ \\ \midrule')
+    for _name, _cd in _sc['codes'].items():
+        _dev = max([v['dev'] for _p in _cd['points'].values()
+                    for v in _p['eta_exact_check'].values()] or [0.0])
+        _pn = max([v['pairs_nonzero'] for _p in _cd['points'].values()
+                   for v in _p['eta_exact_check'].values()] or [0])
+        _pt = max([v['pairs_total'] for _p in _cd['points'].values()
+                   for v in _p['eta_exact_check'].values()] or [0])
+        A(f"$[\\![{_name}]\\!]$ & ${_cd['n'] - 1}$ & ${_cd['nsyn']}$ & "
+          f"{sci(_cd['readout_cross_offdiag'])} & "
+          f"{sci(_cd['readout_cross_diag_dev'])} & {sci(_dev)} "
+          f"(${_pn}/{_pt}$ pairs) \\\\")
+    A(r'\bottomrule\end{longtable}')
+
 A(r'\end{document}')
 open(os.path.join(ROOT, 'extended_data.tex'), 'w').write('\n'.join(lines))
 print('wrote paper/extended_data.tex,', len(lines), 'lines')

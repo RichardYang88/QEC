@@ -209,4 +209,87 @@ amplitude damping & $\le0.30$ & 0.99999947 & 0/600 & 0.988461 & 0.984754 \\
 mixed & $\le0.30$ & 0.99998058 & 0/600 & 0.875064 & 0.925339 \\
 coherent & $\le0.30$ & 1.13059204 & 600/600 & 1.000000 & 0.999959 \\
 \bottomrule\end{longtable}
+
+\subsection*{ED Table 10: the measured scope of decoder stationarity}
+Is $\phi^{\rm dec}$ stationary only because the Haar ensemble twirls the logical
+state? Each of the nine channels is scored by ten functionals: the exact Haar
+average, three complex two-designs (which agree with the Haar closed form to
+machine precision precisely because they are two-designs), five ensembles that
+are \emph{not} two-designs, and two hardware-style benchmarks that replace the
+state fidelity by the recovered logical $\langle Z_L\rangle$. Columns report the
+largest gradient norm at $\phi^{\rm dec}$ within each functional group, and the
+smallest control gradient---the same autograd and finite-difference machinery
+evaluated at a random angle table, which must be large for a zero to mean
+anything. The central difference at $\phi^{\rm dec}$ is \emph{bitwise} zero in
+every one of the $90$ pairs. Totals: 27 two-design and 63 non-two-design pairs,
+all stationary; max gradient 7.19\times 10^{-17}, min control 2.56\times 10^{-3}.
+\begin{longtable}{llcccccc}
+\toprule channel & class & headroom & landscape & \multicolumn{1}{c}{max grad} & \multicolumn{1}{c}{max grad} & \multicolumn{1}{c}{max grad} & min control \\
+ & & & & 2-design & non-2-design & $\langle Z_L\rangle$ & grad \\ \midrule
+depolarizing & Pauli mixture, unital & 0.00\times 10^{0} & minimum & 1.45\times 10^{-18} & 3.64\times 10^{-17} & 4.36\times 10^{-17} & 2.77\times 10^{-3} \\
+amplitude damping & non-unital, non-Pauli Kraus & 1.78\times 10^{-3} & SADDLE & 1.28\times 10^{-18} & 4.76\times 10^{-17} & 5.70\times 10^{-17} & 2.50\times 10^{-3} \\
+mixed & Pauli mixture then damping & 0.00\times 10^{0} & minimum & 1.77\times 10^{-18} & 3.23\times 10^{-17} & 3.86\times 10^{-17} & 2.67\times 10^{-3} \\
+coherent Rx & unitary, non-diagonal & 2.08\times 10^{-4} & SADDLE & 3.36\times 10^{-19} & 6.00\times 10^{-17} & 7.19\times 10^{-17} & 3.14\times 10^{-3} \\
+coherent Rz & unitary, diagonal & 2.08\times 10^{-4} & SADDLE & 3.36\times 10^{-19} & 6.00\times 10^{-17} & 7.19\times 10^{-17} & 3.14\times 10^{-3} \\
+damping + dephasing & general single-qubit & 1.11\times 10^{-16} & minimum & 3.28\times 10^{-18} & 2.82\times 10^{-17} & 3.36\times 10^{-17} & 4.83\times 10^{-3} \\
+random CPTP & general single-qubit, seeded & 2.03\times 10^{-2} & SADDLE & 2.03\times 10^{-18} & 3.65\times 10^{-18} & 9.64\times 10^{-19} & 2.11\times 10^{-3} \\
+collective dephasing & correlated, not a product & 3.18\times 10^{-3} & SADDLE & 1.25\times 10^{-18} & 5.51\times 10^{-17} & 6.60\times 10^{-17} & 2.89\times 10^{-3} \\
+coherent ZZ ring & correlated two-body coherent & 7.12\times 10^{-2} & SADDLE & 4.16\times 10^{-19} & 5.51\times 10^{-17} & 6.60\times 10^{-17} & 2.89\times 10^{-3} \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 11: exact code-size scaling, the Petz comparator, and the
+readout law}
+Every entry is exact rather than extrapolated: the reduced-branch formalism
+expresses the decoder fidelity, the per-branch-unitary ceiling (the optimum of
+the family VSCR occupies), the optimal-CPTP ceiling and the noise-adapted Petz
+fidelity as functions of $2\times2$ blocks alone, so $[\![7,1,3]\!]$ and
+$[\![9,1,3]\!]$ cost the same $4\times4$ Rayleigh quotient and Choi program per
+branch as $[\![5,1,3]\!]$. The $n=5$ rows reproduce the audited numbers of ED
+Tables 7 and 9. $\eta^\ast$ is the per-ancilla readout error at which the
+\emph{absolute} headroom drops below $10^{-3}$, the resolution scale of a
+benchmark; ``---'' means it already starts below that scale. The mixed channel
+needs a dense $8^n$ Kraus set and is evaluated at $n=5$ only.
+\begin{longtable}{llccccccc}
+\toprule code & channel & $p$ & $\bar F^{\rm dec}$ & $\bar F^{\rm unit}$ & $\bar F^{\rm CPTP}$ & headroom (unit.) & Petz & $\eta^\ast$ \\ \midrule
+$[\![5,1,3]\!]$ & amplitude damping & 0.05 & 0.996013600 & 0.996495863 & 0.996495863 & 4.82\times 10^{-4} & 0.996980510 & --- \\
+$[\![5,1,3]\!]$ & amplitude damping & 0.1 & 0.984759425 & 0.986538207 & 0.986538207 & 1.78\times 10^{-3} & 0.988470800 & 0.1341 \\
+$[\![5,1,3]\!]$ & coherent & 0.05 & 0.999997400 & 1.000000000 & 1.000000000 & 2.60\times 10^{-6} & 1.000000000 & --- \\
+$[\![5,1,3]\!]$ & coherent & 0.1 & 0.999958610 & 1.000000000 & 1.000000000 & 4.14\times 10^{-5} & 1.000000000 & --- \\
+$[\![5,1,3]\!]$ & depolarizing & 0.1 & 0.946994568 & 0.946994568 & 0.946994568 & 0.00\times 10^{0} & 0.907432976 & --- \\
+$[\![5,1,3]\!]$ & mixed & 0.1 & 0.925339635 & 0.925339635 & 0.925339635 & 1.11\times 10^{-16} & 0.875065626 & --- \\
+\midrule
+$[\![7,1,3]\!]$ & amplitude damping & 0.05 & 0.993301794 & 0.995780376 & 0.995780376 & 2.48\times 10^{-3} & 0.996247846 & 0.1404 \\
+$[\![7,1,3]\!]$ & amplitude damping & 0.1 & 0.975384019 & 0.983803750 & 0.983803753 & 8.42\times 10^{-3} & 0.986108403 & 0.2989 \\
+$[\![7,1,3]\!]$ & coherent & 0.05 & 0.999983671 & 1.000000000 & 1.000000000 & 1.63\times 10^{-5} & 1.000000000 & --- \\
+$[\![7,1,3]\!]$ & coherent & 0.1 & 0.999742414 & 1.000000000 & 1.000000000 & 2.58\times 10^{-4} & 1.000000000 & --- \\
+$[\![7,1,3]\!]$ & depolarizing & 0.1 & 0.923051989 & 0.923051989 & 0.923051989 & 1.11\times 10^{-16} & 0.897591177 & --- \\
+\midrule
+$[\![9,1,3]\!]$ & amplitude damping & 0.05 & 0.992509513 & 0.992509513 & 0.992516847 & 0.00\times 10^{0} & 0.999726673 & --- \\
+$[\![9,1,3]\!]$ & amplitude damping & 0.1 & 0.970817831 & 0.970817831 & 0.970839200 & 1.11\times 10^{-16} & 0.997760094 & --- \\
+$[\![9,1,3]\!]$ & coherent & 0.05 & 0.999997654 & 1.000000000 & 1.000000000 & 2.35\times 10^{-6} & 1.000000000 & --- \\
+$[\![9,1,3]\!]$ & coherent & 0.1 & 0.999962379 & 1.000000000 & 1.000000000 & 3.76\times 10^{-5} & 1.000000000 & --- \\
+$[\![9,1,3]\!]$ & depolarizing & 0.1 & 0.935496530 & 0.935496530 & 0.935496530 & 1.11\times 10^{-16} & 0.903510138 & --- \\
+\midrule
+\bottomrule\end{longtable}
+
+\paragraph*{ED Table 11b: verification of the readout suppression law.}
+A per-ancilla readout error $\eta$ maps the true syndrome $s$ to an observed
+$\tilde s$, and the instrument then applies $R_{\tilde s}$. For a Pauli recovery
+every cross-branch block $V^\dagger C_{\tilde s}W_s$ with $\tilde s\neq s$
+vanishes identically, so the $2^{(n-k)}\times2^{(n-k)}$ readout-error sum
+collapses onto its diagonal and the fidelity obeys the exact law
+$\bar F(\eta)=(1-\eta)^{n-k}\bar F(0)$. The \emph{relative} advantage of VSCR over
+the decoder is therefore preserved unchanged by readout noise, while the
+\emph{absolute} headroom shrinks by $(1-\eta)^{n-k}$---which is what $\eta^\ast$
+above quantifies. The first two columns are the exact block norms measured on
+each code (they are the reason the law holds); the last two compare the law
+against a direct evaluation of the full cross-branch sum at $\eta=0.01$ and
+$\eta=0.05$, reporting only the $2(n-k)$ pairs that are nonzero out of
+$2^{2(n-k)}$.
+\begin{longtable}{lccccc}
+\toprule code & $n{-}k$ & syndromes & $\max_{\tilde s\neq s}\lvert V^\dagger C_{\tilde s}W_s\rvert$ & $\lVert V^\dagger C_sW_s-I\rVert$ & max $\lvert$exact$-$law$\rvert$ \\ \midrule
+$[\![5,1,3]\!]$ & $4$ & $16$ & 5.55\times 10^{-17} & 5.55\times 10^{-17} & 3.16\times 10^{-13} ($16/256$ pairs) \\
+$[\![7,1,3]\!]$ & $6$ & $64$ & 1.61\times 10^{-16} & 1.11\times 10^{-16} & 3.44\times 10^{-15} ($64/4096$ pairs) \\
+$[\![9,1,3]\!]$ & $8$ & $256$ & 3.33\times 10^{-16} & 2.22\times 10^{-16} & 1.48\times 10^{-14} ($256/65536$ pairs) \\
+\bottomrule\end{longtable}
 \end{document}

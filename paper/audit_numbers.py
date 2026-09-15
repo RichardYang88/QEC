@@ -56,10 +56,12 @@ def chk(cond, msg):
 
 print('=== FINAL CONSISTENCY AUDIT ===')
 for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.py',
+          'vscr_general.py', 'scaling_analysis.py', 'stationarity_boundary.py',
           'run_selftests.py', 'diag_check.py', 'diag_optunit.py',
           'paper/make_ed.py', 'paper/fill_numbers.py',
           'paper/main.tex', 'paper/extended_data.tex', 'paper/refs.bib',
-          'paper/README.md'):
+          'paper/README.md',
+          'scaling_results.json', 'stationarity_boundary.json'):
     chk(os.path.getsize(f) > 0, f + ' present')
 
 P = json.load(open('paper_numbers.json'))
@@ -243,12 +245,112 @@ chk(e.count(BS + 'begin{') == e.count(BS + 'end{'),
 chk(e.count(BS + 'begin{tabular}') == e.count(BS + 'end{tabular}'),
     'extended_data.tex tabular balance (%d/%d)'
     % (e.count(BS + 'begin{tabular}'), e.count(BS + 'end{tabular}')))
-for n in range(1, 10):
+for n in range(1, 12):
     chk(('ED Table %d:' % n) in e, 'ED Table %d present (subsection header)' % n)
+chk('ED Table 11b:' in e, 'ED Table 11b present (readout-law verification)')
 chk('n/a ($0$)' in e, 'ED Table 8 shows n/a for zero-headroom channels')
-for n in (7, 8):
+for n in (7, 8, 10, 11):
     chk(t.count('ED Table~%d' % n) >= 1,
         'main.tex points the reader at ED Table~%d' % n)
+
+# ---- 9b. the two reviewer-response tables carry their load-bearing numbers ---
+# ED Table 10 is the stationarity sweep: its whole content is that the decoder
+# gradient vanishes on all 90 pairs while the control gradient does not, so audit
+# the artifacts behind it rather than the rendered digits.
+_sb = json.load(open('stationarity_boundary.json'))
+_sbs = _sb['summary']
+chk(len(_sb['rows']) == 90,
+    'stationarity sweep covers %d channel x functional pairs' % len(_sb['rows']))
+chk(_sbs['n_stationary_2designs'] == _sbs['n_2designs'],
+    'all %d two-design pairs stationary' % _sbs['n_2designs'])
+chk(_sbs['n_stationary_non_designs'] == _sbs['n_non_designs'],
+    'all %d NON-two-design pairs stationary (the twirl is not the reason)'
+    % _sbs['n_non_designs'])
+chk(_sbs['max_grad_at_decoder'] < 1e-14,
+    'max gradient at phi^dec is %s' % _sbs['max_grad_at_decoder'])
+chk(_sbs['min_control_grad'] > 1e-4,
+    'min control gradient is %s, so the zeros are measurable'
+    % _sbs['min_control_grad'])
+chk(_sbs['min_control_grad'] / _sbs['max_grad_at_decoder'] > 1e10,
+    'control exceeds decoder gradient by >10 orders of magnitude')
+chk(_sb['stationary_on_all_tested'] is True, 'no boundary found in this class')
+for _r in _sb['rows']:
+    chk(_r['grad_fd'] == 0.0,
+        'central difference is bitwise zero: %s / %s'
+        % (_r['channel'], _r['ensemble']))
+chk('ED Table 10' in e and '90' in e, 'ED Table 10 states the 90-pair total')
+
+# ED Table 11 is the scaling sweep: n=5 must reproduce the audited paper numbers,
+# and every code size must satisfy the exact readout law.
+_sca = json.load(open('scaling_results.json'))
+_sdp = P['abl']['sdp']
+_v = _sca['validation_n5']
+chk(max(_v.values()) < 1e-11,
+    'scaling n=5 reproduces paper_numbers.json to %s' % max(_v.values()))
+# Petz references live in the per-channel benchmark blocks, not in abl.sdp.
+_pz = {'depolarizing_0.1': P['dep_p010']['Petz recovery (2024)'],
+       'amplitude_damping_0.1': P['ad_p010']['Petz recovery (2024)'],
+       'mixed_0.1': P['mx_p010']['Petz recovery (2024)']}
+for _ref, _k in (('dep_0.1', 'depolarizing_0.1'), ('ad_0.1', 'amplitude_damping_0.1'),
+                 ('mixed_0.1', 'mixed_0.1')):
+    _p5 = _sca['codes']['5,1,3']['points'][_k]
+    _a = _sdp[_ref]
+    chk(abs(_p5['F_dec'] - _a['F_dec_exact']) < 1e-11,
+        'scaling F_dec[%s] == audited F_dec_exact' % _ref)
+    chk(abs(_p5['F_unit'] - _a['F_unit']) < 1e-11,
+        'scaling F_unit[%s] == audited F_unit' % _ref)
+    chk(abs(_p5['F_cptp'] - _a['F_cptp']) < 1e-9,
+        'scaling F_cptp[%s] == audited F_cptp' % _ref)
+    # The audited Petz baseline in paper_numbers.json is a 400-state Monte-Carlo
+    # estimate from ssvr_qec.petz_recovery_fidelity; the scaling value is the exact
+    # Haar average. scaling_analysis._selftest_petz ties them together with the
+    # tolerance 5*sem + 1e-4, so the audit uses the same 1e-4 floor rather than
+    # demanding agreement to machine precision between an estimator and an exact
+    # quantity.
+    chk(abs(_p5['F_petz'] - _pz[_k]) < 1e-4,
+        'scaling Petz[%s] == audited MC Petz baseline within its error '
+        '(exact %.9f vs %.9f, d %.1e)'
+        % (_ref, _p5['F_petz'], _pz[_k], abs(_p5['F_petz'] - _pz[_k])))
+for _nm, _cd in _sca['codes'].items():
+    chk(_cd['readout_cross_offdiag'] < 1e-13,
+        '[[%s]] cross-branch readout block vanishes (%s)'
+        % (_nm, _cd['readout_cross_offdiag']))
+    chk(_cd['readout_cross_diag_dev'] < 1e-13,
+        '[[%s]] decoder block is the identity (%s)'
+        % (_nm, _cd['readout_cross_diag_dev']))
+    for _k, _p in _cd['points'].items():
+        for _eta, _c in _p['eta_exact_check'].items():
+            chk(_c['dev'] < 1e-11,
+                '[[%s]] %s eta=%s obeys (1-eta)^(n-k) exactly (dev %s)'
+                % (_nm, _k, _eta, _c['dev']))
+        # the Petz fidelity must actually depend on the noise strength; a
+        # repeated value here is how a threading/caching bug first showed up.
+        # 'coherent' is excluded because Petz inverts a known unitary exactly, so
+        # its fidelity is 1.0 at every strength by construction -- asserted
+        # separately below rather than mistaken for a stale cache entry.
+    for _ch in ('amplitude_damping',):
+        _ks = sorted(k for k in _cd['points'] if k.startswith(_ch))
+        if len(_ks) == 2:
+            _a, _b = (_cd['points'][k]['F_petz'] for k in _ks)
+            chk(abs(_a - _b) > 1e-9,
+                '[[%s]] %s Petz is p-dependent (%.9f vs %.9f)' % (_nm, _ch, _a, _b))
+    for _k, _p in _cd['points'].items():
+        if _k.startswith('coherent'):
+            chk(abs(_p['F_petz'] - 1.0) < 1e-12,
+                '[[%s]] %s Petz inverts the known unitary exactly (%.12f)'
+                % (_nm, _k, _p['F_petz']))
+        if _k.startswith('depolarizing'):
+            chk(_p['F_petz'] < _p['F_dec'] - 1e-3,
+                '[[%s]] %s Petz trails the syndrome-resolved decoder '
+                '(%.6f vs %.6f)' % (_nm, _k, _p['F_petz'], _p['F_dec']))
+        if _k.startswith('depolarizing') or _k.startswith('mixed'):
+            chk(_p['headroom_cptp'] < 1e-12,
+                '[[%s]] %s Pauli-type noise: decoder is CPTP-optimal (%s)'
+                % (_nm, _k, _p['headroom_cptp']))
+        if _k.startswith('coherent'):
+            chk(abs(_p['F_unit'] - 1.0) < 1e-12,
+                '[[%s]] %s a perfect branch-unitary recovery exists (%.12f)'
+                % (_nm, _k, _p['F_unit']))
 
 # ---- 10. key literature is present in the bibliography ---------------------
 for k in ('petz_map', 'biswas_petz', 'beny_optimal', 'huggins_vd', 'vikstal_vd',
