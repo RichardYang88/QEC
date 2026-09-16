@@ -324,16 +324,69 @@ $p=0.10$, a genuine CPTP recovery given the exact noise model.""")
           f"{('%.6f' % _dc) if _dc is not None else '---'} \\\\")
     A(r'\bottomrule\end{longtable}')
 
-# --------- ED Table 10: the measured scope of decoder stationarity ------------
+# --------- ED Tables 10a/10b: decoder stationarity, proved then swept ---------
 SB = os.path.join(ROOT, '..', 'stationarity_boundary.json')
-if os.path.exists(SB):
-    _sb = json.load(open(SB))
-    _s = _sb['summary']
-    _rows = _sb['rows']
+_sb = json.load(open(SB)) if os.path.exists(SB) else {}
+_s = _sb.get('summary') or {}
+_rows = _sb.get('rows') or []
+_cert = _sb.get('certificate') or []
+if _cert:
     A(r"""
-\subsection*{ED Table 10: the measured scope of decoder stationarity}
-Is $\phi^{\rm dec}$ stationary only because the Haar ensemble twirls the logical
-state? Each of the nine channels is scored by ten functionals: the exact Haar
+\subsection*{ED Table 10a: the analytic nine-sector stationarity certificate}
+The sweep in ED Table~10b is a sample of $90$ pairs; this is a proof covering
+every ensemble. Because $\tr[M\rho_{\mathbf n}]=a+\mathbf b\!\cdot\!\mathbf n$
+for $\rho_{\mathbf n}=(I+\mathbf n\!\cdot\!\boldsymbol\sigma)/2$, the objective
+of \emph{any} ensemble $\{(w_i,\mathbf n_i)\}$ is the exact quadratic
+$\sum_i w_i[c_0+\mathbf c_1\!\cdot\!\mathbf n_i+\mathbf n_i^{\mathsf T}C\,
+\mathbf n_i]$, and its nine coefficients depend on $\phi$ \emph{alone}. Writing
+$\nabla C=\nabla C_0+\tfrac13(\tr\nabla C)I$ and using $|\mathbf n|=1$ splits
+$\nabla_\phi\bar F_{\rm ens}$ into three terms that are spherical harmonics of
+degree $\ell=0,1,2$; harmonics of distinct degree are orthogonal on $S^2$, so a
+non-negative-weighted sum of them can vanish for every choice of points and
+weights only if each sector vanishes separately. The columns below are precisely
+those sector gradients at $\phi^{\rm dec}$, maximised over all $960$ ansatz
+angles and over the nine channels. Their vanishing is necessary \emph{and
+sufficient} for stationarity under every input state distribution, with no
+assumption about the noise channel. ``FD coeff'' is a central difference of the
+nine coefficient functions themselves rather than of the assembled objective, so
+it cross-checks autograd on a different code path. The $\langle Z_L\rangle$
+column is the maximum over the four sectors of the hardware-style observable
+loss, which is only \emph{degree one} in $\mathbf n$ and therefore has no
+$\ell=2$ sector and no a priori reason to be stationary. Controls are the same
+measurement at a random angle table; the weakest over all channels is %s for the
+fidelity sectors and %s for $\langle Z_L\rangle$, thirteen to fourteen orders of
+magnitude above the zeros, so the certificate is not reporting a dead gradient.
+Totals: $\max|S_0|=%s$, $\max|S_1|=%s$, $\max|S_2|=%s$, FD $=%s$,
+$\max|\nabla z|=%s$.""" % (
+        sci(_s['cert_min_control_sector']), sci(_s['cert_Z_min_control_sector']),
+        sci(_s['cert_max_S0']), sci(_s['cert_max_S1']), sci(_s['cert_max_S2']),
+        sci(_s['cert_fd_coeff_max']), sci(_s['cert_Z_min_sector'])))
+    A(r'\begin{longtable}{llccccc}')
+    A(r'\toprule channel & class & $\max\lvert S_0\rvert$ & '
+      r'$\max\lvert S_1\rvert$ & $\max\lvert S_2\rvert$ & FD coeff & '
+      r'$\max\lvert\nabla z\rvert$ \\')
+    A(r' & & ($\ell{=}0$) & ($\ell{=}1$) & ($\ell{=}2$) & '
+      r'& ($\langle Z_L\rangle$) \\ \midrule')
+    for _r in _cert:
+        A(f"{_r['channel'].replace('_', ' ')} & {_r['channel_class']} & "
+          f"{sci(_r['max_S0'])} & {sci(_r['max_S1'])} & {sci(_r['max_S2'])} & "
+          f"{sci(_r['fd_coeff_max'])} & {sci(_r['max_Z_sector'])} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+if _rows:
+    # The caption must quote the same two-estimator minimum that the table column
+    # reports.  summary['min_control_grad'] is the AUTOGRAD-only minimum and is
+    # slightly larger, which made the caption disagree with its own table.
+    _ctl_min = min(min(_r['control_grad_autograd'], _r['control_grad_fd'])
+                   for _r in _rows)
+    _grad_max = max(max(_r['grad_autograd'], _r['grad_fd']) for _r in _rows)
+    A(r"""
+\subsection*{ED Table 10b: the direct sweep, as a corollary of Table 10a}
+The direct measurement that ED Table~10a now subsumes, retained because it probes
+the assembled objective rather than its nine coefficients, and because it records
+the landscape classification per channel. Is $\phi^{\rm dec}$ stationary only
+because the Haar ensemble twirls the logical state? No. Each of the nine channels
+is scored by ten functionals: the exact Haar
 average, three complex two-designs (which agree with the Haar closed form to
 machine precision precisely because they are two-designs), five ensembles that
 are \emph{not} two-designs, and two hardware-style benchmarks that replace the
@@ -345,7 +398,7 @@ anything. The central difference at $\phi^{\rm dec}$ is \emph{bitwise} zero in
 every one of the $90$ pairs. Totals: %d two-design and %d non-two-design pairs,
 all stationary; max gradient %s, min control %s.""" % (
         _s['n_2designs'], _s['n_non_designs'],
-        sci(_s['max_grad_at_decoder']), sci(_s['min_control_grad'])))
+        sci(_grad_max), sci(_ctl_min)))
     A(r'\begin{longtable}{llcccccc}')
     A(r'\toprule channel & class & headroom & landscape & '
       r'\multicolumn{1}{c}{max grad} & \multicolumn{1}{c}{max grad} & '

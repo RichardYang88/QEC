@@ -246,19 +246,66 @@ chk(e.count(BS + 'begin{tabular}') == e.count(BS + 'end{tabular}'),
     'extended_data.tex tabular balance (%d/%d)'
     % (e.count(BS + 'begin{tabular}'), e.count(BS + 'end{tabular}')))
 for n in range(1, 12):
+    if n == 10:
+        # Table 10 was split: 10a is the analytic nine-sector certificate and 10b
+        # the direct 90-pair sweep that 10a subsumes.
+        chk('ED Table 10a:' in e and 'ED Table 10b:' in e,
+            'ED Tables 10a and 10b present (subsection headers)')
+        continue
     chk(('ED Table %d:' % n) in e, 'ED Table %d present (subsection header)' % n)
 chk('ED Table 11b:' in e, 'ED Table 11b present (readout-law verification)')
 chk('n/a ($0$)' in e, 'ED Table 8 shows n/a for zero-headroom channels')
-for n in (7, 8, 10, 11):
+for n in (7, 8, 11):
     chk(t.count('ED Table~%d' % n) >= 1,
         'main.tex points the reader at ED Table~%d' % n)
+chk('ED Table~10a' in t and 'ED Table~10b' in t,
+    'main.tex points the reader at both stationarity tables 10a and 10b')
 
 # ---- 9b. the two reviewer-response tables carry their load-bearing numbers ---
-# ED Table 10 is the stationarity sweep: its whole content is that the decoder
-# gradient vanishes on all 90 pairs while the control gradient does not, so audit
-# the artifacts behind it rather than the rendered digits.
+# ED Table 10a is the analytic nine-sector certificate and ED Table 10b the direct
+# 90-pair sweep it subsumes.  Audit the artifacts behind both rather than the
+# rendered digits.
 _sb = json.load(open('stationarity_boundary.json'))
 _sbs = _sb['summary']
+_cert = _sb['certificate']
+
+# 10a -- the certificate.  This is what turns the sweep from evidence into a
+# proof: the objective is an exact quadratic in the input Bloch vector whose nine
+# l=0,1,2 sector coefficients are ensemble-independent, and those sectors are
+# orthogonal on S^2, so their gradients vanishing is necessary AND sufficient for
+# stationarity under every input ensemble.
+chk(len(_cert) == 9, 'certificate covers %d noise channels' % len(_cert))
+chk(_sbs['cert_n_angles'] == 960,
+    'every sector gradient is maximised over all %d ansatz angles'
+    % _sbs['cert_n_angles'])
+chk(_sb['stationary_proved_for_every_ensemble'] is True,
+    'the nine sector gradients vanish, so phi^dec is PROVED stationary for every '
+    'input ensemble rather than merely for the 90 sampled pairs')
+chk(_sbs['cert_max_sector'] < 1e-14,
+    'worst fidelity sector gradient is %s' % _sbs['cert_max_sector'])
+chk(_sbs['cert_fd_coeff_max'] < 1e-8,
+    'central differences of the nine coefficient functions agree with autograd: %s'
+    % _sbs['cert_fd_coeff_max'])
+chk(_sbs['cert_min_control_sector'] > 1e-4,
+    'weakest certificate control is %s, so the zeros are measurable'
+    % _sbs['cert_min_control_sector'])
+chk(_sbs['cert_min_control_sector'] / _sbs['cert_max_sector'] > 1e10,
+    'certificate control exceeds the sector gradient by >10 orders of magnitude')
+chk(_sbs['cert_Z_min_sector'] < 1e-14,
+    'the four degree-1 <Z_L> sectors also vanish: %s' % _sbs['cert_Z_min_sector'])
+chk(_sbs['cert_Z_min_control_sector'] > 1e-4,
+    'weakest <Z_L> control is %s' % _sbs['cert_Z_min_control_sector'])
+for _r in _cert:
+    chk(_r['max_sector'] < 1e-14 and _r['control_max_sector'] > 1e-4,
+        'certificate per channel: %s (sector %s, control %s)'
+        % (_r['channel'], _r['max_sector'], _r['control_max_sector']))
+    chk(_r['max_Z_sector'] < 1e-14,
+        'certificate per channel, <Z_L> sectors: %s (%s)'
+        % (_r['channel'], _r['max_Z_sector']))
+
+# 10b -- the sweep, retained as the numerical corollary of 10a
+chk(_sbs['max_grad_at_decoder'] is not None,
+    'the 90-pair sweep was actually run (artifact is not --certificate-only)')
 chk(len(_sb['rows']) == 90,
     'stationarity sweep covers %d channel x functional pairs' % len(_sb['rows']))
 chk(_sbs['n_stationary_2designs'] == _sbs['n_2designs'],
@@ -278,7 +325,30 @@ for _r in _sb['rows']:
     chk(_r['grad_fd'] == 0.0,
         'central difference is bitwise zero: %s / %s'
         % (_r['channel'], _r['ensemble']))
-chk('ED Table 10' in e and '90' in e, 'ED Table 10 states the 90-pair total')
+chk('ED Table 10a:' in e and 'ED Table 10b:' in e,
+    'both stationarity tables are rendered in extended_data.tex')
+chk('90' in e, 'ED Table 10b states the 90-pair total')
+# The caption must quote the same two-estimator control minimum that the table's
+# own "min control" column reports.  summary['min_control_grad'] is autograd-only
+# and slightly larger, so quoting it made the caption disagree with its table.
+_ctl_min = min(min(_r['control_grad_autograd'], _r['control_grad_fd'])
+               for _r in _sb['rows'])
+_grad_max = max(max(_r['grad_autograd'], _r['grad_fd']) for _r in _sb['rows'])
+_mctl = re.search(r'min control (\d\.\d+)\\times 10\^\{(-?\d+)\}', e)
+_mgrad = re.search(r'max gradient (\d\.\d+)\\times 10\^\{(-?\d+)\}', e)
+chk(_mctl is not None and _mgrad is not None,
+    'ED Table 10b caption quotes both a max gradient and a min control')
+if _mctl and _mgrad:
+    _cap_ctl = float(_mctl.group(1)) * 10.0 ** int(_mctl.group(2))
+    _cap_grad = float(_mgrad.group(1)) * 10.0 ** int(_mgrad.group(2))
+    _tol_ctl = 0.005 * 10.0 ** int(_mctl.group(2))
+    _tol_grad = 0.005 * 10.0 ** int(_mgrad.group(2))
+    chk(abs(_cap_ctl - _ctl_min) <= _tol_ctl,
+        'ED Table 10b caption min control %.3g equals the table column minimum '
+        '%.3g' % (_cap_ctl, _ctl_min))
+    chk(abs(_cap_grad - _grad_max) <= _tol_grad,
+        'ED Table 10b caption max gradient %.3g equals the table maximum %.3g'
+        % (_cap_grad, _grad_max))
 
 # ED Table 11 is the scaling sweep: n=5 must reproduce the audited paper numbers,
 # and every code size must satisfy the exact readout law.

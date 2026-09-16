@@ -1,6 +1,6 @@
 {
- "generated_utc": "2026-09-15T09:01:01",
- "pinned_cpu": 6,
+ "generated_utc": "2026-09-16T00:30:35",
+ "pinned_cpu": 2,
  "quick": true,
  "rows": [
   {
@@ -1444,6 +1444,125 @@
    "landscape": "SADDLE"
   }
  ],
+ "certificate": [
+  {
+   "channel": "depolarizing",
+   "channel_class": "Pauli mixture, unital",
+   "n_kraus": 1024,
+   "max_S0": 1.4540135692000052e-18,
+   "max_S1": 7.241948942940873e-17,
+   "max_S2": 5.355937236746236e-33,
+   "max_sector": 7.241948942940873e-17,
+   "fd_coeff_max": 7.24194894293967e-17,
+   "control_max_sector": 0.03143108014884927,
+   "max_Z_sector": 8.667971159295831e-17,
+   "control_Z_sector": 0.043629380819085385
+  },
+  {
+   "channel": "amplitude damping",
+   "channel_class": "non-unital, non-Pauli Kraus",
+   "n_kraus": 32,
+   "max_S0": 1.2791240485078465e-18,
+   "max_S1": 9.452858534671451e-17,
+   "max_S2": 7.349628781392831e-20,
+   "max_sector": 9.452858534671451e-17,
+   "fd_coeff_max": 9.452858534669882e-17,
+   "control_max_sector": 0.04103086731713969,
+   "max_Z_sector": 1.1324659611311393e-16,
+   "control_Z_sector": 0.057001561005258224
+  },
+  {
+   "channel": "mixed",
+   "channel_class": "Pauli mixture then damping",
+   "n_kraus": 32768,
+   "max_S0": 1.7727721117350522e-18,
+   "max_S1": 6.40956086115531e-17,
+   "max_S2": 4.427009224977248e-20,
+   "max_sector": 6.40956086115531e-17,
+   "fd_coeff_max": 6.409560861154248e-17,
+   "control_max_sector": 0.027815510305612266,
+   "max_Z_sector": 7.664385245105453e-17,
+   "control_Z_sector": 0.03857792976667566
+  },
+  {
+   "channel": "coherent Rx",
+   "channel_class": "unitary, non-diagonal",
+   "n_kraus": 1,
+   "max_S0": 3.361505318836961e-19,
+   "max_S1": 1.1917465112896707e-16,
+   "max_S2": 2.6469779601696886e-21,
+   "max_sector": 1.1917465112896707e-16,
+   "fd_coeff_max": 2.153575874927028e-21,
+   "control_max_sector": 0.0517292325976164,
+   "max_Z_sector": 1.427866248311692e-16,
+   "control_Z_sector": 0.07187026461998791
+  },
+  {
+   "channel": "coherent Rz",
+   "channel_class": "unitary, diagonal",
+   "n_kraus": 1,
+   "max_S0": 3.362564110021028e-19,
+   "max_S1": 1.1917465112896692e-16,
+   "max_S2": 2.6469779601696886e-21,
+   "max_sector": 1.1917465112896692e-16,
+   "fd_coeff_max": 1.1917465112859734e-16,
+   "control_max_sector": 0.051729262192902234,
+   "max_Z_sector": 1.427866248311691e-16,
+   "control_Z_sector": 0.07187025795005432
+  },
+  {
+   "channel": "damping + dephasing",
+   "channel_class": "general single-qubit",
+   "n_kraus": 1024,
+   "max_S0": 3.283109735865161e-18,
+   "max_S1": 5.59497882278086e-17,
+   "max_S2": 3.5236570605778894e-19,
+   "max_sector": 5.59497882278086e-17,
+   "fd_coeff_max": 5.594978822779933e-17,
+   "control_max_sector": 0.02427793155197367,
+   "max_Z_sector": 6.683909715639064e-17,
+   "control_Z_sector": 0.03364280256415755
+  },
+  {
+   "channel": "random CPTP",
+   "channel_class": "general single-qubit, seeded",
+   "n_kraus": 1024,
+   "max_S0": 2.0319914564582907e-18,
+   "max_S1": 5.1228552649940085e-18,
+   "max_S2": 5.827586677109586e-19,
+   "max_sector": 5.1228552649940085e-18,
+   "fd_coeff_max": 0.0,
+   "control_max_sector": 0.0026977487140562423,
+   "max_Z_sector": 2.1401753699995963e-18,
+   "control_Z_sector": 0.0050203318421238475
+  },
+  {
+   "channel": "collective dephasing",
+   "channel_class": "correlated, not a product",
+   "n_kraus": 1,
+   "max_S0": 1.2535488034033089e-18,
+   "max_S1": 1.0948823021317178e-16,
+   "max_S2": 3.8963515573697816e-20,
+   "max_sector": 1.0948823021317178e-16,
+   "fd_coeff_max": 1.0948823021502263e-16,
+   "control_max_sector": 0.04752573458302086,
+   "max_Z_sector": 1.311810406462893e-16,
+   "control_Z_sector": 0.0660291062721124
+  },
+  {
+   "channel": "coherent ZZ ring",
+   "channel_class": "correlated two-body coherent",
+   "n_kraus": 1,
+   "max_S0": 4.164411882093017e-19,
+   "max_S1": 1.0948823089397905e-16,
+   "max_S2": 1.5178830414797062e-18,
+   "max_sector": 1.0948823089397905e-16,
+   "fd_coeff_max": 1.0948823089294997e-16,
+   "control_max_sector": 0.04752471829276375,
+   "max_Z_sector": 1.3118104227767943e-16,
+   "control_Z_sector": 0.06602868819700097
+  }
+ ],
  "summary": {
   "n_channels": 9,
   "n_ensembles": 10,
@@ -1453,7 +1572,19 @@
   "n_2designs": 27,
   "n_stationary_non_designs": 63,
   "n_non_designs": 63,
-  "runtime_s": 297.56896328926086
+  "cert_n_channels": 9,
+  "cert_max_S0": 3.283109735865161e-18,
+  "cert_max_S1": 1.1917465112896707e-16,
+  "cert_max_S2": 1.5178830414797062e-18,
+  "cert_max_sector": 1.1917465112896707e-16,
+  "cert_fd_coeff_max": 1.1917465112859734e-16,
+  "cert_min_control_sector": 0.0026977487140562423,
+  "cert_Z_min_sector": 2.1401753699995963e-18,
+  "cert_Z_min_control_sector": 0.0050203318421238475,
+  "cert_n_angles": 960,
+  "runtime_s": 309.5205283164978
  },
- "stationary_on_all_tested": true
+ "certificate_only": false,
+ "stationary_on_all_tested": true,
+ "stationary_proved_for_every_ensemble": true
 }

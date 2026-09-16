@@ -210,9 +210,52 @@ mixed & $\le0.30$ & 0.99998058 & 0/600 & 0.875064 & 0.925339 \\
 coherent & $\le0.30$ & 1.13059204 & 600/600 & 1.000000 & 0.999959 \\
 \bottomrule\end{longtable}
 
-\subsection*{ED Table 10: the measured scope of decoder stationarity}
-Is $\phi^{\rm dec}$ stationary only because the Haar ensemble twirls the logical
-state? Each of the nine channels is scored by ten functionals: the exact Haar
+\subsection*{ED Table 10a: the analytic nine-sector stationarity certificate}
+The sweep in ED Table~10b is a sample of $90$ pairs; this is a proof covering
+every ensemble. Because $\tr[M\rho_{\mathbf n}]=a+\mathbf b\!\cdot\!\mathbf n$
+for $\rho_{\mathbf n}=(I+\mathbf n\!\cdot\!\boldsymbol\sigma)/2$, the objective
+of \emph{any} ensemble $\{(w_i,\mathbf n_i)\}$ is the exact quadratic
+$\sum_i w_i[c_0+\mathbf c_1\!\cdot\!\mathbf n_i+\mathbf n_i^{\mathsf T}C\,
+\mathbf n_i]$, and its nine coefficients depend on $\phi$ \emph{alone}. Writing
+$\nabla C=\nabla C_0+\tfrac13(\tr\nabla C)I$ and using $|\mathbf n|=1$ splits
+$\nabla_\phi\bar F_{\rm ens}$ into three terms that are spherical harmonics of
+degree $\ell=0,1,2$; harmonics of distinct degree are orthogonal on $S^2$, so a
+non-negative-weighted sum of them can vanish for every choice of points and
+weights only if each sector vanishes separately. The columns below are precisely
+those sector gradients at $\phi^{\rm dec}$, maximised over all $960$ ansatz
+angles and over the nine channels. Their vanishing is necessary \emph{and
+sufficient} for stationarity under every input state distribution, with no
+assumption about the noise channel. ``FD coeff'' is a central difference of the
+nine coefficient functions themselves rather than of the assembled objective, so
+it cross-checks autograd on a different code path. The $\langle Z_L\rangle$
+column is the maximum over the four sectors of the hardware-style observable
+loss, which is only \emph{degree one} in $\mathbf n$ and therefore has no
+$\ell=2$ sector and no a priori reason to be stationary. Controls are the same
+measurement at a random angle table; the weakest over all channels is 2.70\times 10^{-3} for the
+fidelity sectors and 5.02\times 10^{-3} for $\langle Z_L\rangle$, thirteen to fourteen orders of
+magnitude above the zeros, so the certificate is not reporting a dead gradient.
+Totals: $\max|S_0|=3.28\times 10^{-18}$, $\max|S_1|=1.19\times 10^{-16}$, $\max|S_2|=1.52\times 10^{-18}$, FD $=1.19\times 10^{-16}$,
+$\max|\nabla z|=2.14\times 10^{-18}$.
+\begin{longtable}{llccccc}
+\toprule channel & class & $\max\lvert S_0\rvert$ & $\max\lvert S_1\rvert$ & $\max\lvert S_2\rvert$ & FD coeff & $\max\lvert\nabla z\rvert$ \\
+ & & ($\ell{=}0$) & ($\ell{=}1$) & ($\ell{=}2$) & & ($\langle Z_L\rangle$) \\ \midrule
+depolarizing & Pauli mixture, unital & 1.45\times 10^{-18} & 7.24\times 10^{-17} & 5.36\times 10^{-33} & 7.24\times 10^{-17} & 8.67\times 10^{-17} \\
+amplitude damping & non-unital, non-Pauli Kraus & 1.28\times 10^{-18} & 9.45\times 10^{-17} & 7.35\times 10^{-20} & 9.45\times 10^{-17} & 1.13\times 10^{-16} \\
+mixed & Pauli mixture then damping & 1.77\times 10^{-18} & 6.41\times 10^{-17} & 4.43\times 10^{-20} & 6.41\times 10^{-17} & 7.66\times 10^{-17} \\
+coherent Rx & unitary, non-diagonal & 3.36\times 10^{-19} & 1.19\times 10^{-16} & 2.65\times 10^{-21} & 2.15\times 10^{-21} & 1.43\times 10^{-16} \\
+coherent Rz & unitary, diagonal & 3.36\times 10^{-19} & 1.19\times 10^{-16} & 2.65\times 10^{-21} & 1.19\times 10^{-16} & 1.43\times 10^{-16} \\
+damping + dephasing & general single-qubit & 3.28\times 10^{-18} & 5.59\times 10^{-17} & 3.52\times 10^{-19} & 5.59\times 10^{-17} & 6.68\times 10^{-17} \\
+random CPTP & general single-qubit, seeded & 2.03\times 10^{-18} & 5.12\times 10^{-18} & 5.83\times 10^{-19} & 0.00\times 10^{0} & 2.14\times 10^{-18} \\
+collective dephasing & correlated, not a product & 1.25\times 10^{-18} & 1.09\times 10^{-16} & 3.90\times 10^{-20} & 1.09\times 10^{-16} & 1.31\times 10^{-16} \\
+coherent ZZ ring & correlated two-body coherent & 4.16\times 10^{-19} & 1.09\times 10^{-16} & 1.52\times 10^{-18} & 1.09\times 10^{-16} & 1.31\times 10^{-16} \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 10b: the direct sweep, as a corollary of Table 10a}
+The direct measurement that ED Table~10a now subsumes, retained because it probes
+the assembled objective rather than its nine coefficients, and because it records
+the landscape classification per channel. Is $\phi^{\rm dec}$ stationary only
+because the Haar ensemble twirls the logical state? No. Each of the nine channels
+is scored by ten functionals: the exact Haar
 average, three complex two-designs (which agree with the Haar closed form to
 machine precision precisely because they are two-designs), five ensembles that
 are \emph{not} two-designs, and two hardware-style benchmarks that replace the
@@ -222,7 +265,7 @@ smallest control gradient---the same autograd and finite-difference machinery
 evaluated at a random angle table, which must be large for a zero to mean
 anything. The central difference at $\phi^{\rm dec}$ is \emph{bitwise} zero in
 every one of the $90$ pairs. Totals: 27 two-design and 63 non-two-design pairs,
-all stationary; max gradient 7.19\times 10^{-17}, min control 2.56\times 10^{-3}.
+all stationary; max gradient 7.19\times 10^{-17}, min control 2.11\times 10^{-3}.
 \begin{longtable}{llcccccc}
 \toprule channel & class & headroom & landscape & \multicolumn{1}{c}{max grad} & \multicolumn{1}{c}{max grad} & \multicolumn{1}{c}{max grad} & min control \\
  & & & & 2-design & non-2-design & $\langle Z_L\rangle$ & grad \\ \midrule

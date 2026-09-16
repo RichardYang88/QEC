@@ -29,6 +29,14 @@ a specific figure or table:
                                       point, the separable objective IS the
                                       production objective, and the refinement
                                       is monotone and captures the headroom
+  stationarity_boundary._selftest_certificate
+                                      the analytic nine-sector certificate: the
+                                      objective is an exact quadratic in the input
+                                      Bloch vector whose l=0,1,2 coefficients are
+                                      ensemble-independent, so vanishing sector
+                                      gradients PROVE phi^dec is stationary for
+                                      every ensemble, upgrading the 90-pair sweep
+                                      from evidence to corollary
 
 Usage:
     python run_selftests.py            # everything (slow: ~20-40 min)
@@ -63,6 +71,7 @@ sys.path.insert(0, HERE)
 import ssvr_qec as m                                      # noqa: E402
 import vscr_paper as vp                                   # noqa: E402
 import vscr_paper_abl as ab                               # noqa: E402
+import stationarity_boundary as sb                        # noqa: E402
 
 # name -> (callable, slow?, description)
 TESTS = [
@@ -84,6 +93,9 @@ TESTS = [
      'CPTP ceiling SDP'),
     ('refine',      lambda: ab._selftest_refine(n_start=3, steps=900), True,
      'Fix A/B: decoder is an exact saddle; refinement is monotone + captures'),
+    ('stationarity', sb._selftest_certificate, True,
+     'nine-sector certificate: phi^dec is stationary for EVERY pure-state input '
+     'ensemble and for both loss functionals, not just the sampled ones'),
 ]
 
 
