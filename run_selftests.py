@@ -37,6 +37,18 @@ a specific figure or table:
                                       gradients PROVE phi^dec is stationary for
                                       every ensemble, upgrading the 90-pair sweep
                                       from evidence to corollary
+  ancilla_recovery (conventions / tp / quadrature /
+                      physical dilation / controls)
+                                      the Kraus-rank ladder that counts ancillas:
+                                      rank(C)=1 reproduces the production unitary
+                                      ceiling, rank(C)=4 the production CPTP
+                                      ceiling, the Choi objective equals production
+                                      cf_unnormalised, the rank-2 optimum is exactly
+                                      trace preserving with an exactly unitary
+                                      Stinespring dilation, an independent
+                                      unconstrained circuit optimisation lands on
+                                      the same value, and both control channels
+                                      give a FLAT ladder
 
 Usage:
     python run_selftests.py            # everything (slow: ~20-40 min)
@@ -73,6 +85,25 @@ import vscr_paper as vp                                   # noqa: E402
 import vscr_paper_abl as ab                               # noqa: E402
 import stationarity_boundary as sb                        # noqa: E402
 
+def _t_ancilla():
+    """The Kraus-rank ladder: rank(C) counts the ancillas a branch recovery needs.
+
+    Runs all five of `ancilla_recovery`'s self-tests.  Each is anchored either to
+    production code or to a route that shares nothing with the Choi program:
+    conventions (r=1 against `ab._max_unitary_J`, r=4 against `ab._sdp_branch`,
+    the multi-Kraus Choi objective against `g.cf_unnormalised`, ladder monotone in
+    rank); trace preservation and the Stinespring dilation (exactly TP Kraus pair,
+    exactly unitary U, partial trace reproduces Phi, and an unconstrained
+    `expm(iH)` optimisation sharing no variables or constraints lands on the same
+    value); a brute-force Haar quadrature of the physical estimator, using neither
+    the Choi matrix nor the degree-2 moment identity; the (n+1)-qubit dilation
+    assembled on the physical register and checked against the paper's own
+    V^dagger R_s W_s = G_s reduced-block map; and both control channels against a
+    FLAT ladder, which is the negative control against solver slack."""
+    import ancilla_recovery as ar
+    assert ar.main(['--selftest']) == 0
+
+
 # name -> (callable, slow?, description)
 TESTS = [
     ('gates',       m._selftest_gates, False,
@@ -96,6 +127,15 @@ TESTS = [
     ('stationarity', sb._selftest_certificate, True,
      'nine-sector certificate: phi^dec is stationary for EVERY pure-state input '
      'ensemble and for both loss functionals, not just the sampled ones'),
+    ('ancilla',     _t_ancilla, True,
+     'Kraus-rank ladder, five self-tests: rank(C)=1 reproduces the production '
+     'unitary ceiling and rank(C)=4 the production CPTP ceiling, the Choi '
+     'objective equals production cf_unnormalised, the rank-2 optimum is exactly '
+     'trace preserving with an exactly unitary one-ancilla Stinespring dilation, '
+     'an independent unconstrained exp(iH) circuit optimisation lands on the '
+     'same value, a brute-force Haar quadrature of the physical estimator '
+     'agrees, the (n+1)-qubit dilation exists on the PHYSICAL register, and '
+     'both control channels give a FLAT ladder'),
 ]
 
 

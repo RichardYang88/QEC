@@ -70,9 +70,10 @@ re-evaluate them \emph{exactly} on $[\![7,1,3]\!]$ and $[\![9,1,3]\!]$: the
 decoder remains CPTP-optimal on Pauli noise at every size and a perfect
 branch-unitary recovery exists for coherent noise at every size, while the
 amplitude-damping headroom grows from $1.8\times10^{-3}$ to $8.4\times10^{-3}$ at
-$n=7$ and then migrates out of the unitary family altogether at $n=9$---and
-mid-circuit readout error obeys an exact $(1-\eta)^{n-k}$ law that leaves the
-relative advantage intact.
+$n=7$ and then migrates out of the unitary family altogether at $n=9$, where a
+Kraus-rank ladder shows that a \emph{single} ancilla qubit per branch, discarded
+rather than measured, recovers all of it---and mid-circuit readout error obeys an
+exact $(1-\eta)^{n-k}$ law that leaves the relative advantage intact.
 The trained instrument compiles to
 fixed gate-level branch circuits that we verify against a density-matrix
 simulator to $<10^{-9}$, and we design a Pauli-frame benchmark protocol that
@@ -179,7 +180,11 @@ training-free CPTP competitor that is \emph{not} an oracle mitigation bound;
 $[\![7,1,3]\!]$ and $[\![9,1,3]\!]$, together with an exact
 $(1-\eta)^{n-k}$ readout-suppression law verified at all three sizes, which
 locates both where the advantage grows with the code and where it leaves the
-unitary family that VSCR occupies;
+unitary family that VSCR occupies---and, where it does leave it, a Kraus-rank
+ladder that converts the ceiling into a count of ancillas and shows that one
+ancilla qubit per branch is \emph{sufficient}: the ladder is flat above rank two
+at $n=9$, and we return the explicitly unitary Stinespring dilation that realises
+the recovery as a circuit;
 (iv)~an exact circuit-level compilation and
 verification pipeline (worst circuit--simulator deviation $<10^{-9}$) together
 with a Pauli-frame sampling protocol that emulates the depolarizing channel
@@ -477,10 +482,41 @@ at $n=5$ ($p=0.10$), $+8.42\times10^{-3}$ at $n=7$ (a $4.7\times$ increase, with
 $\bar F^{\rm dec}$ falling from $0.9848$ to $0.9754$), and then \emph{exactly
 zero} at $n=9$, where the per-branch-unitary ceiling coincides with the decoder
 to $1.1\times10^{-16}$ and the residual headroom has moved entirely into the
-non-unitary CPTP family ($+7.3\times10^{-6}$ at $p=0.05$, $+2.1\times10^{-5}$ at
-$p=0.10$). At $n=9$, in other words, exploiting amplitude-damping noise requires
-a genuinely non-unitary branch recovery, and the unitary instrument VSCR compiles
-to reproduces the decoder exactly. The Petz comparator sharpens the same point:
+non-unitary CPTP family ($+2.71\times10^{-5}$ at $p=0.05$, $+3.43\times10^{-4}$
+at $p=0.10$). At $n=9$, in other words, exploiting amplitude-damping noise
+requires a genuinely non-unitary branch recovery, and the unitary instrument VSCR
+compiles to reproduces the decoder exactly.
+
+That non-unitarity turns out to be cheap, and we can now say exactly how cheap.
+The Kraus rank of a branch recovery equals the rank of its Choi matrix and hence
+the minimal ancilla dimension with which a Stinespring dilation realises it as a
+unitary followed by discarding the ancilla, so restricting the Choi factor of the
+ceiling program to $r$ columns converts the ceiling into a \emph{count of
+ancillas} rather than a relaxation. Solving that ladder exactly at every size and
+on every channel (ED Table~12) gives a sharp answer: at $n=9$ amplitude damping it
+is \emph{flat above $r=2$}, with $\bar F^{(2)}=\bar F^{(3)}=\bar F^{(4)}$ to
+$2.4\times10^{-13}$ at $p=0.05$ and $1.1\times10^{-13}$ at $p=0.10$, so a
+\emph{single} ancilla qubit per branch recovers the entire non-unitary headroom
+and a second one buys nothing. On the two control channels the same ladder is flat
+at every rung (spread below $10^{-13}$), which is the negative control that
+keeps the $n=9$ gain from being slack invented by a non-convex solver. And the
+instrument is returned as a circuit rather than only as a number: across all
+$48$ witnesses its Kraus pairs are trace preserving, and its explicit
+$4\times4$ dilations unitary, to below $10^{-14}$; tracing the ancilla out of
+$U(\rho\otimes\ket0\bra0)U^\dagger$ reproduces $\sum_i B_i\rho B_i^\dagger$ to
+machine zero, an unconstrained optimisation over $U=\exp(iH)$ that
+shares no variables, constraints or objective expression with the Choi program
+lands on the same conditional fidelity to below $10^{-10}$, and a
+$20000$-state brute-force Haar quadrature of the physical estimator---a third
+route, using neither the Choi matrix nor the Haar moment identity---agrees to
+$0.92\sigma$ on every branch that has sampling noise at all, and to below
+$10^{-14}$ relative on the eight branches where the estimator is exactly
+$\psi$-independent, so that the quadrature there is a deterministic identity check
+rather than a statistical one. The price of the $n=9$ amplitude-damping
+headroom is therefore one ancilla qubit per branch, discarded rather than
+measured---no mid-circuit readout, no post-selection, no feed-forward.
+
+The Petz comparator sharpens the same point:
 on amplitude damping it leads the unitary ceiling at every size and by a growing
 margin ($+1.9\times10^{-3}$, $+2.3\times10^{-3}$, $+2.7\times10^{-2}$), because
 the noise-adapted transpose channel also undoes the coherent no-jump distortion
@@ -653,8 +689,16 @@ vanishes from the unitary family at $n=9$, surviving only in the CPTP ceiling.
 The honest reading is that the \emph{protocol} scales and the \emph{non-Pauli
 advantage} is channel- and code-dependent: a larger code buys more headroom on
 coherent control error and, up to a point, on amplitude damping, but beyond that
-the residual gain requires a non-unitary branch recovery that a gate-level
-instrument cannot express. On the architecture side, a per-syndrome
+the residual gain requires a non-unitary branch recovery. It does \emph{not}
+require leaving the gate model. The Kraus-rank ladder of ED Table~12 is flat above
+rank two at $n=9$, so one ancilla qubit per branch---entangled by a single unitary
+and \emph{discarded} rather than measured---captures the whole residual
+($+2.7\times10^{-5}$ at $p=0.05$, $+3.4\times10^{-4}$ at $p=0.10$), and the
+dilation unitary is returned explicitly. What VSCR compiles to today is still a
+unitary instrument, so realising that headroom means extending each compiled
+branch by one qubit and one discard: a concrete next step rather than a change of
+model, and one that needs no mid-circuit readout on a device that does not offer
+it. On the architecture side, a per-syndrome
 parameter table matches the hypernetwork at $n=5$ (ED Table~6) but grows
 like $2^{n-k}=16,64,256$, whereas the hypernetwork keeps fixed size and shares
 statistical strength across branches; branch circuits
@@ -978,17 +1022,104 @@ $C_s=(\mathrm{id}\otimes G_s)(\ket\Omega\bra\Omega)$) is the linear
 functional $2\,\mathrm{Tr}[C_s M_s]$ with the exact Haar average
 $M_s=\sum_k(\bar A_k\otimes I)\tfrac{I+2\Phi}{6}(A_k^{T}\otimes I)$, from
 the two-copy moment $\mathbb{E}_\psi[\bar X\otimes X]=(I+2\Phi)/6$.
-Maximizing over $C_s\succeq0$ with $\mathrm{Tr}_{\rm out}C_s\preceq I/2$
-(SLSQP on a Cholesky parameterization; starts: identity, decoder, random)
-gives $F_s^{\max}$, and $\bar F^{\rm CPTP}=\sum_s p_s F_s^{\max}$ with
-$p_s=\mathrm{Tr}\sum_k A_k^\dagger A_k/2$. Self-tests: the identity channel
-returns exactly $1$; at $p=0.05$ depolarizing the ceiling matches the
-decoder Monte-Carlo value to $<2\times10^{-4}$. \emph{Pauli-restricted
+Maximizing over $C_s\succeq0$ with $\mathrm{Tr}_{\rm out}C_s= I/2$
+(SLSQP on a Cholesky parameterization $C_s=LL^\dagger$; starts: identity,
+decoder, random) gives $F_s^{\max}$, and
+$\bar F^{\rm CPTP}=\sum_s p_s F_s^{\max}$ with
+$p_s=\mathrm{Tr}\sum_k A_k^\dagger A_k/2$. Trace preservation is imposed as the
+four real \emph{equalities} $\mathrm{Tr}_{\rm out}C_s=I/2$ rather than as the
+inequality $\preceq I/2$ an earlier version used, and the difference is not
+cosmetic. The inequality admits the interior of the sub-trace-preserving set and
+its one-sided acceptance test lets SLSQP stop there, which under-reported the
+$[\![9,1,3]\!]$ amplitude-damping ceiling by $3.7\times$ at $p=0.05$ and
+$16\times$ at $p=0.10$: at the worst branch the returned Choi matrix had rank
+$1$, so the solve never left the unitary family and the ``CPTP'' ceiling had
+silently degraded into the unitary one. Adding random starts does not cure it
+($24$ starts still miss the optimum by $1.1\times10^{-7}$); the equality form
+reaches it from two starts and reproduces it to $3\times10^{-13}$ from three and
+from six, and it moves none of the eight audited $n=5$ ceilings by more than
+$2.5\times10^{-12}$. Self-tests: the identity channel returns exactly $1$; at
+$p=0.05$ depolarizing the ceiling matches the decoder Monte-Carlo value to
+$<2\times10^{-4}$; and the returned optimum is never below the exact
+unitary-family optimum, which the feasible-start seeding guarantees because a
+unitary Choi vector satisfies the equality exactly. \emph{Pauli-restricted
 search}: a Pauli recovery contributes to branch $s$ only if its syndrome
 equals $s$ (otherwise its output is orthogonal to the codespace), and the
 $64$ such Paulis act on the branch as four logical classes
 $C_s\cdot\{I,X_L,Z_L,X_LZ_L\}$; the exhaustive per-branch optimum was
 cross-checked against $60$ random Pauli strings.
+
+\paragraph{The Kraus-rank ladder: counting ancillas instead of relaxing.}
+Write the Choi factor as $C_s=LL^\dagger$ with $L\in\mathbb C^{4\times r}$. Then
+$\mathrm{rank}(C_s)\le r$, and because the Kraus rank of a channel equals the rank
+of its Choi matrix, $r$ is exactly the minimal ancilla dimension with which a
+Stinespring dilation realises the branch recovery as a unitary followed by
+discarding the ancilla. The ladder is therefore a count of ancillas rather than a
+hierarchy of relaxations: $r{=}1$ is a unitary branch recovery (no ancilla; the
+family VSCR compiles to), $r{=}2$ is a one-ancilla gate-level instrument, and
+$r{=}4$ is the unrestricted ceiling above. Solving the same program at each $r$,
+in descending order so that each rung is warm-started from the top-$r$ spectral
+truncation of the one above, converts the ceiling into the question the hardware
+actually asks (ED Table~12). Both endpoints are pinned by assertion against
+production code rather than assumed: $r{=}1$ reproduces the exact unitary-family
+optimum of the $4\times4$ Rayleigh quotient to $4\times10^{-13}$, $r{=}4$
+reproduces $\bar F^{\rm CPTP}$ to $2\times10^{-13}$, and the Choi objective
+$2\,\mathrm{Tr}[C_sM_s]$ is asserted to equal
+$\sum_{j,k}\big(|\tr(B_jA_k)|^2+\tr(B_jA_kA_k^\dagger B_j^\dagger)\big)/6$---the
+production degree-$2$ Haar estimator summed over Kraus operators---to
+$2\times10^{-15}$, which is what licenses reading $L$'s columns as Kraus
+operators at all. The $r<4$ programs are non-convex, so the ladder is asserted
+monotone in $r$ (worst violation $2\times10^{-13}$); a violation there is a solver
+failure rather than physics, since rank-$r$ Choi matrices are a subset of
+rank-$(r{+}1)$ ones.
+
+For the $r{=}2$ rung the hardware object is returned, not only its fidelity. The
+Kraus pair is repaired to exact trace preservation by $B_i\mapsto B_i\Delta^{-1/2}$
+with $\Delta=\sum_i B_i^\dagger B_i$ (worst residual defect below $10^{-14}$
+over $48$ witnesses), the
+isometry $\ket l\mapsto\sum_i\ket i_a\otimes B_i\ket l$---an isometry precisely
+because $\Delta=I$---is completed to a $4\times4$ unitary $U$ on
+ancilla$\,\otimes\,$logical by appending an orthonormal basis of the complement of
+its image (worst unitarity defect below $10^{-14}$), and
+$\mathrm{Tr}_a\!\left[U(\rho\otimes\ket0\bra0)U^\dagger\right]=\sum_i B_i\rho
+B_i^\dagger$ is verified on random states to machine zero. Three independent
+controls bound the answer. (i)~An unconstrained multi-start optimisation of
+$U=\exp(iH)$ over the $16$ real parameters of a Hermitian $4\times4$ generator is
+exactly trace preserving by construction, needs no constraint handling at all, and
+shares no variables, constraints or objective expression with the Choi program; it
+lands on the same conditional fidelity to below $10^{-10}$. (ii)~A
+$20000$-state brute-force Haar quadrature of
+$\langle\psi|\mathcal R(\rho_{\rm noisy})|\psi\rangle$, which uses neither the
+Choi matrix nor the degree-$2$ moment identity, agrees to $0.92\sigma$ on every
+branch with sampling noise and to below $10^{-14}$ relative on the branches
+where the estimator is exactly $\psi$-independent: coherent noise, whose optimal
+branch recovery is the inverse unitary so the sum collapses to
+$|\langle\psi|\psi\rangle|^2$, and depolarizing noise, whose branch operators are
+the whole Pauli group so the sum is a Pauli twirl. There the quadrature has zero
+variance and is a deterministic identity check rather than a statistical one,
+which is worth saying out loud because a naive sigma test would report those exact
+agreements as $144\sigma$ failures. (iii)~Coherent over-rotation and
+depolarizing noise are run through the identical ladder as negative controls and
+come out flat across every rung (spread below $10^{-13}$), so a rank-$2$ gain
+that appears only on $n=9$
+amplitude damping cannot be slack invented by the non-convex solver. Existence of
+a \emph{physical} $(n{+}1)$-qubit dilation follows constructively, and we build it
+rather than only citing it. With $T_i=VB_iW_s^\dagger$ one has
+$\sum_i T_i^\dagger T_i=W_s(\sum_iB_i^\dagger B_i)W_s^\dagger=P_s$, so
+$\ket0_a\otimes\ket x\mapsto\sum_i\ket i_a\otimes T_i\ket x$ is an isometry on
+$\mathrm{im}\,W_s$ and extends to a unitary $\tilde R_s$ on
+ancilla$\,\otimes\,$data. Trace preservation is precisely what makes the two
+orthonormal families match, so a merely sub-trace-preserving solution would give a
+contraction here and no unitary extension at all --- the second reason the equality
+constraint matters. Assembling $\tilde R_s$ explicitly on the $2^{n+1}$-dimensional
+physical register ($n{=}5$, twelve branches) gives all four of
+$\sum_iT_i^\dagger T_i=P_s$, orthonormality of both families, unitarity of
+$\tilde R_s$, and the reduced-block identity
+$(\bra i_a\otimes V^\dagger)\tilde R_s(\ket0_a\otimes W_s)=B_i$ --- the exact
+instrument analogue of the paper's $V^\dagger R_sW_s=G_s$ --- to below
+$10^{-14}$, i.e.\ at machine precision on a $2^{n+1}$-dimensional register.
+The one-ancilla recovery is therefore a circuit on the physical register, not
+merely a channel on the logical one.
 
 \paragraph{Hardware platform and protocol.}
 Experiments ran on OriginQ Wukong chip \texttt{WK\_C180} via

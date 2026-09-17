@@ -118,10 +118,10 @@ depolarizing $p=0.10$ fidelity after training on a fixed pool of $K$ logical
 states (warm/cold start; $400/600$ epochs).
 \begin{longtable}{lccccc}
 \toprule channel & decoder & VSCR warm & VQR-ind & $\Delta_{\rm ind}$ & global (no proj.) \\ \midrule
-depolarizing & 0.9470 & 0.9470 & 0.9470 & 0.00\times 10^{0} & 0.5908 \\
-amplitude damping & 0.9848 & 0.9863 & 0.9863 & 2.29\times 10^{-9} & 0.7712 \\
-mixed & 0.9253 & 0.9253 & 0.9253 & 0.00\times 10^{0} & 0.5229 \\
-coherent & 1.0000 & 1.0000 & 1.0000 & 2.99\times 10^{-10} & 0.9962 \\
+depolarizing & 0.9470 & 0.9470 & 0.9470 & $0.00\times 10^{0}$ & 0.5908 \\
+amplitude damping & 0.9848 & 0.9863 & 0.9863 & $2.29\times 10^{-9}$ & 0.7712 \\
+mixed & 0.9253 & 0.9253 & 0.9253 & $0.00\times 10^{0}$ & 0.5229 \\
+coherent & 1.0000 & 1.0000 & 1.0000 & $2.99\times 10^{-10}$ & 0.9962 \\
 \bottomrule\end{longtable}
 \begin{longtable}{lcccc}
 \toprule low-data ($p=0.10$) & $K=2$ & $K=4$ & $K=8$ & $K=16$ \\ \midrule
@@ -231,23 +231,23 @@ it cross-checks autograd on a different code path. The $\langle Z_L\rangle$
 column is the maximum over the four sectors of the hardware-style observable
 loss, which is only \emph{degree one} in $\mathbf n$ and therefore has no
 $\ell=2$ sector and no a priori reason to be stationary. Controls are the same
-measurement at a random angle table; the weakest over all channels is 2.70\times 10^{-3} for the
-fidelity sectors and 5.02\times 10^{-3} for $\langle Z_L\rangle$, thirteen to fourteen orders of
+measurement at a random angle table; the weakest over all channels is $2.70\times 10^{-3}$ for the
+fidelity sectors and $5.02\times 10^{-3}$ for $\langle Z_L\rangle$, thirteen to fourteen orders of
 magnitude above the zeros, so the certificate is not reporting a dead gradient.
-Totals: $\max|S_0|=3.28\times 10^{-18}$, $\max|S_1|=1.19\times 10^{-16}$, $\max|S_2|=1.52\times 10^{-18}$, FD $=1.19\times 10^{-16}$,
-$\max|\nabla z|=2.14\times 10^{-18}$.
+Totals: $\max|S_0|=$\,$3.28\times 10^{-18}$, $\max|S_1|=$\,$1.19\times 10^{-16}$, $\max|S_2|=$\,$1.52\times 10^{-18}$,
+FD\,$=$\,$1.19\times 10^{-16}$, $\max|\nabla z|=$\,$2.14\times 10^{-18}$.
 \begin{longtable}{llccccc}
 \toprule channel & class & $\max\lvert S_0\rvert$ & $\max\lvert S_1\rvert$ & $\max\lvert S_2\rvert$ & FD coeff & $\max\lvert\nabla z\rvert$ \\
  & & ($\ell{=}0$) & ($\ell{=}1$) & ($\ell{=}2$) & & ($\langle Z_L\rangle$) \\ \midrule
-depolarizing & Pauli mixture, unital & 1.45\times 10^{-18} & 7.24\times 10^{-17} & 5.36\times 10^{-33} & 7.24\times 10^{-17} & 8.67\times 10^{-17} \\
-amplitude damping & non-unital, non-Pauli Kraus & 1.28\times 10^{-18} & 9.45\times 10^{-17} & 7.35\times 10^{-20} & 9.45\times 10^{-17} & 1.13\times 10^{-16} \\
-mixed & Pauli mixture then damping & 1.77\times 10^{-18} & 6.41\times 10^{-17} & 4.43\times 10^{-20} & 6.41\times 10^{-17} & 7.66\times 10^{-17} \\
-coherent Rx & unitary, non-diagonal & 3.36\times 10^{-19} & 1.19\times 10^{-16} & 2.65\times 10^{-21} & 2.15\times 10^{-21} & 1.43\times 10^{-16} \\
-coherent Rz & unitary, diagonal & 3.36\times 10^{-19} & 1.19\times 10^{-16} & 2.65\times 10^{-21} & 1.19\times 10^{-16} & 1.43\times 10^{-16} \\
-damping + dephasing & general single-qubit & 3.28\times 10^{-18} & 5.59\times 10^{-17} & 3.52\times 10^{-19} & 5.59\times 10^{-17} & 6.68\times 10^{-17} \\
-random CPTP & general single-qubit, seeded & 2.03\times 10^{-18} & 5.12\times 10^{-18} & 5.83\times 10^{-19} & 0.00\times 10^{0} & 2.14\times 10^{-18} \\
-collective dephasing & correlated, not a product & 1.25\times 10^{-18} & 1.09\times 10^{-16} & 3.90\times 10^{-20} & 1.09\times 10^{-16} & 1.31\times 10^{-16} \\
-coherent ZZ ring & correlated two-body coherent & 4.16\times 10^{-19} & 1.09\times 10^{-16} & 1.52\times 10^{-18} & 1.09\times 10^{-16} & 1.31\times 10^{-16} \\
+depolarizing & Pauli mixture, unital & $1.45\times 10^{-18}$ & $7.24\times 10^{-17}$ & $5.36\times 10^{-33}$ & $7.24\times 10^{-17}$ & $8.67\times 10^{-17}$ \\
+amplitude damping & non-unital, non-Pauli Kraus & $1.28\times 10^{-18}$ & $9.45\times 10^{-17}$ & $7.35\times 10^{-20}$ & $9.45\times 10^{-17}$ & $1.13\times 10^{-16}$ \\
+mixed & Pauli mixture then damping & $1.77\times 10^{-18}$ & $6.41\times 10^{-17}$ & $4.43\times 10^{-20}$ & $6.41\times 10^{-17}$ & $7.66\times 10^{-17}$ \\
+coherent Rx & unitary, non-diagonal & $3.36\times 10^{-19}$ & $1.19\times 10^{-16}$ & $2.65\times 10^{-21}$ & $2.15\times 10^{-21}$ & $1.43\times 10^{-16}$ \\
+coherent Rz & unitary, diagonal & $3.36\times 10^{-19}$ & $1.19\times 10^{-16}$ & $2.65\times 10^{-21}$ & $1.19\times 10^{-16}$ & $1.43\times 10^{-16}$ \\
+damping + dephasing & general single-qubit & $3.28\times 10^{-18}$ & $5.59\times 10^{-17}$ & $3.52\times 10^{-19}$ & $5.59\times 10^{-17}$ & $6.68\times 10^{-17}$ \\
+random CPTP & general single-qubit, seeded & $2.03\times 10^{-18}$ & $5.12\times 10^{-18}$ & $5.83\times 10^{-19}$ & $0.00\times 10^{0}$ & $2.14\times 10^{-18}$ \\
+collective dephasing & correlated, not a product & $1.25\times 10^{-18}$ & $1.09\times 10^{-16}$ & $3.90\times 10^{-20}$ & $1.09\times 10^{-16}$ & $1.31\times 10^{-16}$ \\
+coherent ZZ ring & correlated two-body coherent & $4.16\times 10^{-19}$ & $1.09\times 10^{-16}$ & $1.52\times 10^{-18}$ & $1.09\times 10^{-16}$ & $1.31\times 10^{-16}$ \\
 \bottomrule\end{longtable}
 
 \subsection*{ED Table 10b: the direct sweep, as a corollary of Table 10a}
@@ -265,19 +265,19 @@ smallest control gradient---the same autograd and finite-difference machinery
 evaluated at a random angle table, which must be large for a zero to mean
 anything. The central difference at $\phi^{\rm dec}$ is \emph{bitwise} zero in
 every one of the $90$ pairs. Totals: 27 two-design and 63 non-two-design pairs,
-all stationary; max gradient 7.19\times 10^{-17}, min control 2.11\times 10^{-3}.
+all stationary; max gradient $7.19\times 10^{-17}$, min control $2.11\times 10^{-3}$.
 \begin{longtable}{llcccccc}
 \toprule channel & class & headroom & landscape & \multicolumn{1}{c}{max grad} & \multicolumn{1}{c}{max grad} & \multicolumn{1}{c}{max grad} & min control \\
  & & & & 2-design & non-2-design & $\langle Z_L\rangle$ & grad \\ \midrule
-depolarizing & Pauli mixture, unital & 0.00\times 10^{0} & minimum & 1.45\times 10^{-18} & 3.64\times 10^{-17} & 4.36\times 10^{-17} & 2.77\times 10^{-3} \\
-amplitude damping & non-unital, non-Pauli Kraus & 1.78\times 10^{-3} & SADDLE & 1.28\times 10^{-18} & 4.76\times 10^{-17} & 5.70\times 10^{-17} & 2.50\times 10^{-3} \\
-mixed & Pauli mixture then damping & 0.00\times 10^{0} & minimum & 1.77\times 10^{-18} & 3.23\times 10^{-17} & 3.86\times 10^{-17} & 2.67\times 10^{-3} \\
-coherent Rx & unitary, non-diagonal & 2.08\times 10^{-4} & SADDLE & 3.36\times 10^{-19} & 6.00\times 10^{-17} & 7.19\times 10^{-17} & 3.14\times 10^{-3} \\
-coherent Rz & unitary, diagonal & 2.08\times 10^{-4} & SADDLE & 3.36\times 10^{-19} & 6.00\times 10^{-17} & 7.19\times 10^{-17} & 3.14\times 10^{-3} \\
-damping + dephasing & general single-qubit & 1.11\times 10^{-16} & minimum & 3.28\times 10^{-18} & 2.82\times 10^{-17} & 3.36\times 10^{-17} & 4.83\times 10^{-3} \\
-random CPTP & general single-qubit, seeded & 2.03\times 10^{-2} & SADDLE & 2.03\times 10^{-18} & 3.65\times 10^{-18} & 9.64\times 10^{-19} & 2.11\times 10^{-3} \\
-collective dephasing & correlated, not a product & 3.18\times 10^{-3} & SADDLE & 1.25\times 10^{-18} & 5.51\times 10^{-17} & 6.60\times 10^{-17} & 2.89\times 10^{-3} \\
-coherent ZZ ring & correlated two-body coherent & 7.12\times 10^{-2} & SADDLE & 4.16\times 10^{-19} & 5.51\times 10^{-17} & 6.60\times 10^{-17} & 2.89\times 10^{-3} \\
+depolarizing & Pauli mixture, unital & $0.00\times 10^{0}$ & minimum & $1.45\times 10^{-18}$ & $3.64\times 10^{-17}$ & $4.36\times 10^{-17}$ & $2.77\times 10^{-3}$ \\
+amplitude damping & non-unital, non-Pauli Kraus & $1.78\times 10^{-3}$ & SADDLE & $1.28\times 10^{-18}$ & $4.76\times 10^{-17}$ & $5.70\times 10^{-17}$ & $2.50\times 10^{-3}$ \\
+mixed & Pauli mixture then damping & $0.00\times 10^{0}$ & minimum & $1.77\times 10^{-18}$ & $3.23\times 10^{-17}$ & $3.86\times 10^{-17}$ & $2.67\times 10^{-3}$ \\
+coherent Rx & unitary, non-diagonal & $2.08\times 10^{-4}$ & SADDLE & $3.36\times 10^{-19}$ & $6.00\times 10^{-17}$ & $7.19\times 10^{-17}$ & $3.14\times 10^{-3}$ \\
+coherent Rz & unitary, diagonal & $2.08\times 10^{-4}$ & SADDLE & $3.36\times 10^{-19}$ & $6.00\times 10^{-17}$ & $7.19\times 10^{-17}$ & $3.14\times 10^{-3}$ \\
+damping + dephasing & general single-qubit & $1.11\times 10^{-16}$ & minimum & $3.28\times 10^{-18}$ & $2.82\times 10^{-17}$ & $3.36\times 10^{-17}$ & $4.83\times 10^{-3}$ \\
+random CPTP & general single-qubit, seeded & $2.03\times 10^{-2}$ & SADDLE & $2.03\times 10^{-18}$ & $3.65\times 10^{-18}$ & $9.64\times 10^{-19}$ & $2.11\times 10^{-3}$ \\
+collective dephasing & correlated, not a product & $3.18\times 10^{-3}$ & SADDLE & $1.25\times 10^{-18}$ & $5.51\times 10^{-17}$ & $6.60\times 10^{-17}$ & $2.89\times 10^{-3}$ \\
+coherent ZZ ring & correlated two-body coherent & $7.12\times 10^{-2}$ & SADDLE & $4.16\times 10^{-19}$ & $5.51\times 10^{-17}$ & $6.60\times 10^{-17}$ & $2.89\times 10^{-3}$ \\
 \bottomrule\end{longtable}
 
 \subsection*{ED Table 11: exact code-size scaling, the Petz comparator, and the
@@ -292,26 +292,32 @@ Tables 7 and 9. $\eta^\ast$ is the per-ancilla readout error at which the
 \emph{absolute} headroom drops below $10^{-3}$, the resolution scale of a
 benchmark; ``---'' means it already starts below that scale. The mixed channel
 needs a dense $8^n$ Kraus set and is evaluated at $n=5$ only.
+$\bar F^{\rm CPTP}$ is maximised over trace-preserving \emph{channels}, with
+trace preservation imposed as an equality rather than as $\preceq I/2$; the
+inequality form let the solver stop in the interior of the sub-trace-preserving
+set and under-reported the $[\![9,1,3]\!]$ amplitude-damping rows by $3.7\times$
+and $16\times$. ED Table~12 resolves that same ceiling by Kraus rank, i.e.\ by
+how many ancillas a gate-level instrument needs in order to reach it.
 \begin{longtable}{llccccccc}
 \toprule code & channel & $p$ & $\bar F^{\rm dec}$ & $\bar F^{\rm unit}$ & $\bar F^{\rm CPTP}$ & headroom (unit.) & Petz & $\eta^\ast$ \\ \midrule
-$[\![5,1,3]\!]$ & amplitude damping & 0.05 & 0.996013600 & 0.996495863 & 0.996495863 & 4.82\times 10^{-4} & 0.996980510 & --- \\
-$[\![5,1,3]\!]$ & amplitude damping & 0.1 & 0.984759425 & 0.986538207 & 0.986538207 & 1.78\times 10^{-3} & 0.988470800 & 0.1341 \\
-$[\![5,1,3]\!]$ & coherent & 0.05 & 0.999997400 & 1.000000000 & 1.000000000 & 2.60\times 10^{-6} & 1.000000000 & --- \\
-$[\![5,1,3]\!]$ & coherent & 0.1 & 0.999958610 & 1.000000000 & 1.000000000 & 4.14\times 10^{-5} & 1.000000000 & --- \\
-$[\![5,1,3]\!]$ & depolarizing & 0.1 & 0.946994568 & 0.946994568 & 0.946994568 & 0.00\times 10^{0} & 0.907432976 & --- \\
-$[\![5,1,3]\!]$ & mixed & 0.1 & 0.925339635 & 0.925339635 & 0.925339635 & 1.11\times 10^{-16} & 0.875065626 & --- \\
+$[\![5,1,3]\!]$ & amplitude damping & 0.05 & 0.996013600 & 0.996495863 & 0.996495863 & $4.82\times 10^{-4}$ & 0.996980510 & --- \\
+$[\![5,1,3]\!]$ & amplitude damping & 0.1 & 0.984759425 & 0.986538207 & 0.986538207 & $1.78\times 10^{-3}$ & 0.988470800 & 0.1341 \\
+$[\![5,1,3]\!]$ & coherent & 0.05 & 0.999997400 & 1.000000000 & 1.000000000 & $2.60\times 10^{-6}$ & 1.000000000 & --- \\
+$[\![5,1,3]\!]$ & coherent & 0.1 & 0.999958610 & 1.000000000 & 1.000000000 & $4.14\times 10^{-5}$ & 1.000000000 & --- \\
+$[\![5,1,3]\!]$ & depolarizing & 0.1 & 0.946994568 & 0.946994568 & 0.946994568 & $0.00\times 10^{0}$ & 0.907432976 & --- \\
+$[\![5,1,3]\!]$ & mixed & 0.1 & 0.925339635 & 0.925339635 & 0.925339635 & $1.11\times 10^{-16}$ & 0.875065626 & --- \\
 \midrule
-$[\![7,1,3]\!]$ & amplitude damping & 0.05 & 0.993301794 & 0.995780376 & 0.995780376 & 2.48\times 10^{-3} & 0.996247846 & 0.1404 \\
-$[\![7,1,3]\!]$ & amplitude damping & 0.1 & 0.975384019 & 0.983803750 & 0.983803753 & 8.42\times 10^{-3} & 0.986108403 & 0.2989 \\
-$[\![7,1,3]\!]$ & coherent & 0.05 & 0.999983671 & 1.000000000 & 1.000000000 & 1.63\times 10^{-5} & 1.000000000 & --- \\
-$[\![7,1,3]\!]$ & coherent & 0.1 & 0.999742414 & 1.000000000 & 1.000000000 & 2.58\times 10^{-4} & 1.000000000 & --- \\
-$[\![7,1,3]\!]$ & depolarizing & 0.1 & 0.923051989 & 0.923051989 & 0.923051989 & 1.11\times 10^{-16} & 0.897591177 & --- \\
+$[\![7,1,3]\!]$ & amplitude damping & 0.05 & 0.993301794 & 0.995780376 & 0.995780376 & $2.48\times 10^{-3}$ & 0.996247846 & 0.1404 \\
+$[\![7,1,3]\!]$ & amplitude damping & 0.1 & 0.975384019 & 0.983803750 & 0.983803750 & $8.42\times 10^{-3}$ & 0.986108403 & 0.2989 \\
+$[\![7,1,3]\!]$ & coherent & 0.05 & 0.999983671 & 1.000000000 & 1.000000000 & $1.63\times 10^{-5}$ & 1.000000000 & --- \\
+$[\![7,1,3]\!]$ & coherent & 0.1 & 0.999742414 & 1.000000000 & 1.000000000 & $2.58\times 10^{-4}$ & 1.000000000 & --- \\
+$[\![7,1,3]\!]$ & depolarizing & 0.1 & 0.923051989 & 0.923051989 & 0.923051989 & $1.11\times 10^{-16}$ & 0.897591177 & --- \\
 \midrule
-$[\![9,1,3]\!]$ & amplitude damping & 0.05 & 0.992509513 & 0.992509513 & 0.992516847 & 0.00\times 10^{0} & 0.999726673 & --- \\
-$[\![9,1,3]\!]$ & amplitude damping & 0.1 & 0.970817831 & 0.970817831 & 0.970839200 & 1.11\times 10^{-16} & 0.997760094 & --- \\
-$[\![9,1,3]\!]$ & coherent & 0.05 & 0.999997654 & 1.000000000 & 1.000000000 & 2.35\times 10^{-6} & 1.000000000 & --- \\
-$[\![9,1,3]\!]$ & coherent & 0.1 & 0.999962379 & 1.000000000 & 1.000000000 & 3.76\times 10^{-5} & 1.000000000 & --- \\
-$[\![9,1,3]\!]$ & depolarizing & 0.1 & 0.935496530 & 0.935496530 & 0.935496530 & 1.11\times 10^{-16} & 0.903510138 & --- \\
+$[\![9,1,3]\!]$ & amplitude damping & 0.05 & 0.992509513 & 0.992509513 & 0.992536611 & $0.00\times 10^{0}$ & 0.999726673 & --- \\
+$[\![9,1,3]\!]$ & amplitude damping & 0.1 & 0.970817831 & 0.970817831 & 0.971160643 & $1.11\times 10^{-16}$ & 0.997760094 & --- \\
+$[\![9,1,3]\!]$ & coherent & 0.05 & 0.999997654 & 1.000000000 & 1.000000000 & $2.35\times 10^{-6}$ & 1.000000000 & --- \\
+$[\![9,1,3]\!]$ & coherent & 0.1 & 0.999962379 & 1.000000000 & 1.000000000 & $3.76\times 10^{-5}$ & 1.000000000 & --- \\
+$[\![9,1,3]\!]$ & depolarizing & 0.1 & 0.935496530 & 0.935496530 & 0.935496530 & $1.11\times 10^{-16}$ & 0.903510138 & --- \\
 \midrule
 \bottomrule\end{longtable}
 
@@ -331,8 +337,160 @@ $\eta=0.05$, reporting only the $2(n-k)$ pairs that are nonzero out of
 $2^{2(n-k)}$.
 \begin{longtable}{lccccc}
 \toprule code & $n{-}k$ & syndromes & $\max_{\tilde s\neq s}\lvert V^\dagger C_{\tilde s}W_s\rvert$ & $\lVert V^\dagger C_sW_s-I\rVert$ & max $\lvert$exact$-$law$\rvert$ \\ \midrule
-$[\![5,1,3]\!]$ & $4$ & $16$ & 5.55\times 10^{-17} & 5.55\times 10^{-17} & 3.16\times 10^{-13} ($16/256$ pairs) \\
-$[\![7,1,3]\!]$ & $6$ & $64$ & 1.61\times 10^{-16} & 1.11\times 10^{-16} & 3.44\times 10^{-15} ($64/4096$ pairs) \\
-$[\![9,1,3]\!]$ & $8$ & $256$ & 3.33\times 10^{-16} & 2.22\times 10^{-16} & 1.48\times 10^{-14} ($256/65536$ pairs) \\
+$[\![5,1,3]\!]$ & $4$ & $16$ & $5.55\times 10^{-17}$ & $5.55\times 10^{-17}$ & $3.16\times 10^{-13}$ ($16/256$ pairs) \\
+$[\![7,1,3]\!]$ & $6$ & $64$ & $1.61\times 10^{-16}$ & $1.11\times 10^{-16}$ & $3.44\times 10^{-15}$ ($64/4096$ pairs) \\
+$[\![9,1,3]\!]$ & $8$ & $256$ & $3.33\times 10^{-16}$ & $2.22\times 10^{-16}$ & $1.48\times 10^{-14}$ ($256/65536$ pairs) \\
 \bottomrule\end{longtable}
+
+\subsection*{ED Table 12: the Kraus-rank ladder --- how many ancillas the
+non-unitary headroom actually needs}
+The optimal-CPTP ceiling of ED Table~11 is a $4\times4$ Choi program whose Choi
+matrix $C=\sum_j\lvert B_j\rangle\!\rangle\langle\!\langle B_j\rvert$ may have
+rank up to $4$.  Restricting the factor to $C=LL^\dagger$ with
+$L\in\mathbb C^{4\times r}$ restricts $\mathrm{rank}(C)$ to $r$, and nothing else
+in the program changes.  That restriction has an exact physical meaning: a CPTP
+map on the two-dimensional logical space is realised by appending an ancilla of
+dimension equal to its Kraus rank, applying a \emph{unitary}, and discarding the
+ancilla.  The ladder is therefore a count of ancillas, not a hierarchy of
+relaxations: $r{=}1$ is a unitary branch recovery (zero ancillas, the family
+VSCR compiles to), $r{=}2$ is a one-ancilla gate-level instrument, and $r{=}4$ is
+the full CPTP ceiling of ED Table~11.  ``non-unitary headroom'' is
+$\bar F^{(4)}-\bar F^{(1)}$, the part of the ceiling no unitary branch recovery
+reaches; ``one-ancilla share'' is the fraction of it that a single ancilla qubit
+recovers, $(\bar F^{(2)}-\bar F^{(1)})/(\bar F^{(4)}-\bar F^{(1)})$, and is
+reported as ``---'' when the denominator vanishes because the unitary family
+already attains the ceiling.
+
+The two end rungs are not new numbers: they are asserted to reproduce the audited
+production ceilings of ED Table~11, to $4.3\times 10^{-13}$ at $r{=}1$ against
+\texttt{\_max\_unitary\_J} and to $3.6\times 10^{-13}$ at $r{=}4$ against \texttt{\_sdp\_branch},
+and the Choi objective is asserted to equal production
+\texttt{cf\_unnormalised} to $2.0\times 10^{-15}$.  The rank-$2$ rung is computed twice, once by the
+constrained Choi program and once by an unconstrained optimisation over
+$U=\exp(iH)$ on ancilla$\,\otimes\,$logical that shares no variables, constraints
+or objective expression with it; the two agree to $3.9\times 10^{-13}$.
+\begin{longtable}{llcccccc}
+\toprule code & channel & $p$ & $\bar F^{\rm dec}$ & $\bar F^{(1)}$ unit. & $\bar F^{(2)}$ 1 anc. & $\bar F^{(4)}$ CPTP & 1-anc.\ share \\ \midrule
+$[\![5,1,3]\!]$ & amplitude damping & 0.05 & 0.996013600 & 0.996495863 & 0.996495863 & 0.996495863 & --- \\
+$[\![5,1,3]\!]$ & amplitude damping & 0.1 & 0.984759425 & 0.986538207 & 0.986538207 & 0.986538207 & --- \\
+$[\![5,1,3]\!]$ & coherent & 0.1 & 0.999958610 & 1.000000000 & 1.000000000 & 1.000000000 & --- \\
+$[\![5,1,3]\!]$ & depolarizing & 0.1 & 0.946994568 & 0.946994568 & 0.946994568 & 0.946994568 & --- \\
+$[\![7,1,3]\!]$ & amplitude damping & 0.05 & 0.993301794 & 0.995780376 & 0.995780376 & 0.995780376 & --- \\
+$[\![7,1,3]\!]$ & amplitude damping & 0.1 & 0.975384019 & 0.983803750 & 0.983803750 & 0.983803750 & --- \\
+$[\![7,1,3]\!]$ & coherent & 0.1 & 0.999742414 & 1.000000000 & 1.000000000 & 1.000000000 & --- \\
+$[\![7,1,3]\!]$ & depolarizing & 0.1 & 0.923051989 & 0.923051989 & 0.923051989 & 0.923051989 & --- \\
+$[\![9,1,3]\!]$ & amplitude damping & 0.05 & 0.992509513 & 0.992509513 & 0.992536611 & 0.992536611 & 1.000000 \\
+$[\![9,1,3]\!]$ & amplitude damping & 0.1 & 0.970817831 & 0.970817831 & 0.971160643 & 0.971160643 & 1.000000 \\
+$[\![9,1,3]\!]$ & coherent & 0.1 & 0.999962379 & 1.000000000 & 1.000000000 & 1.000000000 & --- \\
+$[\![9,1,3]\!]$ & depolarizing & 0.1 & 0.935496530 & 0.935496530 & 0.935496530 & 0.935496530 & --- \\
+\bottomrule\end{longtable}
+
+\paragraph*{ED Table 12b: the non-unitary headroom, resolved by ancilla count.}
+Same runs, reported as headroom over the decoder rather than as fidelities, so
+that the size of each rung's gain is visible rather than hidden in the ninth
+decimal.  ``residual'' is $\bar F^{(4)}-\bar F^{(2)}$, what a second ancilla
+qubit would still buy.  Entries of order $10^{-13}$, including the negative ones,
+are the noise floor of two independent multi-start solves of the same optimum and
+mean the ladder is \emph{flat} there: at $n=5$ and $n=7$ the unitary family already
+attains the CPTP ceiling, so the ``share'' column is undefined ($0/0$) and shown as
+``---'' rather than as $1$.  Only the two $[\![9,1,3]\!]$ amplitude-damping rows
+have a non-unitary headroom large enough to divide by, and there the share is
+$1.000000$.
+
+\begin{longtable}{llcccc}
+\toprule code & channel:$p$ & non-unitary headroom & one-ancilla gain & residual after 1 ancilla & share \\ \midrule
+$[\![5,1,3]\!]$ & amplitude damping:0.05 & $-2.50\times 10^{-13}$ & $-1.19\times 10^{-14}$ & $-2.38\times 10^{-13}$ & --- \\
+$[\![5,1,3]\!]$ & amplitude damping:0.1 & $-3.89\times 10^{-13}$ & $2.11\times 10^{-15}$ & $-3.91\times 10^{-13}$ & --- \\
+$[\![5,1,3]\!]$ & coherent:0.1 & $-6.95\times 10^{-14}$ & $-5.33\times 10^{-15}$ & $-6.42\times 10^{-14}$ & --- \\
+$[\![5,1,3]\!]$ & depolarizing:0.1 & $-8.65\times 10^{-14}$ & $-9.41\times 10^{-14}$ & $7.66\times 10^{-15}$ & --- \\
+$[\![7,1,3]\!]$ & amplitude damping:0.05 & $-2.21\times 10^{-13}$ & $-1.07\times 10^{-13}$ & $-1.14\times 10^{-13}$ & --- \\
+$[\![7,1,3]\!]$ & amplitude damping:0.1 & $-2.00\times 10^{-13}$ & $4.00\times 10^{-15}$ & $-2.04\times 10^{-13}$ & --- \\
+$[\![7,1,3]\!]$ & coherent:0.1 & $-2.49\times 10^{-13}$ & $6.66\times 10^{-16}$ & $-2.50\times 10^{-13}$ & --- \\
+$[\![7,1,3]\!]$ & depolarizing:0.1 & $-1.22\times 10^{-13}$ & $3.19\times 10^{-14}$ & $-1.54\times 10^{-13}$ & --- \\
+$[\![9,1,3]\!]$ & amplitude damping:0.05 & $2.71\times 10^{-5}$ & $2.71\times 10^{-5}$ & $-2.40\times 10^{-13}$ & 1.000000 \\
+$[\![9,1,3]\!]$ & amplitude damping:0.1 & $3.43\times 10^{-4}$ & $3.43\times 10^{-4}$ & $-1.05\times 10^{-13}$ & 1.000000 \\
+$[\![9,1,3]\!]$ & coherent:0.1 & $-4.53\times 10^{-13}$ & $-2.20\times 10^{-13}$ & $-2.33\times 10^{-13}$ & --- \\
+$[\![9,1,3]\!]$ & depolarizing:0.1 & $-7.54\times 10^{-14}$ & $-5.20\times 10^{-14}$ & $-2.34\times 10^{-14}$ & --- \\
+\bottomrule\end{longtable}
+
+\paragraph*{ED Table 12c: the one-ancilla instrument, verified four ways.}
+Each row is the branch on which going from rank $1$ to rank $2$ buys the most, at
+the stated code$\times$channel$\times$strength.  ``gain'' is that branch's
+contribution to $\bar F^{(2)}-\bar F^{(1)}$.  The four columns after it are the
+independent checks described in Methods: the fidelity of the repaired Kraus pair
+scored by the production Haar estimator, the fidelity of the unconstrained
+$\exp(iH)$ circuit optimisation, the trace-preservation defect
+$\max|\sum_iB_i^\dagger B_i-I|$, and the unitarity defect of the explicit
+$4\times4$ Stinespring dilation.  The last column is
+$\max|\mathrm{Tr}_a[U(\rho\otimes\ket0\bra0)U^\dagger]-\sum_iB_i\rho
+B_i^\dagger|$ over random $\rho$.  Witnesses are taken where the rank-$2$ gain is
+\emph{largest}, not where the numbers look best.
+
+\begin{longtable}{llccccccc}
+\toprule code & channel:$p$ & $s$ & $p_s$ & gain & $\mathrm{cf}$ Choi & $\mathrm{cf}$ circuit & $|\Delta|$ & TP / unit.\ / map defects \\ \midrule
+$[\![5,1,3]\!]$ & amplitude damping:0.05 & 0 & $8.804e-01$ & $2.11\times 10^{-15}$ & 0.9999857620 & 0.9999857620 & $5.45\times 10^{-13}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & amplitude damping:0.05 & 5 & $4.531e-04$ & $1.08\times 10^{-19}$ & 0.7594405704 & 0.7594405704 & $1.34\times 10^{-14}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & amplitude damping:0.05 & 2 & $4.531e-04$ & $0.00\times 10^{0}$ & 0.7594405704 & 0.7594405704 & $4.43\times 10^{-14}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & amplitude damping:0.05 & 4 & $4.531e-04$ & $-3.20\times 10^{-18}$ & 0.7594405704 & 0.7594405704 & $4.00\times 10^{-15}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & amplitude damping:0.1 & 8 & $2.200e-02$ & $4.20\times 10^{-16}$ & 0.9495309545 & 0.9495309545 & $2.61\times 10^{-13}$ & $8.9\times 10^{-16}$ / $8.9\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & amplitude damping:0.1 & 1 & $2.200e-02$ & $4.20\times 10^{-16}$ & 0.9495309545 & 0.9495309545 & $2.61\times 10^{-13}$ & $8.9\times 10^{-16}$ / $8.9\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & amplitude damping:0.1 & 15 & $2.200e-02$ & $1.73\times 10^{-16}$ & 0.9495309545 & 0.9495309545 & $6.23\times 10^{-13}$ & $3.3\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & amplitude damping:0.1 & 14 & $2.200e-02$ & $1.73\times 10^{-16}$ & 0.9495309545 & 0.9495309545 & $6.34\times 10^{-13}$ & $3.3\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & coherent:0.1 & 0 & $9.876e-01$ & $1.33\times 10^{-15}$ & 1.0000000000 & 1.0000000000 & $3.45\times 10^{-13}$ & $2.2\times 10^{-16}$ / $2.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & coherent:0.1 & 3 & $2.473e-03$ & $3.21\times 10^{-16}$ & 1.0000000000 & 1.0000000000 & $2.18\times 10^{-13}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & coherent:0.1 & 7 & $6.208e-06$ & $1.69\times 10^{-21}$ & 1.0000000000 & 1.0000000000 & $1.37\times 10^{-12}$ & $3.8\times 10^{-17}$ / $2.5\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & coherent:0.1 & 13 & $6.208e-06$ & $0.00\times 10^{0}$ & 1.0000000000 & 1.0000000000 & $6.64\times 10^{-12}$ & $3.5\times 10^{-18}$ / $3.5\times 10^{-18}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & depolarizing:0.1 & 9 & $2.724e-02$ & $1.28\times 10^{-15}$ & 0.8717428088 & 0.8717428088 & $4.23\times 10^{-13}$ & $4.4\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & depolarizing:0.1 & 7 & $2.724e-02$ & $1.28\times 10^{-15}$ & 0.8717428088 & 0.8717428088 & $4.23\times 10^{-13}$ & $4.4\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & depolarizing:0.1 & 10 & $2.724e-02$ & $1.27\times 10^{-15}$ & 0.8717428088 & 0.8717428088 & $4.28\times 10^{-13}$ & $3.3\times 10^{-16}$ / $3.3\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![5,1,3]\!]$ & depolarizing:0.1 & 5 & $2.724e-02$ & $1.27\times 10^{-15}$ & 0.8717428088 & 0.8717428088 & $4.28\times 10^{-13}$ & $3.3\times 10^{-16}$ / $3.3\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & amplitude damping:0.05 & 3 & $1.115e-02$ & $4.20\times 10^{-16}$ & 0.9752902658 & 0.9752902658 & $7.13\times 10^{-13}$ & $5.6\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & amplitude damping:0.05 & 7 & $1.115e-02$ & $3.89\times 10^{-16}$ & 0.9752902658 & 0.9752902658 & $7.03\times 10^{-13}$ & $5.6\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & amplitude damping:0.05 & 2 & $1.115e-02$ & $3.85\times 10^{-16}$ & 0.9752902658 & 0.9752902658 & $7.42\times 10^{-13}$ & $6.7\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & amplitude damping:0.05 & 6 & $1.115e-02$ & $3.69\times 10^{-16}$ & 0.9752902658 & 0.9752902658 & $7.40\times 10^{-13}$ & $2.2\times 10^{-16}$ / $3.3\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & amplitude damping:0.1 & 2 & $1.980e-02$ & $9.75\times 10^{-16}$ & 0.9510713237 & 0.9510713237 & $3.45\times 10^{-13}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & amplitude damping:0.1 & 6 & $1.980e-02$ & $9.65\times 10^{-16}$ & 0.9510713237 & 0.9510713237 & $3.51\times 10^{-13}$ & $8.9\times 10^{-16}$ / $8.9\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & amplitude damping:0.1 & 3 & $1.980e-02$ & $9.65\times 10^{-16}$ & 0.9510713237 & 0.9510713237 & $3.11\times 10^{-13}$ & $2.2\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & amplitude damping:0.1 & 1 & $1.980e-02$ & $9.65\times 10^{-16}$ & 0.9510713237 & 0.9510713237 & $3.29\times 10^{-13}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & coherent:0.1 & 0 & $9.827e-01$ & $6.66\times 10^{-16}$ & 1.0000000000 & 1.0000000000 & $2.79\times 10^{-13}$ & $4.4\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & coherent:0.1 & 4 & $2.467e-03$ & $2.21\times 10^{-17}$ & 1.0000000000 & 1.0000000000 & $8.00\times 10^{-13}$ & $2.2\times 10^{-16}$ / $2.2\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & coherent:0.1 & 7 & $2.467e-03$ & $2.08\times 10^{-17}$ & 1.0000000000 & 1.0000000000 & $8.10\times 10^{-13}$ & $1.3\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & coherent:0.1 & 5 & $2.467e-03$ & $2.08\times 10^{-17}$ & 1.0000000000 & 1.0000000000 & $8.10\times 10^{-13}$ & $1.3\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & depolarizing:0.1 & 0 & $4.788e-01$ & $4.77\times 10^{-15}$ & 0.9992836683 & 0.9992836683 & $8.34\times 10^{-13}$ & $1.1\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & depolarizing:0.1 & 19 & $2.422e-03$ & $9.71\times 10^{-16}$ & 0.5433589895 & 0.5433589895 & $4.30\times 10^{-13}$ & $2.2\times 10^{-16}$ / $2.6\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & depolarizing:0.1 & 48 & $1.997e-02$ & $9.16\times 10^{-16}$ & 0.9281069883 & 0.9281069883 & $3.88\times 10^{-13}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![7,1,3]\!]$ & depolarizing:0.1 & 8 & $1.997e-02$ & $9.09\times 10^{-16}$ & 0.9281069883 & 0.9281069883 & $4.02\times 10^{-13}$ & $2.2\times 10^{-16}$ / $3.3\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & amplitude damping:0.05 & 50 & $3.088e-05$ & $5.98\times 10^{-7}$ & 0.6626614599 & 0.6626614599 & $5.22\times 10^{-14}$ & $7.8\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & amplitude damping:0.05 & 49 & $3.088e-05$ & $5.98\times 10^{-7}$ & 0.6626614599 & 0.6626614599 & $8.89\times 10^{-13}$ & $7.8\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & amplitude damping:0.05 & 15 & $3.088e-05$ & $5.98\times 10^{-7}$ & 0.6626614599 & 0.6626614599 & $2.96\times 10^{-13}$ & $2.2\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & amplitude damping:0.05 & 14 & $3.088e-05$ & $5.98\times 10^{-7}$ & 0.6626614599 & 0.6626614599 & $5.72\times 10^{-12}$ & $2.2\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & amplitude damping:0.1 & 195 & $2.163e-04$ & $7.93\times 10^{-6}$ & 0.6579973992 & 0.6579973992 & $5.90\times 10^{-14}$ & $4.4\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & amplitude damping:0.1 & 65 & $2.163e-04$ & $7.93\times 10^{-6}$ & 0.6579973992 & 0.6579973992 & $2.62\times 10^{-13}$ & $4.4\times 10^{-16}$ / $2.2\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & amplitude damping:0.1 & 129 & $2.163e-04$ & $7.93\times 10^{-6}$ & 0.6579973992 & 0.6579973992 & $1.14\times 10^{-13}$ & $1.4\times 10^{-16}$ / $2.2\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & amplitude damping:0.1 & 67 & $2.163e-04$ & $7.93\times 10^{-6}$ & 0.6579973992 & 0.6579973992 & $1.43\times 10^{-13}$ & $8.9\times 10^{-16}$ / $8.9\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & coherent:0.1 & 224 & $6.162e-06$ & $6.44\times 10^{-19}$ & 1.0000000000 & 1.0000000000 & $6.43\times 10^{-13}$ & $8.9\times 10^{-16}$ / $8.9\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & coherent:0.1 & 204 & $6.162e-06$ & $6.39\times 10^{-19}$ & 1.0000000000 & 1.0000000000 & $6.46\times 10^{-13}$ & $2.6\times 10^{-16}$ / $3.0\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & coherent:0.1 & 200 & $6.162e-06$ & $6.39\times 10^{-19}$ & 1.0000000000 & 1.0000000000 & $6.46\times 10^{-13}$ & $2.6\times 10^{-16}$ / $3.0\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & coherent:0.1 & 196 & $6.162e-06$ & $6.39\times 10^{-19}$ & 1.0000000000 & 1.0000000000 & $6.46\times 10^{-13}$ & $2.6\times 10^{-16}$ / $3.0\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & depolarizing:0.1 & 0 & $3.930e-01$ & $2.11\times 10^{-15}$ & 0.9986883031 & 0.9986883031 & $5.66\times 10^{-13}$ & $5.6\times 10^{-16}$ / $4.4\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & depolarizing:0.1 & 14 & $3.698e-03$ & $1.79\times 10^{-15}$ & 0.6438590324 & 0.6438590324 & $4.83\times 10^{-13}$ & $5.6\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & depolarizing:0.1 & 10 & $3.698e-03$ & $1.79\times 10^{-15}$ & 0.6438590324 & 0.6438590324 & $4.83\times 10^{-13}$ & $5.6\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+$[\![9,1,3]\!]$ & depolarizing:0.1 & 15 & $3.698e-03$ & $1.74\times 10^{-15}$ & 0.6438590324 & 0.6438590324 & $4.70\times 10^{-13}$ & $8.9\times 10^{-16}$ / $6.7\times 10^{-16}$ / $0.0\times 10^{0}$ \\
+\bottomrule\end{longtable}
+
+\paragraph*{ED Table 12d: the instrument itself, at $[\![9,1,3]\!]$ amplitude
+damping $p=0.10$.}
+This is not a bound but the recovery: the trace-preserving Kraus pair of the
+highest-gain branch (syndrome $s=195$, weight $p_s=2.1628e-04$), and the $4\times4$
+unitary $U$ on ancilla$\,\otimes\,$logical whose ancilla column zero reproduces
+it, $B_i=\bra i_aU\ket0_a$.  Ordering is ancilla-then-logical, flat index
+$a\cdot2+l$.  Executing the branch means: append one ancilla in $\ket0$, apply
+$U$, discard the ancilla.  No mid-circuit measurement, no post-selection, no
+feed-forward.  $\sum_iB_i^\dagger B_i=I$ to $4.4\times 10^{-16}$ and $U^\dagger U=I$ to $4.4\times 10^{-16}$.
+
+\begin{center}\begin{tabular}{cc}
+\toprule $B_0$ & $B_1$ \\ \midrule
+$\begin{pmatrix}+0.000000-0.000000\,i & -0.000000-0.000000\,i\\ +0.394942+0.071309\,i & +0.866248+0.297574\,i\end{pmatrix}$ & $\begin{pmatrix}+0.000000-0.000000\,i & -0.000000-0.000000\,i\\ +0.776217+0.486234\,i & -0.303861-0.262170\,i\end{pmatrix}$ \\
+\bottomrule\end{tabular}\end{center}
+\begin{center}$U=$ \begin{pmatrix}+0.000000-0.000000\,i & -0.000000-0.000000\,i & +0.000000+0.000000\,i & -1.000000-0.000000\,i\\ +0.394942+0.071309\,i & +0.866248+0.297574\,i & +0.000000-0.000000\,i & -0.000000+0.000000\,i\\ +0.000000-0.000000\,i & -0.000000-0.000000\,i & +0.690211+0.723608\,i & +0.000000-0.000000\,i\\ +0.776217+0.486234\,i & -0.303861-0.262170\,i & +0.000000-0.000000\,i & +0.000000+0.000000\,i\end{pmatrix}$\end{center}
 \end{document}

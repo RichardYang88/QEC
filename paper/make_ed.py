@@ -22,8 +22,17 @@ A(r"""\documentclass[10pt,a4paper]{article}
 
 # ---------------- ED Table 1: ideal per-frame references ----------------
 def sci(x, digits=2):
+    """Scientific notation, already wrapped in math mode.
+
+    `\\times` is a math-mode symbol, so emitting it bare makes every table cell
+    that uses this helper a LaTeX error ("Missing $ inserted").  It was emitted
+    bare in 411 places across the ED tables and never caught, because no TeX
+    engine exists on this host and extended_data.tex has therefore never been
+    compiled.  Wrapping here fixes all of them at once; `audit_numbers.py` now
+    asserts the property directly, by stripping every $...$ span from the
+    generated file and requiring no `\\times` to survive."""
     mnt, ex = f'{x:.{digits}e}'.split('e')
-    return f'{mnt}\\times 10^{{{int(ex)}}}'
+    return f'${mnt}\\times 10^{{{int(ex)}}}$'
 
 
 hw = NUM['hardware_frame_numbers']
@@ -34,7 +43,7 @@ late-measure branch circuits compiled from the trained depolarizing model)
 for logical states $\ket{0},\ket{+}$; every single-Pauli frame is corrected
 exactly, so the $p$-dependent ideal benchmark value follows from Pauli-frame
 averaging, $F(p)=1-O(p^2)$. Worst circuit-vs-density-matrix deviation
-$%s$. Frames are single-qubit Pauli injections.""" %
+%s. Frames are single-qubit Pauli injections.""" %
   sci(hw['worst_circuit_vs_simulator']))
 A(r'\begin{longtable}{llcc}')
 A(r'\toprule frame & correction $C_s$ & $F(\ket{0})$ & $F(\ket{+})$ \\ \midrule')
@@ -356,8 +365,8 @@ $\ell=2$ sector and no a priori reason to be stationary. Controls are the same
 measurement at a random angle table; the weakest over all channels is %s for the
 fidelity sectors and %s for $\langle Z_L\rangle$, thirteen to fourteen orders of
 magnitude above the zeros, so the certificate is not reporting a dead gradient.
-Totals: $\max|S_0|=%s$, $\max|S_1|=%s$, $\max|S_2|=%s$, FD $=%s$,
-$\max|\nabla z|=%s$.""" % (
+Totals: $\max|S_0|=$\,%s, $\max|S_1|=$\,%s, $\max|S_2|=$\,%s,
+FD\,$=$\,%s, $\max|\nabla z|=$\,%s.""" % (
         sci(_s['cert_min_control_sector']), sci(_s['cert_Z_min_control_sector']),
         sci(_s['cert_max_S0']), sci(_s['cert_max_S1']), sci(_s['cert_max_S2']),
         sci(_s['cert_fd_coeff_max']), sci(_s['cert_Z_min_sector'])))
@@ -441,7 +450,13 @@ branch as $[\![5,1,3]\!]$. The $n=5$ rows reproduce the audited numbers of ED
 Tables 7 and 9. $\eta^\ast$ is the per-ancilla readout error at which the
 \emph{absolute} headroom drops below $10^{-3}$, the resolution scale of a
 benchmark; ``---'' means it already starts below that scale. The mixed channel
-needs a dense $8^n$ Kraus set and is evaluated at $n=5$ only.""")
+needs a dense $8^n$ Kraus set and is evaluated at $n=5$ only.
+$\bar F^{\rm CPTP}$ is maximised over trace-preserving \emph{channels}, with
+trace preservation imposed as an equality rather than as $\preceq I/2$; the
+inequality form let the solver stop in the interior of the sub-trace-preserving
+set and under-reported the $[\![9,1,3]\!]$ amplitude-damping rows by $3.7\times$
+and $16\times$. ED Table~12 resolves that same ceiling by Kraus rank, i.e.\ by
+how many ancillas a gate-level instrument needs in order to reach it.""")
     A(r'\begin{longtable}{llccccccc}')
     A(r'\toprule code & channel & $p$ & $\bar F^{\rm dec}$ & '
       r'$\bar F^{\rm unit}$ & $\bar F^{\rm CPTP}$ & headroom (unit.) & Petz & '
@@ -491,6 +506,156 @@ $2^{2(n-k)}$.""")
           f"{sci(_cd['readout_cross_diag_dev'])} & {sci(_dev)} "
           f"(${_pn}/{_pt}$ pairs) \\\\")
     A(r'\bottomrule\end{longtable}')
+
+# --------- ED Table 12: the Kraus-rank ladder / one-ancilla instrument --------
+AR = os.path.join(ROOT, '..', 'ancilla_recovery.json')
+if os.path.exists(AR):
+    _ar = json.load(open(AR))
+    _lad = _ar['ladder']
+    _st = _ar['selftests']
+    # The rank of the Choi matrix equals the Kraus rank of the branch recovery,
+    # which by Stinespring equals the minimal ancilla dimension that realises it
+    # as a UNITARY followed by discarding the ancilla.  So this table is not a
+    # relaxation hierarchy of bounds: it is a count of ancilla qubits.
+    A(r"""
+\subsection*{ED Table 12: the Kraus-rank ladder --- how many ancillas the
+non-unitary headroom actually needs}
+The optimal-CPTP ceiling of ED Table~11 is a $4\times4$ Choi program whose Choi
+matrix $C=\sum_j\lvert B_j\rangle\!\rangle\langle\!\langle B_j\rvert$ may have
+rank up to $4$.  Restricting the factor to $C=LL^\dagger$ with
+$L\in\mathbb C^{4\times r}$ restricts $\mathrm{rank}(C)$ to $r$, and nothing else
+in the program changes.  That restriction has an exact physical meaning: a CPTP
+map on the two-dimensional logical space is realised by appending an ancilla of
+dimension equal to its Kraus rank, applying a \emph{unitary}, and discarding the
+ancilla.  The ladder is therefore a count of ancillas, not a hierarchy of
+relaxations: $r{=}1$ is a unitary branch recovery (zero ancillas, the family
+VSCR compiles to), $r{=}2$ is a one-ancilla gate-level instrument, and $r{=}4$ is
+the full CPTP ceiling of ED Table~11.  ``non-unitary headroom'' is
+$\bar F^{(4)}-\bar F^{(1)}$, the part of the ceiling no unitary branch recovery
+reaches; ``one-ancilla share'' is the fraction of it that a single ancilla qubit
+recovers, $(\bar F^{(2)}-\bar F^{(1)})/(\bar F^{(4)}-\bar F^{(1)})$, and is
+reported as ``---'' when the denominator vanishes because the unitary family
+already attains the ceiling.""" + r"""
+
+The two end rungs are not new numbers: they are asserted to reproduce the audited
+production ceilings of ED Table~11, to %s at $r{=}1$ against
+\texttt{\_max\_unitary\_J} and to %s at $r{=}4$ against \texttt{\_sdp\_branch},
+and the Choi objective is asserted to equal production
+\texttt{cf\_unnormalised} to %s.  The rank-$2$ rung is computed twice, once by the
+constrained Choi program and once by an unconstrained optimisation over
+$U=\exp(iH)$ on ancilla$\,\otimes\,$logical that shares no variables, constraints
+or objective expression with it; the two agree to %s.""" % (
+        sci(_st['conventions']['worst_r1_vs_production'], 1),
+        sci(_st['conventions']['worst_r4_vs_production'], 1),
+        sci(_st['conventions']['worst_choi_vs_kraus'], 1),
+        sci(_st['tp_stinespring']['direct'], 1)))
+    A(r'\begin{longtable}{llcccccc}')
+    A(r'\toprule code & channel & $p$ & $\bar F^{\rm dec}$ & '
+      r'$\bar F^{(1)}$ unit. & $\bar F^{(2)}$ 1 anc. & $\bar F^{(4)}$ CPTP & '
+      r'1-anc.\ share \\ \midrule')
+    for _r in _lad:
+        _frac = _r.get('one_ancilla_fraction_of_nonunitary_headroom')
+        A(f"$[\\![{_r['code']}]\\!]$ & {_r['channel'].replace('_', ' ')} & "
+          f"{_r['p']:g} & {_r['F_dec']:.9f} & {_r['F']['1']:.9f} & "
+          f"{_r['F']['2']:.9f} & {_r['F']['4']:.9f} & "
+          f"{('---' if _frac is None else '%.6f' % _frac)} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+    A(r"""
+\paragraph*{ED Table 12b: the non-unitary headroom, resolved by ancilla count.}
+Same runs, reported as headroom over the decoder rather than as fidelities, so
+that the size of each rung's gain is visible rather than hidden in the ninth
+decimal.  ``residual'' is $\bar F^{(4)}-\bar F^{(2)}$, what a second ancilla
+qubit would still buy.  Entries of order $10^{-13}$, including the negative ones,
+are the noise floor of two independent multi-start solves of the same optimum and
+mean the ladder is \emph{flat} there: at $n=5$ and $n=7$ the unitary family already
+attains the CPTP ceiling, so the ``share'' column is undefined ($0/0$) and shown as
+``---'' rather than as $1$.  Only the two $[\![9,1,3]\!]$ amplitude-damping rows
+have a non-unitary headroom large enough to divide by, and there the share is
+$1.000000$.""" + r"""
+""")
+    A(r'\begin{longtable}{llcccc}')
+    A(r'\toprule code & channel:$p$ & non-unitary headroom & '
+      r'one-ancilla gain & residual after 1 ancilla & share \\ \midrule')
+    for _r in _lad:
+        _frac = _r.get('one_ancilla_fraction_of_nonunitary_headroom')
+        A(f"$[\\![{_r['code']}]\\!]$ & "
+          f"{_r['channel'].replace('_', ' ')}:{_r['p']:g} & "
+          f"{sci(_r['nonunitary_headroom'])} & {sci(_r['one_ancilla_gain'])} & "
+          f"{sci(_r['one_ancilla_gap_to_cptp'])} & "
+          f"{('---' if _frac is None else '%.6f' % _frac)} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+    # ---- 12c: the verification summary behind every emitted witness ----------
+    def _cx(z):
+        return '%+.6f%+.6f\,i' % (z.real, z.imag)
+
+    _wit = [(r, w) for r in _lad for w in r['witness_branches']]
+    if _wit:
+        A(r"""
+\paragraph*{ED Table 12c: the one-ancilla instrument, verified four ways.}
+Each row is the branch on which going from rank $1$ to rank $2$ buys the most, at
+the stated code$\times$channel$\times$strength.  ``gain'' is that branch's
+contribution to $\bar F^{(2)}-\bar F^{(1)}$.  The four columns after it are the
+independent checks described in Methods: the fidelity of the repaired Kraus pair
+scored by the production Haar estimator, the fidelity of the unconstrained
+$\exp(iH)$ circuit optimisation, the trace-preservation defect
+$\max|\sum_iB_i^\dagger B_i-I|$, and the unitarity defect of the explicit
+$4\times4$ Stinespring dilation.  The last column is
+$\max|\mathrm{Tr}_a[U(\rho\otimes\ket0\bra0)U^\dagger]-\sum_iB_i\rho
+B_i^\dagger|$ over random $\rho$.  Witnesses are taken where the rank-$2$ gain is
+\emph{largest}, not where the numbers look best.""" + "\n")
+        A(r'\begin{longtable}{llccccccc}')
+        A(r'\toprule code & channel:$p$ & $s$ & $p_s$ & gain & '
+          r'$\mathrm{cf}$ Choi & $\mathrm{cf}$ circuit & '
+          r'$|\Delta|$ & TP / unit.\ / map defects \\ \midrule')
+        for _r, _w in _wit:
+            A(f"$[\\![{_r['code']}]\\!]$ & "
+              f"{_r['channel'].replace('_', ' ')}:{_r['p']:g} & "
+              f"{_w['syndrome']} & ${_w['p_s']:.3e}$ & "
+              f"{sci(_w['gain_rank2_over_rank1'] or 0.0)} & "
+              f"{_w['cf_choi']:.10f} & {_w['cf_direct']:.10f} & "
+              f"{sci(abs(_w['cf_choi'] - _w['cf_direct']))} & "
+              f"{sci(_w['tp_defect_repaired'], 1)} / "
+              f"{sci(_w['unitarity_defect'], 1)} / "
+              f"{sci(_w['map_defect'], 1)} \\\\")
+        A(r'\bottomrule\end{longtable}')
+
+    # ---- 12d: the explicit instrument at the point the paper quotes ----------
+    _key = [r for r in _lad if r['n'] == 9 and r['channel'] == 'amplitude_damping'
+            and abs(r['p'] - 0.10) < 1e-12 and r['witness_branches']]
+    if _key:
+        _w = _key[0]['witness_branches'][0]
+        _B = [[[complex(z[0], z[1]) for z in row] for row in M2]
+              for M2 in _w['kraus']]
+        _U = [[complex(z[0], z[1]) for z in row] for row in _w['stinespring_U']]
+        A(r"""
+\paragraph*{ED Table 12d: the instrument itself, at $[\![9,1,3]\!]$ amplitude
+damping $p=0.10$.}
+This is not a bound but the recovery: the trace-preserving Kraus pair of the
+highest-gain branch (syndrome $s=%d$, weight $p_s=%.4e$), and the $4\times4$
+unitary $U$ on ancilla$\,\otimes\,$logical whose ancilla column zero reproduces
+it, $B_i=\bra i_aU\ket0_a$.  Ordering is ancilla-then-logical, flat index
+$a\cdot2+l$.  Executing the branch means: append one ancilla in $\ket0$, apply
+$U$, discard the ancilla.  No mid-circuit measurement, no post-selection, no
+feed-forward.  $\sum_iB_i^\dagger B_i=I$ to %s and $U^\dagger U=I$ to %s.""" % (
+            _w['syndrome'], _w['p_s'],
+            sci(_w['tp_defect_repaired'], 1),
+            sci(_w['unitarity_defect'], 1)) + "\n")
+        A(r'\begin{center}\begin{tabular}{cc}')
+        A(r'\toprule $B_0$ & $B_1$ \\ \midrule')
+        _cells = [r'$\begin{pmatrix}%s & %s\\ %s & %s\end{pmatrix}$'
+                  % (_cx(M[0][0]), _cx(M[0][1]), _cx(M[1][0]), _cx(M[1][1]))
+                  for M in _B]
+        A(_cells[0] + ' & ' + _cells[1] + r' \\')
+        A(r'\bottomrule\end{tabular}\end{center}')
+        A(r'\begin{center}$U=$ '
+          r'\begin{pmatrix}'
+          + ' & '.join('%s' % _cx(z) for z in _U[0]) + r'\\ '
+          + ' & '.join('%s' % _cx(z) for z in _U[1]) + r'\\ '
+          + ' & '.join('%s' % _cx(z) for z in _U[2]) + r'\\ '
+          + ' & '.join('%s' % _cx(z) for z in _U[3])
+          + r'\end{pmatrix}$\end{center}')
 
 A(r'\end{document}')
 open(os.path.join(ROOT, 'extended_data.tex'), 'w').write('\n'.join(lines))

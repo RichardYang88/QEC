@@ -58,10 +58,12 @@ print('=== FINAL CONSISTENCY AUDIT ===')
 for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.py',
           'vscr_general.py', 'scaling_analysis.py', 'stationarity_boundary.py',
           'run_selftests.py', 'diag_check.py', 'diag_optunit.py',
+          'ancilla_recovery.py',
           'paper/make_ed.py', 'paper/fill_numbers.py',
           'paper/main.tex', 'paper/extended_data.tex', 'paper/refs.bib',
           'paper/README.md',
-          'scaling_results.json', 'stationarity_boundary.json'):
+          'scaling_results.json', 'stationarity_boundary.json',
+          'ancilla_recovery.json'):
     chk(os.path.getsize(f) > 0, f + ' present')
 
 P = json.load(open('paper_numbers.json'))
@@ -329,13 +331,14 @@ chk('ED Table 10a:' in e and 'ED Table 10b:' in e,
     'both stationarity tables are rendered in extended_data.tex')
 chk('90' in e, 'ED Table 10b states the 90-pair total')
 # The caption must quote the same two-estimator control minimum that the table's
-# own "min control" column reports.  summary['min_control_grad'] is autograd-only
+# own "min control" column reports.  `\$?` in the patterns below is because sci()
+# emits its value already wrapped in math mode.  summary['min_control_grad'] is autograd-only
 # and slightly larger, so quoting it made the caption disagree with its table.
 _ctl_min = min(min(_r['control_grad_autograd'], _r['control_grad_fd'])
                for _r in _sb['rows'])
 _grad_max = max(max(_r['grad_autograd'], _r['grad_fd']) for _r in _sb['rows'])
-_mctl = re.search(r'min control (\d\.\d+)\\times 10\^\{(-?\d+)\}', e)
-_mgrad = re.search(r'max gradient (\d\.\d+)\\times 10\^\{(-?\d+)\}', e)
+_mctl = re.search(r'min control \$?(\d\.\d+)\\times 10\^\{(-?\d+)\}', e)
+_mgrad = re.search(r'max gradient \$?(\d\.\d+)\\times 10\^\{(-?\d+)\}', e)
 chk(_mctl is not None and _mgrad is not None,
     'ED Table 10b caption quotes both a max gradient and a min control')
 if _mctl and _mgrad:
@@ -422,6 +425,222 @@ for _nm, _cd in _sca['codes'].items():
                 '[[%s]] %s a perfect branch-unitary recovery exists (%.12f)'
                 % (_nm, _k, _p['F_unit']))
 
+# ---- 9c. the Kraus-rank ladder: how many ancillas the headroom needs --------
+# ED Table 12 turns the optimal-CPTP ceiling into a COUNT OF ANCILLAS: rank(C)=r
+# is exactly the minimal Stinespring ancilla dimension of the branch recovery.
+# The load-bearing checks are that the two END rungs reproduce the audited
+# production ceilings (so the ladder is not a new unvalidated quantity), that the
+# ladder is monotone in rank, that the returned rank-2 instrument is exactly trace
+# preserving with an exactly unitary dilation, and that an INDEPENDENT
+# unconstrained circuit optimisation lands on the same value.
+_ar = json.load(open('ancilla_recovery.json'))
+_arc = _ar['selftests']['conventions']
+_art = _ar['selftests']['tp_stinespring']
+_arctl = _ar['selftests']['controls']
+chk(_arc['worst_r1_vs_production'] < 1e-9,
+    'ladder rank 1 reproduces the production unitary ceiling to %s'
+    % _arc['worst_r1_vs_production'])
+chk(_arc['worst_r4_vs_production'] < 1e-9,
+    'ladder rank 4 reproduces the production CPTP ceiling to %s'
+    % _arc['worst_r4_vs_production'])
+chk(_arc['worst_r4_equality_vs_inequality'] < 1e-9,
+    'the equality-TP optimum matches the inequality-TP one at r=4 (%s), so the '
+    'ceiling is over channels, not sub-channels'
+    % _arc['worst_r4_equality_vs_inequality'])
+chk(_arc['worst_choi_vs_kraus'] < 1e-11,
+    'the multi-Kraus Choi objective equals production cf_unnormalised to %s'
+    % _arc['worst_choi_vs_kraus'])
+chk(_arc['worst_monotonicity'] < 1e-9,
+    'the ladder is monotone in rank; worst violation %s'
+    % _arc['worst_monotonicity'])
+chk(_art['tp_rep'] < 1e-12,
+    'every witness Kraus pair is exactly trace preserving (%s)' % _art['tp_rep'])
+chk(_art['unit'] < 1e-12,
+    'every Stinespring dilation is exactly unitary (%s)' % _art['unit'])
+chk(_art['map_'] < 1e-12,
+    'Tr_a[U(rho x |0><0|)U^dag] == sum_i B_i rho B_i^dag (%s)' % _art['map_'])
+chk(_art['direct'] < 1e-9,
+    'the unconstrained exp(iH) circuit route matches the constrained Choi '
+    'rank-2 optimum (%s)' % _art['direct'])
+chk(_art['direct_unit'] < 1e-12 and _art['direct_tp'] < 1e-12,
+    'the circuit route is itself exactly unitary (%s) and trace preserving (%s)'
+    % (_art['direct_unit'], _art['direct_tp']))
+for _ch, _c in _arctl.items():
+    chk(_c['ladder_spread'] < 1e-9,
+        'control channel %s gives a FLAT ladder across all rungs (spread %s)'
+        % (_ch, _c['ladder_spread']))
+
+# cross-artifact: the ladder's end rungs ARE the scaling sweep's F_unit / F_cptp
+_lad = {(r['code'], r['channel'], r['p']): r for r in _ar['ladder']}
+_nlocked = 0
+for _nm, _cd in _sca['codes'].items():
+    for _k, _p in _cd['points'].items():
+        _ch, _pv = _k.rsplit('_', 1)
+        _r = _lad.get((_nm, _ch, float(_pv)))
+        if _r is None:
+            continue
+        _nlocked += 1
+        chk(abs(_r['F']['1'] - _p['F_unit']) < 1e-9,
+            '[[%s]] %s: ladder rank 1 == scaling F_unit (%.10f vs %.10f)'
+            % (_nm, _k, _r['F']['1'], _p['F_unit']))
+        chk(abs(_r['F']['4'] - _p['F_cptp']) < 1e-8,
+            '[[%s]] %s: ladder rank 4 == scaling F_cptp (%.10f vs %.10f)'
+            % (_nm, _k, _r['F']['4'], _p['F_cptp']))
+        chk(abs(_r['F_dec'] - _p['F_dec']) < 1e-11,
+            '[[%s]] %s: ladder F_dec == scaling F_dec' % (_nm, _k))
+        chk(_r['F']['2'] <= _r['F']['4'] + 1e-9,
+            '[[%s]] %s: one ancilla never exceeds the full CPTP ceiling '
+            '(weak duality)' % (_nm, _k))
+chk(_nlocked >= 8, 'ladder and scaling sweep overlap on %d points' % _nlocked)
+
+# the headline: at n=9 amplitude damping the ladder is FLAT above rank 2, so ONE
+# ancilla qubit captures the entire non-unitary headroom
+for _pv in (0.05, 0.10):
+    _r = _lad[('9,1,3', 'amplitude_damping', _pv)]
+    _frac = _r['one_ancilla_fraction_of_nonunitary_headroom']
+    chk(_frac is not None and abs(_frac - 1.0) < 1e-6,
+        '[[9,1,3]] amplitude damping p=%g: one ancilla recovers %.8f of the '
+        'non-unitary headroom' % (_pv, _frac))
+    chk(abs(_r['one_ancilla_gap_to_cptp']) < 1e-12,
+        '[[9,1,3]] amplitude damping p=%g: rank 2 == rank 4 to %.2e'
+        % (_pv, _r['one_ancilla_gap_to_cptp']))
+    chk(_r['headroom']['1'] < 1e-9,
+        '[[9,1,3]] amplitude damping p=%g: the unitary rung IS the decoder '
+        '(headroom %.2e)' % (_pv, _r['headroom']['1']))
+    chk(_r['headroom']['2'] > 1e-5,
+        '[[9,1,3]] amplitude damping p=%g: one ancilla gains %.4e'
+        % (_pv, _r['headroom']['2']))
+
+# ---- 9d. main.tex and extended_data.tex quote the ladder artifact -----------
+# Each number below is DERIVED from ancilla_recovery.json and rendered with the
+# same helper, so prose that drifts away from the artifact fails the audit rather
+# than silently disagreeing with it.
+
+
+def _tex_sci(x, digits=2):
+    """Render |x| as the LaTeX mantissa/exponent form the prose uses."""
+    mnt, ex = ('%.*e' % (digits, abs(float(x)))).split('e')
+    return r'%s\times10^{%d}' % (mnt, int(ex))
+
+
+def _chk_bound(name, value, exp, phrase):
+    """Assert an artifact defect is below a power of ten AND that main.tex says so.
+
+    The defects below are floating-point round-off, so they move in the second
+    significant digit between runs and a mantissa quoted in prose would churn on
+    every regeneration.  A conservative power of ten is both what the number means
+    ("machine precision") and stable under reruns.  `phrase` is matched against the
+    whitespace-normalised prose so that line wrapping cannot break the lock."""
+    _tfn = ' '.join(t.split())
+    chk(value < 10.0 ** exp,
+        '%s is %.2e, below the 10^{%d} bound the prose quotes'
+        % (name, value, exp))
+    chk(phrase in _tfn,
+        'main.tex states the %s bound as %r' % (name, phrase))
+
+
+for _pv in (0.05, 0.10):
+    _r = _lad[('9,1,3', 'amplitude_damping', _pv)]
+    _q = '+' + _tex_sci(_r['headroom']['4'])
+    chk(_q in t,
+        'main.tex quotes the n=9 amplitude-damping p=%g CPTP headroom as %s '
+        '(artifact %.4e)' % (_pv, _q, _r['headroom']['4']))
+    chk(_tex_sci(_r['one_ancilla_gap_to_cptp'], 1) in t,
+        'main.tex quotes the rank-2 vs rank-4 flatness at p=%g as %s (artifact '
+        '%.2e)' % (_pv, _tex_sci(_r['one_ancilla_gap_to_cptp'], 1),
+                   _r['one_ancilla_gap_to_cptp']))
+_spread = max(_c['ladder_spread'] for _c in _arctl.values())
+_chk_bound('control-channel ladder spread', _spread, -13,
+           'spread below $10^{-13}$')
+# Both the results and the methods paragraph quote this bound.  Requiring two
+# occurrences is what stops one of them from keeping a stale mantissa from an
+# earlier run while the other is updated -- which is exactly how an 8.8e-14
+# survived here after the artifact moved to 9.3e-14.
+_nspread = ' '.join(t.split()).count('spread below $10^{-13}$')
+chk(_nspread >= 2,
+    'the results and methods paragraphs quote the SAME control-spread bound '
+    '(%d occurrences)' % _nspread)
+_wits = [w for _r in _ar['ladder'] for w in _r['witness_branches']]
+chk(len(_wits) > 0, 'the ladder emitted %d hardware witnesses' % len(_wits))
+_tp = max(w['tp_defect_repaired'] for w in _wits)
+_un = max(w['unitarity_defect'] for w in _wits)
+_mp = max(w['map_defect'] for w in _wits)
+_dfc = max(abs(w['cf_choi'] - w['cf_direct']) for w in _wits)
+chk(_tp < 1e-12, 'worst witness TP defect over all %d witnesses: %.2e'
+    % (len(_wits), _tp))
+chk(_un < 1e-12, 'worst witness dilation unitarity defect: %.2e' % _un)
+chk(_mp < 1e-12, 'worst witness Tr_a circuit-vs-Kraus defect: %.2e' % _mp)
+chk(_dfc < 1e-9, 'worst witness Choi-vs-circuit conditional-fidelity gap: %.2e'
+    % _dfc)
+_chk_bound('witness trace preservation', _tp, -14,
+           'unitary, to below $10^{-14}$')
+_chk_bound('witness dilation unitarity', _un, -14,
+           'unitary, to below $10^{-14}$')
+_chk_bound('Choi-vs-circuit agreement', _dfc, -10,
+           'conditional fidelity to below $10^{-10}$')
+# the third route: a brute-force Haar quadrature of the physical estimator, which
+# uses neither the Choi matrix nor the degree-2 moment identity.  On branches where
+# the estimator is exactly psi-independent (coherent: the optimal recovery is the
+# inverse unitary; depolarizing: a Pauli twirl) the quadrature has zero variance and
+# is a deterministic identity check, so those are measured relatively rather than in
+# sigmas -- a naive sigma test would report a fifteen-digit agreement as a failure.
+_q = _ar['selftests']['quadrature']
+chk(_q['n_states'] >= 20000,
+    'the quadrature used %d random pure states per branch' % _q['n_states'])
+chk(_q['worst_z'] < 5.0,
+    'quadrature agrees with the closed form to %.2f sigma on the %d branches '
+    'that have sampling noise' % (_q['worst_z'],
+                                  _q['n_branches'] - _q['n_psi_independent']))
+chk(_q['worst_rel'] < 1e-11,
+    'on the %d psi-independent branches the quadrature is a deterministic '
+    'identity check; worst relative deviation %.2e'
+    % (_q['n_psi_independent'], _q['worst_rel']))
+chk(_q['n_psi_independent'] > 0 and
+    _q['n_branches'] - _q['n_psi_independent'] > 0,
+    'the quadrature covers both regimes: %d psi-independent and %d with sampling '
+    'noise' % (_q['n_psi_independent'], _q['n_branches'] - _q['n_psi_independent']))
+_tf = ' '.join(t.split())          # whitespace-normalised prose, for line-wrap safety
+chk(('%.2f' % _q['worst_z']) + r'\sigma' in t,
+    'main.tex quotes the quadrature agreement as %s sigma (artifact %.4f)'
+    % ('%.2f' % _q['worst_z'], _q['worst_z']))
+_chk_bound('psi-independent quadrature', _q['worst_rel'], -14,
+           'to below $10^{-14}$ relative')
+chk('$%d$ witnesses' % len(_wits) in _tf,
+    'main.tex states the witness count %d that the artifact actually emits'
+    % len(_wits))
+
+# the strongest form of the hardware claim: the instrument exists on the PHYSICAL
+# 2^n-dimensional register, not only on the two-dimensional logical space.  The
+# (n+1)-qubit unitary Rt_s is built explicitly and four defects must vanish -- that
+# sum_i T_i^dag T_i is the syndrome projector, that the two isometry families are
+# orthonormal (which is exactly trace preservation), that Rt_s is unitary, and that
+# it reproduces the Kraus operators through the paper's own reduced-block map
+# (bra i|_a ox V^dagger) Rt_s (|0>_a ox W_s) = B_i.
+_pd = _ar['selftests']['physical_dilation']
+for _k, _tol in (('isometry_to_projector', 1e-10), ('column_orthonormality', 1e-10),
+                 ('unitarity', 1e-10), ('reduced_block', 1e-10)):
+    chk(_pd[_k] < _tol,
+        'physical (n+1)-qubit dilation, %s defect %.2e' % (_k, _pd[_k]))
+chk(_pd['n_branches'] > 0 and _pd['dim'] == 32,
+    'the physical dilation was checked on %d branches of a dim=%d register'
+    % (_pd['n_branches'], _pd['dim']))
+for _k in ('isometry_to_projector', 'column_orthonormality', 'unitarity',
+           'reduced_block'):
+    _chk_bound('physical dilation ' + _k, _pd[_k], -14,
+               'at machine precision on a $2^{n+1}$-dimensional register')
+chk('Stinespring' in t and 'physical register' in t,
+    'main.tex states that the dilation is a circuit on the physical register')
+
+chk('ED Table 12:' in e and 'ED Table 12b:' in e,
+    'both Kraus-rank ladder tables are rendered in extended_data.tex')
+chk('ED Table 12c:' in e and 'ED Table 12d:' in e,
+    'the witness verification table and the explicit instrument are rendered')
+chk('ED Table~12' in t, 'main.tex points the reader at ED Table 12')
+chk('gate-level instrument cannot express' not in t,
+    'the falsified claim that a gate-level instrument cannot express the '
+    'residual headroom has been removed from main.tex')
+chk('Stinespring' in t, 'main.tex names the Stinespring dilation')
+
 # ---- 10. key literature is present in the bibliography ---------------------
 for k in ('petz_map', 'biswas_petz', 'beny_optimal', 'huggins_vd', 'vikstal_vd',
           'temme_zne', 'endo_zne', 'kandala_zne_hw', 'czarnik_cdr',
@@ -438,6 +657,27 @@ for f in incs:
 for f in ('fig_sim_benchmark', 'fig_sim_ler', 'fig_training', 'fig_branch_cf',
           'fig_coherent', 'fig_ablation', 'fig_hw_feasibility', 'fig_schematic'):
     chk(os.path.exists('paper/figures/' + f + '.pdf'), 'figures/' + f + '.pdf')
+
+# ---- 12. no math-mode symbol outside math mode in the generated ED file ------
+# `\times` is a math-mode symbol.  make_ed.py's sci() helper used to emit it bare,
+# which turned every one of the 411 table cells that used it into a LaTeX error
+# ("Missing $ inserted").  No TeX engine exists on this host, so extended_data.tex
+# has never been compiled and the bug was invisible.  Rather than depend on a
+# compiler, this check verifies the property directly: strip every $...$ span from
+# each line and require that no \times survives.  The file is machine-generated and
+# uses only $...$ for inline math, so the line-based strip is exact here.
+_bad = []
+for _i, _ln in enumerate(e.splitlines(), 1):
+    if BS + 'times' in re.sub(r'\$[^$]*\$', '', _ln):
+        _bad.append(_i)
+chk(not _bad,
+    'extended_data.tex has no %s outside math mode (offending lines: %s)'
+    % (BS + 'times', _bad[:10]))
+chk(e.count(BS + 'times') > 100,
+    'extended_data.tex renders %d scientific-notation values, all in math mode'
+    % e.count(BS + 'times'))
+chk('$$' not in e,
+    'extended_data.tex has no $$ display math from double-wrapped sci() output')
 
 print()
 print('=== OVERALL:', 'ALL CHECKS PASSED' if ok else 'FAILURES PRESENT', '===')

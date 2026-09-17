@@ -24,6 +24,8 @@ cd ..                                  # repo root
 ./qenv/bin/python vscr_paper.py        # warm-start training + benchmarks + figs
 ./qenv/bin/python vscr_paper_coh.py    # coherent-channel supplement (Fig. 3c)
 ./qenv/bin/python vscr_paper_abl.py    # same-family baselines + SDP ceiling + ablations
+./qenv/bin/python scaling_analysis.py  # exact n=5/7/9 ceilings + readout law
+./qenv/bin/python ancilla_recovery.py  # Kraus-rank ladder -> ancilla_recovery.json
 ./qenv/bin/python hw_verify_analysis.py# hardware feasibility fig + numbers
 ./qenv/bin/python make_schematic.py    # Fig. 1
 cd paper && ./qenv/bin/python fill_numbers.py && ./qenv/bin/python make_ed.py
@@ -42,19 +44,34 @@ manuscript quotes about the decoder saddle and the certified headroom):
                                        #   fraction, F_warm >= F_dec  -> diag_check.json
 ```
 
+`ancilla_recovery.py` answers "how many ancillas does the non-unitary headroom
+need?" exactly. Because the Kraus rank of a branch recovery equals the rank of its
+Choi matrix, restricting the ceiling program's Choi factor `C = L L^dag` to
+`L in C^{4 x r}` restricts the recovery to what an ancilla of dimension `r` can
+realise as a unitary followed by a discard. `r=1` is therefore the unitary family
+VSCR compiles to, `r=2` a one-ancilla gate-level instrument, and `r=4` the
+unrestricted CPTP ceiling — one integer turns the ceiling into a count of ancillas.
+The end rungs are asserted to reproduce `ab._max_unitary_J` and `ab._sdp_branch`,
+the Choi objective is asserted to equal `g.cf_unnormalised`, the `r=2` optimum is
+repaired to exact trace preservation and dilated to an explicit `4x4` unitary that
+is checked by tracing the ancilla out, an independent unconstrained `exp(iH)`
+optimisation is asserted to land on the same value, and coherent/depolarizing are
+run through the same ladder as negative controls that must come out flat.
+Use `--quick` for n=5,7 amplitude damping only, `--selftest` for the checks alone.
+
 `run_selftests.py --list` shows what each test pins. All of them are assertions,
 not plots: if any one fails, a specific claim or figure in the manuscript is
 unsupported.
 
 Verification is deliberately two-layered, because the two layers fail differently:
 
-- `run_selftests.py` (9 tests) checks that the **code** computes what the
+- `run_selftests.py` (11 tests) checks that the **code** computes what the
   manuscript claims — the warm start is phase-exactly the Pauli decoder, the
   Haar×p quadrature equals the full 32×32 reference, the decoder is an exact
   stationary point, the SDP ceiling bounds it, and the refinement is monotone.
   It runs each test in its own subprocess with retries (see the host note
   below), so one native fault cannot abort the rest of the suite.
-- `audit_numbers.py` (212 checks, <1 s, exit 0 iff clean) checks that the
+- `audit_numbers.py` (543 checks, <1 s, exit 0 iff clean) checks that the
   **artifacts** are mutually consistent and physical: every reported fidelity
   lies in [0,1], `F_warm >= F_decoder` at *every* p on *every* channel, no
   Fig. 4(b) gap-to-ceiling bar is negative or above its own bound, the SDP

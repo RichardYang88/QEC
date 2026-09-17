@@ -361,7 +361,14 @@ def _branch_M(noise, p, s):
     return M, p_s
 
 def _sdp_branch(M, G_dec, G_ref=None):
-    """Max 2Tr[CM] s.t. C=LL^† ⪰ 0, I/2 − Tr_out C ⪰ 0.  Returns F_unnorm.
+    """Max 2Tr[CM] s.t. C=LL^† ⪰ 0 and Tr_out C = I/2 (trace preservation).
+
+    Returns F_unnorm.  The trace-preservation condition is imposed as four real
+    EQUALITIES rather than as the inequality I/2 − Tr_out C ⪰ 0; see the second
+    bug fix recorded on `feasible` below for the measured cost of the inequality
+    form (it under-reported the [[9,1,3]] amplitude-damping ceiling by 3.7x at
+    p=0.05 and 16x at p=0.10, because SLSQP was free to stop in the interior of
+    the sub-trace-preserving set).
 
     BUG FIX.  This used to initialise `best = -1.0` and to accept a start's
     result only when scipy reported `success=True`.  SLSQP reports
@@ -400,15 +407,14 @@ def _sdp_branch(M, G_dec, G_ref=None):
     def neg_obj(x):
         return -obj(x)
 
-    def c_tr(x):
-        L = unpack(x)
-        T = 0.5 * np.eye(2) - trace_out(L @ L.conj().T)
-        return float(np.real(np.trace(T)))
+    def tp_residual(x):
+        """The four real residuals of Tr_out(C) = I/2, i.e. of sum_j B_j^dag B_j = I.
 
-    def c_det(x):
-        L = unpack(x)
-        T = 0.5 * np.eye(2) - trace_out(L @ L.conj().T)
-        return float(np.real(np.linalg.det(T)))
+        Tr_out(C) is Hermitian, so its two diagonal entries are real and its
+        off-diagonal pair is one complex number: exactly four real equations."""
+        T = trace_out(unpack(x) @ unpack(x).conj().T)
+        return [float(np.real(T[0, 0]) - 0.5), float(np.real(T[1, 1]) - 0.5),
+                float(np.real(T[0, 1])), float(np.imag(T[0, 1]))]
 
     def L_of_unitary(G):
         v = np.zeros(4, dtype=complex)      # (I⊗G)|Ω> : v[a*2+b] = G[b,a]/√2
@@ -420,9 +426,30 @@ def _sdp_branch(M, G_dec, G_ref=None):
         return L
 
     def feasible(x):
-        # both constraints sit exactly ON the boundary for a unitary Choi vector
-        # (Tr C = 1 and Tr_out C = I/2), so the tolerances must be one-sided
-        return c_tr(x) > -1e-8 and c_det(x) > -1e-10
+        # SECOND BUG FIX, found by `ancilla_recovery.py`.  The constraint used to
+        # be the INEQUALITY I/2 - Tr_out(C) >= 0, tested one-sidedly as
+        # `c_tr(x) > -1e-8 and c_det(x) > -1e-10`.  That admits the whole interior
+        # of the sub-trace-preserving set, and SLSQP then stops at interior points
+        # that are strictly worse than the true optimum -- not because the
+        # objective is wrong but because nothing forces the iterate back onto the
+        # trace-preserving manifold where the maximum lives.  Measured on
+        # [[9,1,3]] amplitude damping p=0.05, branch s=15: the inequality form
+        # returns 1.986802e-05 with a rank-1 Choi matrix (it never leaves the
+        # unitary family at all) and only reaches 2.036127e-05 with 24 random
+        # starts, while the equality form below returns 2.046582e-05 from two
+        # random starts and reproduces it to 3e-13 from three and from six.  That
+        # last value is not a solver artefact: it is attained by an explicitly
+        # trace-preserving Kraus pair (defect 4e-16) whose 4x4 Stinespring dilation
+        # is unitary to 4e-16, scored by `vscr_general.cf_unnormalised`, and
+        # confirmed by a 20000-state brute-force Haar quadrature of the physical
+        # estimator to within 0.9 sigma.  Imposing the four real equations of
+        # Tr_out(C) = I/2 is also simply more correct: the ceiling is over
+        # recovery CHANNELS, which are trace preserving by definition.
+        #
+        # A unitary Choi vector satisfies the equality exactly, so the
+        # `L_of_unitary` starts below are feasible and the running-best seeding
+        # still guarantees F_cptp >= F_unit (weak duality) by construction.
+        return max(abs(v) for v in tp_residual(x)) < 1e-7
 
     starts = [L_of_unitary(np.eye(2, dtype=complex)), L_of_unitary(G_dec)]
     if G_ref is not None:
@@ -431,7 +458,8 @@ def _sdp_branch(M, G_dec, G_ref=None):
     for _ in range(2):
         starts.append((rs.randn(4, 4) + 1j * rs.randn(4, 4)) / 2)
     best, best_x = -np.inf, None
-    cons = [{'type': 'ineq', 'fun': c_tr}, {'type': 'ineq', 'fun': c_det}]
+    cons = [{'type': 'eq', 'fun': (lambda x, i=i: tp_residual(x)[i])}
+            for i in range(4)]
     for L0 in starts:
         x0 = np.concatenate([L0.real.reshape(16), L0.imag.reshape(16)])
         if feasible(x0) and obj(x0) > best:      # (i) seed with the start
