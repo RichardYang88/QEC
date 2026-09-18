@@ -192,6 +192,13 @@ def round_superop(Astack, G, readout=None):
 
         Lam_eta(sigma) = sum_{s,s~} C(s~|s) G~[s~,s] B_s(sigma) G~[s~,s]^dag
 
+    This map assumes an IDEAL, exactly code-space-valued recovery: its input and
+    output are both 2x2 logical operators.  A NOISY recovery layer breaks that
+    assumption, because the depolarizing fault it injects leaves a component
+    proportional to Q = I_dim - P_code that is not of the form V sigma V^dag.
+    `noisy_round_affine` is the exact extension for that case; do not try to
+    express recovery gate noise by perturbing this function.
+
     R rounds is then just S^R -- which is why an arbitrarily long memory costs no
     more than one round, and why the asymptotic decay rate is an eigenvalue of S
     rather than something fitted from a long simulation.
@@ -599,6 +606,10 @@ def build_round(code, channel, p, kind, eta=0.0):
     -- the measured norm of the off-diagonal cross-blocks, which is the quantity
     that decides whether a misread syndrome merely suppresses the fidelity or
     actively rotates the logical state.
+
+    The recovery here is IDEAL.  Recovery gate noise needs the exact 5x5 affine
+    map `noisy_round_affine`, not a perturbation of this one -- see the note in
+    `round_superop` for why a 4x4 map cannot carry a noisy recovery layer.
     """
     Astack = branch_kraus_stacked(code, channel, p)
     ps = branch_p_weights(Astack)
@@ -635,6 +646,142 @@ def build_round(code, channel, p, kind, eta=0.0):
         meta['cross_block_norm'] = 0.0
     meta['F_R1'] = fidelity_after_rounds(S, 1)
     return S, meta
+
+
+# ---------------------------------------------------------------------
+# Recovery gate noise: the exact 5x5 affine round map
+# ---------------------------------------------------------------------
+# Tr[E] as a row functional on row-major vec(E): E_00 sits at index 0 and E_11 at
+# index 3, and vec(I_2) is the same vector -- the coincidence is real, not a bug,
+# because Tr[M sigma] = <vec(M^T), vec(sigma)> and I_2^T = I_2.
+_TRACE_ROW = np.array([1.0, 0.0, 0.0, 1.0])
+
+
+def noisy_round_affine(code, channel, p, kind, rec_noise):
+    """Exact 5x5 affine round map for a memory whose RECOVERY GATES are noisy.
+
+    THE MODEL.  One round is
+
+        rho -> D_lam( sum_s R_s P_s N(rho) P_s R_s^dag ) ,
+        D_lam(X) = (1-lam) X + (lam/dim) Tr[X] I_dim ,
+
+    i.e. the ideal syndrome-conditioned recovery followed by one GLOBAL
+    depolarizing fault layer on the n-qubit register, standing in for the gate
+    noise of the recovery sequence.  `rec_noise` is lam.
+
+    WHY A 4x4 MAP CANNOT DO THIS.  D_lam dumps (1 - 2/dim) lam of the state
+    OUTSIDE the code space, onto Q = I_dim - P_code.  That component is not of
+    the form V sigma V^dag, so it has no 2x2 representative -- and unlike a
+    leakage event it is NOT lost, because the next round's syndrome measurement
+    is complete (sum_s P_s = I_dim) and R_s maps every syndrome subspace back
+    into the code space, so the next round recovers it.  Discarding it, which is
+    what a naive V^dag D_lam(.) V restriction does, underestimates F by up to
+    0.38 at lam=0.10.  That gap was measured, not assumed.
+
+    THE FIX.  Track the escaped weight as one extra scalar.  After any round the
+    state is exactly
+
+        rho = V sigma V^dag + t * Q/(dim-2) ,    Tr[rho] = Tr[sigma] + t ,
+
+    because the noise term contributes only along Q and the ideal round maps
+    everything else into the code space.  With Ebar the ideal-recovery round and
+    m_Q = V^dag Ebar(Q/(dim-2)) V, one step is the AFFINE map
+
+        sigma' = (1-lam)(Mbar sigma + t m_Q) + (lam/dim)(Tr sigma + t) I_2
+        t'     = (lam/dim)(dim-2)(Tr sigma + t)
+
+    on x = (vec sigma, t), i.e. a 5x5 matrix A with F(R) read off A^R.  So an
+    arbitrarily long noisy memory is still one eigendecomposition, exactly as for
+    the ideal map -- the recovery-noise threshold costs nothing extra.
+
+    `q_escape` in meta measures how much of Ebar(Q/(dim-2)) fails to land in the
+    code space.  It is round-off for the Pauli decoder, whose C_s maps im P_s
+    exactly onto the code space, and O(unitarity_dev) for a learned non-Pauli
+    recovery.  It is the ONLY approximation here: when it is non-zero the
+    5-dimensional representation is not exactly closed.  It is reported so the
+    claim is bounded by a measurement rather than asserted.
+
+    Returns (A, meta).
+    """
+    lam = float(rec_noise)
+    if not 0.0 <= lam < 1.0:
+        raise ValueError('rec_noise must lie in [0, 1), got %r' % rec_noise)
+    dim = code.dim
+    if kind == 'none':
+        raise ValueError('recovery gate noise is undefined for the no-recovery '
+                         'baseline: there is no gate to be noisy')
+    G, R_mats, gmeta = recovery_blocks(code, kind, channel=channel, p=p)
+    if R_mats is None:
+        raise ValueError(
+            'recovery %r has no full-space realisation, so the noisy-recovery '
+            'layer cannot be propagated through it; refusing to invent one'
+            % kind)
+    # The ideal-recovery 4x4 block Mbar, from the audited path.
+    Mbar, smeta = build_round(code, channel, p, kind)
+
+    # m_Q = V^dag Ebar(Q/(dim-2)) V, computed in FULL space so that it is the
+    # same channel the storage_full reference uses rather than a parallel
+    # implementation that could silently disagree with it.
+    V = np.asarray(code.V, dtype=complex)
+    P_code = V @ V.conj().T
+    Q = np.eye(dim, dtype=complex) - P_code
+    Xin = Q / (dim - 2)
+    W, Wdag, _Vt = code_tensors(code, torch.device('cpu'))
+    RW = torch.matmul(torch.tensor(np.asarray(R_mats, dtype=complex)), W)
+    Y = apply_round_batch(torch.tensor(Xin)[None], code, channel, p,
+                          RW, W, Wdag)[0].detach().numpy()
+    m_Q = V.conj().T @ Y @ V
+    resid = Y - V @ m_Q @ V.conj().T
+    q_escape = float(np.abs(resid).max())
+
+    vI2 = _TRACE_ROW.astype(complex)
+    A = np.zeros((5, 5), dtype=complex)
+    A[:4, :4] = ((1.0 - lam) * np.asarray(Mbar, dtype=complex)
+                 + (lam / dim) * np.outer(vI2, _TRACE_ROW))
+    A[:4, 4] = (1.0 - lam) * _vec_rowmajor(m_Q) + (lam / dim) * vI2
+    A[4, :4] = (lam / dim) * (dim - 2) * _TRACE_ROW
+    A[4, 4] = (lam / dim) * (dim - 2)
+
+    meta = dict(smeta)
+    meta.update({
+        'rec_noise': lam, 'q_escape': q_escape,
+        'rec_noise_model': ('global depolarizing D_lam on the n-qubit register, '
+                            'applied after the ideal syndrome-conditioned '
+                            'recovery'),
+        # lam is the exact parameter this module simulates.  A circuit-level
+        # model of n noisy gates per recovery layer gives lam ~ n*eps to leading
+        # order, so eps_1q is reported for physical readability only and is never
+        # used as the input.
+        'eps_per_qubit_equiv': lam / code.n})
+    return A, meta
+
+
+def affine_fidelity_curve(A, rounds):
+    """F(R) for the 5x5 affine map, same unnormalised convention as
+    `fidelity_after_rounds`.
+
+    Only the 2x2 code-space block contributes: every Haar probe is V|psi_L>, so
+    <psi|rho|psi> = <psi_L|sigma|psi_L> and the t*Q/(dim-2) component is exactly
+    orthogonal to it.  F(0) = 1 to the same round-off as the ideal curve.
+    """
+    st, ww, sig = probes()
+    A = np.asarray(A, dtype=complex)
+    want = sorted(set(int(r) for r in rounds) | {0})
+    rmax = want[-1]
+    X = np.zeros((st.shape[0], 5), dtype=complex)
+    X[:, :4] = sig
+    meas = {}
+    for R in range(0, rmax + 1):
+        if R in want:
+            tot = 0.0
+            for j in range(st.shape[0]):
+                o = X[j, :4].reshape(2, 2)
+                tot += ww[j] * float(np.real(st[j].conj() @ o @ st[j]))
+            meas[R] = tot
+        if R < rmax:
+            X = X @ A.T
+    return [meas[int(r)] for r in rounds]
+
 
 
 # ---------------------------------------------------------------------
@@ -726,13 +873,19 @@ def code_tensors(code, device):
     return cache[key]
 
 
-def apply_round_batch(rhos, code, channel, p, RW, W, Wdag):
+def apply_round_batch(rhos, code, channel, p, RW, W, Wdag, rec_noise=0.0):
     """One storage round applied to a BATCH of density matrices.
 
     `rhos` is (nq, dim, dim).  Batching over the 21 Haar probes is what makes the
     full-space path worth running at all: the branch einsum then contracts
     nq x nsyn blocks in one call instead of 21 separate ones, which on the GPU is
     the difference between launch-bound and arithmetic-bound.
+
+    `rec_noise` = lam applies the SAME global depolarizing recovery layer the
+    reduced map models, D_lam(X) = (1-lam) X + (lam/dim) Tr[X] I_dim, here on the
+    full dim x dim state after the recovery.  Running both paths at the same lam
+    is what makes the reduced closed form a checked claim rather than an
+    assumption: they must agree to the leakage tolerance.
     """
     out = apply_channel_full_batch(rhos, code, channel, p)
     # Wdag is (nsyn, 2, dim), so its dim index is the THIRD subscript: Z_s is
@@ -740,7 +893,15 @@ def apply_round_batch(rhos, code, channel, p, RW, W, Wdag):
     # would silently scramble the branches, hence the shape assert below.
     Z = torch.einsum('sai,qij,sjb->qsab', Wdag, out, W)      # (nq, nsyn, 2, 2)
     assert Z.shape == (rhos.shape[0], W.shape[0], 2, 2), Z.shape
-    return torch.einsum('sia,qsab,sjb->qij', RW, Z, RW.conj())
+    out = torch.einsum('sia,qsab,sjb->qij', RW, Z, RW.conj())
+    if rec_noise > 0.0:
+        dim = RW.shape[1]
+        assert dim == code.dim, (dim, code.dim)
+        tr = torch.einsum('qii->q', out).to(out.dtype)        # Tr[X] per probe
+        eye = torch.eye(dim, dtype=out.dtype, device=out.device)
+        out = (1.0 - rec_noise) * out \
+            + (rec_noise / dim) * tr[:, None, None] * eye
+    return out
 
 
 def apply_channel_full_batch(rhos, code, channel, p):
@@ -788,13 +949,16 @@ def _measure_batch(rhos, Vpsi, P_code, w):
             'leakage': (1.0 - INC / TR) if TR > 0 else 0.0}
 
 
-def storage_full(code, channel, p, R_mats, rounds, device='cpu'):
+def storage_full(code, channel, p, R_mats, rounds, device='cpu', rec_noise=0.0):
     """F(R) from the FULL dim x dim density matrix, leakage included.
 
     Returns (rounds_sorted, curve, leakage, trace).  `device` is passed straight
     to torch, which is the point of this path: at [[9,1,3]] the branch einsum
     contracts 256 blocks of (512,2) columns, i.e. real arithmetic rather than the
     launch overhead that made the GPU lose on the T3 gradient stage.
+
+    `rec_noise` = lam inserts the same noisy recovery layer the reduced map models
+    in closed form, so this path is the independent check on that closed form.
     """
     dev = torch.device(device)
     W, Wdag, V = code_tensors(code, dev)
@@ -814,7 +978,8 @@ def storage_full(code, channel, p, R_mats, rounds, device='cpu'):
         if R in want:
             meas[R] = _measure_batch(rhos, Vpsi, P_code, w)
         if R < rmax:
-            rhos = apply_round_batch(rhos, code, channel, p, RW, W, Wdag)
+            rhos = apply_round_batch(rhos, code, channel, p, RW, W, Wdag,
+                                     rec_noise=rec_noise)
     return (want, [meas[R]['F'] for R in want],
             [meas[R]['leakage'] for R in want],
             [meas[R]['trace'] for R in want])
