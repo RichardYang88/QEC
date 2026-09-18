@@ -532,6 +532,76 @@ $n=7$ to $0.9355$ at $n=9$---and that what we certify at $n=7,9$ are
 independent of $n$, whereas a per-syndrome table grows as $2^{n-k}=16,64,256$,
 which is precisely where the shared architecture of ED Table~6 earns its keep.
 
+\subsection*{Seed statistics and multi-round storage}
+
+Two properties of the numbers above are invisible in a single-round,
+single-selection report: whether a fidelity is a property of the method or of
+the particular seed that produced it, and whether the headroom survives being
+used as a \emph{memory} instead of being applied once.
+
+\emph{Sixteen seeds.} Every trained quantity above is the better of seeds
+$\{1234,2024\}$. Re-running the unmodified production pipeline over $16$ seeds
+per channel and per protocol ($128$ runs) gives a sample standard deviation of
+$1.11\times10^{-9}$ on amplitude damping and $3.08\times10^{-11}$ on coherent
+noise, against certified headrooms of $1.40\times10^{-3}$ and
+$4.82\times10^{-5}$. The headroom therefore stands
+$1.3\times10^{6}$ and $1.6\times10^{6}$ standard deviations above the seed
+spread, so no draw of the initialisation can account for it. The bias of
+reporting the better of two is $+0.31\sigma$ on amplitude damping and
+$-1.34\sigma$ on coherent noise; the sign is not fixed because the selection
+criterion is the worst-branch conditional fidelity rather than $\bar F$, so
+``best of two'' is not even systematically optimistic. On depolarizing and mixed
+noise all sixteen seeds reach the \emph{same} table to $2.3\times10^{-16}$,
+because the refinement picks the decoder there and the decoder is already
+optimal---and in that regime both a $\sigma$ count and a signal-to-noise ratio
+are ratios of two round-off quantities, so we report them as undefined rather
+than as large numbers. The certified headroom has zero seed spread by
+construction, being a function of the channel and the code alone. Forty-eight
+fields of the two production seeds reproduce \texttt{paper\_numbers.json}
+bit-for-bit after distribution over pinned cores in fresh interpreters, and the
+same curriculum executed on a GPU lands on the same objective to
+$3.6\times10^{-9}$, which rules out the spread being an artifact of one host's
+BLAS association order. The per-channel breakdown, the treatment of the two
+degenerate ratios and the device measurement are in ED Table~13.
+
+\emph{Forty rounds.} Iterating the round map
+$\mathcal{E}(\rho)=\sum_s R_sP_s\mathcal{N}(\rho)P_sR_s^\dagger$ turns a
+single-round advantage into a memory-time advantage, and the advantage
+\emph{compounds}. On amplitude damping at $p=0.10$ the learned recovery leads
+the decoder by $1.60\times10^{-3}$ after one round and by $2.26\times10^{-2}$
+after forty, a factor of $14.1$; on coherent noise the lead grows from
+$4.14\times10^{-5}$ to $1.65\times10^{-3}$, a factor of $39.9$. In memory-time
+terms---the round count $R_{1/2}$ at which $\bar F$ has fallen halfway to its
+fixed point of $1/2$---coherent noise at $p=0.10$ rises from $8740$ rounds to
+$799881$, a factor of $91.5$, and amplitude damping at $p=0.10$ from $23$ to
+$26$. On depolarizing and mixed noise the two recoveries are identical at every
+$R$, as they must be where the decoder is already the family optimum. Readout
+error is what bounds the effect: the Pauli decoder's cross-branch blocks
+$V^\dagger R_{\tilde s}W_s$ vanish identically, so its fidelity obeys
+$F(\eta,R)=(1-\eta)^{(n-k)R}F(0,R)$ exactly, verified to $10^{-13}$ out to
+$R=10$, whereas the learned non-Pauli recovery has cross-branch blocks of size
+$8.9\times10^{-4}$ and does violate that law, though only at the
+$5\times10^{-11}$ level. The compounding is nonetheless eroded: the forty-round
+survival factor falls from $14.1$ to $6.5$ to $0.60$ as $\eta$ goes from $0$ to
+$0.005$ to $0.02$ on amplitude damping, and from $39.9$ to $18.3$ to $1.71$ on
+coherent noise. A few-percent mid-circuit readout error therefore preserves the
+single-round advantage while destroying its accumulation, which is the operative
+constraint on the hardware protocol below. Curves, code-size scaling of the
+decoder memory and the reduced-versus-full validation are in ED Table~14.
+
+Two reductions make this affordable, and both are measured rather than assumed.
+Because $R_s$ maps $\operatorname{im}P_s$ into the code space, the round map
+closes on the $2\times2$ logical space, so $R$ rounds cost one
+eigendecomposition of a $4\times4$ superoperator; against the full
+$2^n\times2^n$ density matrix this agrees to $1.7\times10^{-12}$ for the decoder
+and $3.0\times10^{-8}$ for the learned table, and the leaked fraction
+\emph{saturates} at $2.1\times10^{-9}$
+instead of compounding, because every round re-projects. At $n=9$ the full-space
+check runs more than $7\times$ faster on the GPU than on a pinned core, the two
+curves agreeing to $8.0\times10^{-15}$---the opposite device verdict from the
+seed sweep, where the same kernel-launch overhead makes the GPU $1.9\times$
+\emph{slower}. The choice follows the matrix size, not the workload.
+
 \subsection*{Exact circuit compilation and a Pauli-frame hardware protocol}
 
 To move the trained instrument onto hardware we compile each branch to a
@@ -750,7 +820,10 @@ distinct, so this cannot silently regress.
 Training minimizes $1-F$ (Eq.~\ref{eq:F}) with Adam in a three-stage curriculum
 (low-$p$, full-range, low-rate polish; $1700$ epochs per seed), for seeds
 $\{1234,2024\}$ per channel; selection uses the label-free worst-branch
-conditional fidelity at $p=0.07$. Both the objective and the selection
+conditional fidelity at $p=0.07$. The value reported is the \emph{selected}
+seed's, so it is a maximum over two draws; the spread those draws come from, and
+the bias the rule therefore carries, are quantified under \emph{Multi-seed
+statistics} below rather than implicit. Both the objective and the selection
 diagnostic are evaluated by \emph{exact} deterministic quadrature rather than by
 sampling. A $3$-node Gauss--Legendre rule in $\cos\theta$ times a $7$-point
 equispaced azimuthal grid reproduces the Haar average of any degree-$2$ Bloch
@@ -1003,8 +1076,10 @@ Y\big]$ to $5\times10^{-15}$ relative on all four channels.
 \paragraph{Same-family baselines, ablations and the SDP ceiling.}
 \emph{VQR-ind}: a module holding a bare $(16,60)$ angle table warm-started
 at $\phi^{\rm dec}$, trained with the same loop (batch $48$, $\lambda=0$),
-curriculum and selection as VSCR (one seed, $1234$; VSCR reports the best of
-two). \emph{Global (no-projection) recovery}: one $60$-angle unitary trained
+curriculum and selection as VSCR (one seed, $1234$, in the reported ablation;
+the multi-seed sweep below runs \emph{both} architectures over the same sixteen
+seeds, which removes that asymmetry). \emph{Global (no-projection) recovery}:
+one $60$-angle unitary trained
 cold from the identity for $600$ epochs (Adam, lr $10^{-2}$, batch $48$,
 $p$ uniform in the channel's training range) on
 $\mathbb{E}_\psi\langle\psi|U\rho_{\rm noisy}U^\dagger|\psi\rangle$---the
@@ -1120,6 +1195,86 @@ instrument analogue of the paper's $V^\dagger R_sW_s=G_s$ --- to below
 $10^{-14}$, i.e.\ at machine precision on a $2^{n+1}$-dimensional register.
 The one-ancilla recovery is therefore a circuit on the physical register, not
 merely a channel on the logical one.
+
+\paragraph{Multi-seed statistics.}
+\texttt{multiseed\_stats.py} runs $16$ seeds $\times$ $4$ channels $\times$ $2$
+protocols ($128$ jobs), each seed through the \emph{unmodified} production
+path---\texttt{train\_warm\_best(noise, seeds=(seed,))}, and \texttt{train\_ind}
+followed by the identical \texttt{refine\_with\_floor} that the ablation
+applies. With one seed the best-of-$N$ selection inside those functions is the
+identity, which is what makes the reproduction gate meaningful: $48$ fields of
+seeds $\{1234,2024\}$ must return bit-for-bit against
+\texttt{paper\_numbers.json}, and they do, after distribution over pinned cores
+in fresh interpreters---so CPU affinity is confirmed empirically to change
+scheduling and nothing else. Every recorded fidelity is a deterministic
+quadrature (\texttt{exact\_F}, \texttt{pavg\_F}, the exact conditional
+fidelity), so the reported spread contains no Monte-Carlo term, and the standard
+deviation is the sample one (ddof $=1$) because the quantity of interest is what
+a \emph{future} seed would do. Jobs run in \texttt{subprocess.Popen} children
+pinned one per CPU via \texttt{preexec\_fn}, never forked:
+\texttt{\_pin\_single\_cpu} executes at import and a forked child would inherit
+the parent's already-narrowed mask, piling every worker onto one core and
+silently serialising the sweep. Two ratios are reported as undefined rather than
+computed when degenerate---a $\sigma$ count when the standard deviation is at
+machine precision (every seed converged to the same table), and a
+signal-to-noise when the certified headroom is itself signed round-off---since
+both are then $0/0$ and would otherwise print as a large number. The device
+question is measured, not assumed: \texttt{--gpu-check} runs the identical
+curriculum on CPU and CUDA (objectives agreeing to $3.6\times10^{-9}$) and times
+one forward--backward pass at batch $16,64,256,1024$. The GPU is $1.9\times$
+slower at one seed and reaches parity only at four, so sixteen seeds batched
+would merely match eight-way process parallelism while requiring the audited
+hypernetwork parameterisation to be reimplemented in batched form, forfeiting
+the bit-exactness the whole task rests on. CUDA is accordingly used for that
+cross-check and for the $n\ge7$ full-space storage runs, and the seed sweep
+stays on pinned CPU cores.
+
+
+\paragraph{Multi-round logical storage.}
+\texttt{storage\_rounds.py} iterates the instrument
+$\mathcal{E}(\rho)=\sum_sR_sP_s\mathcal{N}(\rho)P_sR_s^\dagger$, which is
+completely positive and trace-preserving, so a memory of $R$ rounds is
+$\mathcal{E}^R$. Writing $P_s=W_sW_s^\dagger$ and $G_s=V^\dagger R_sW_s$
+collapses the action on the code space to a map on the $2\times2$ logical state,
+$\Lambda(\sigma)=\sum_sG_s\big(\sum_kA_k^{(s)}\sigma
+A_k^{(s)\dagger}\big)G_s^\dagger$ with $A_k^{(s)}=W_s^\dagger K_kV$---the same
+reduced blocks the single-round ceilings are built from, so no new
+density-matrix formalism enters and $R$ rounds cost one eigendecomposition of a
+$4\times4$ superoperator. Because $\Lambda$ is linear in $\ket\psi\bra\psi$,
+$F(R)$ is degree $2$ in the Bloch vector for \emph{every} $R$, so the existing
+$3$-node $\times$ $7$-point Haar rule stays exact at all $R$ and no curve here
+carries a Monte-Carlo error. Readout error is carried by the cross-branch blocks
+$\tilde G[\tilde s,s]=V^\dagger R_{\tilde s}W_s$ together with the confusion
+matrix $C(\tilde s|s)$ of independent per-bit flips. Three conventions decide
+whether any of it means something, and each is gated rather than assumed. At
+$R=1$ the map must reproduce \texttt{exact\_F} and
+\texttt{opt\_unitary\_ceiling[F\_dec]} to $10^{-12}$ and the published
+\texttt{*\_p010} tables to their own sampling error, while the full-space
+channel must be bit-exact against \texttt{apply\_channel}. The ceiling's optimal
+$G$ is expressed in the ablation module's syndrome basis whereas the branch
+operators come from \texttt{vscr\_general}'s, so it is transported by
+$T_s=W_s^\dagger W^{\rm abl}_s$ as $G^{\rm gen}=G^{\rm abl}T_s^\dagger$;
+omitting that transport made the ceiling appear $0.15$ \emph{below} the decoder,
+which is impossible by construction and is now asserted to be. And the ``Raw''
+baseline is the direct code-space restriction of the full channel rather than a
+product of per-stage restrictions, because restrictions do not compose: after
+the first stage of the two-stage mixed channel the state has left the code
+space, and the second stage can bring part of it back. Memory time is reported
+as $R_{1/2}$, the round count at which $\bar F$ falls halfway to the fixed point
+$F_\infty$ read off $\Lambda$'s trace-one eigenvector. A single decay rate is
+deliberately not quoted: the spectrum carries several weights, and the largest
+sub-unit eigenvalue governs only the $R\to\infty$ tail, overstating the memory
+by orders of magnitude ($4.8\times10^{8}$ rounds against an observed fall from
+$0.986$ to $0.668$ within $40$). The reduced map is checked against the full
+$2^n\times2^n$ density matrix on $28$ configurations, with the per-branch cost
+held at $O(\dim^2)$ through $R_sP_s\rho
+P_sR_s^\dagger=(R_sW_s)(W_s^\dagger\rho W_s)(R_sW_s)^\dagger$, and the leaked
+fraction $1-\operatorname{Tr}[P\rho]/\operatorname{Tr}\rho$ reported alongside.
+At $n\ge7$ that check runs on the GPU, which measures more than $7\times$ faster
+than a pinned core at $n=9$ and agrees with it to $8.0\times10^{-15}$; at $n=5$
+the same code path is launch-bound and the GPU loses, so the device is chosen
+per code size rather than globally.
+
 
 \paragraph{Hardware platform and protocol.}
 Experiments ran on OriginQ Wukong chip \texttt{WK\_C180} via

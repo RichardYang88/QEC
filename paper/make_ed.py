@@ -657,6 +657,292 @@ feed-forward.  $\sum_iB_i^\dagger B_i=I$ to %s and $U^\dagger U=I$ to %s.""" % (
           + ' & '.join('%s' % _cx(z) for z in _U[3])
           + r'\end{pmatrix}$\end{center}')
 
+# ----- ED Table 13: the seed spread behind every "best of two" number ----------
+MS = os.path.join(ROOT, '..', 'multiseed_results.json')
+if os.path.exists(MS):
+    _ms = json.load(open(MS))
+    _msd = _ms['diagnostics']
+    _msa = _ms['aggregate']
+    _rep = _ms['reproduction']
+    _gc = _ms.get('gpu_check') or {}
+    A(r"""
+\subsection*{ED Table 13: seed-to-seed statistics of the trained pipeline}
+Every trained number in the main text is the better of the two seeds
+$\{1234,2024\}$, selected by the label-free worst-branch conditional fidelity.
+This table reports what that selection costs.  Each row is $S=%d$ seeds run
+through the \emph{unmodified} production path---\texttt{train\_warm\_best} with a
+single seed, and \texttt{train\_ind} followed by the identical
+\texttt{refine\_with\_floor}---so a per-seed value is exactly the value
+production would have produced for that seed.  Every fidelity listed is a
+deterministic quadrature, hence the standard deviation below is seed variability
+with no Monte-Carlo term folded in; it is the sample standard deviation
+(ddof $=1$).  The reproduction gate is why the other seeds can be trusted: %d
+fields of the two production seeds return bit-for-bit against
+\texttt{paper\_numbers.json} after distribution over pinned cores in fresh
+interpreters (%d failures).""" % (
+        _msa[sorted(_msa)[0]]['n_seeds'], _rep['n_fields_compared'],
+        _rep['n_failures']))
+    A(r'\begin{longtable}{llccccccc}')
+    A(r'\toprule protocol & channel & mean $\bar F_{\rm used}$ & std & sem & '
+      r'best of two & bias ($\sigma$) & headroom & headroom/std \\ \midrule')
+    for _k in sorted(_msd):
+        _d = _msd[_k]
+        _proto, _ch = _k.split('/')
+        _bias = ('n/a' if _d['selection_bias_sigma'] is None
+                 else '%+.2f' % _d['selection_bias_sigma'])
+        _snr = _d['signal_to_seed_noise']
+        _snrs = ('n/a' if _snr is None
+                 else (r'$\infty$' if _snr == float('inf') else sci(_snr, 2)))
+        A(f"{_proto} & {_ch.replace('_', ' ')} & "
+          f"{_d['F_used_mean']:.12f} & {sci(_d['F_used_std'])} & "
+          f"{sci(_d['F_used_sem'])} & {_d['F_used_best_of_two']:.12f} & "
+          f"${_bias}\\sigma$ & {sci(_d['headroom_mean'])} & {_snrs} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+    A(r"""
+\paragraph*{ED Table 13b: reading the two ``n/a'' columns.}
+Both are undefined rather than zero, and for one underlying reason.  On
+depolarizing and mixed noise the decoder \emph{is} the optimum of the
+per-syndrome-unitary family, so the certified headroom is signed round-off
+(flagged \texttt{headroom\_is\_zero}) and every seed converges to the \emph{same}
+angle table, which makes the standard deviation round-off as well.  A ratio of two
+round-off quantities is $0/0$: printing it as ``$-149\sigma$'' or as a large
+signal-to-noise would manufacture a trend out of floating-point noise, so the
+driver returns \texttt{None} and the audit asserts that it does.  Where the
+headroom is real the ratio is enormous---%s on amplitude damping and %s on
+coherent noise for the warm architecture---which is the quantitative answer to
+``could this have been a lucky seed?''.  The selection bias is small and \emph{not}
+systematically positive: $%+.2f\sigma$ on amplitude damping and $%+.2f\sigma$ on
+coherent noise, because the selection ranks on the worst-branch conditional
+fidelity rather than on $\bar F$.  The seed standard deviation on amplitude damping
+is %s of the $1.1\times10^{-4}$ Monte-Carlo standard error that the exact
+quadrature was introduced to avoid, so the seed lottery sits five orders of
+magnitude below an estimator noise the paper already refuses to tolerate.""" % (
+        sci(_msd['warm/amplitude_damping']['signal_to_seed_noise'], 2),
+        sci(_msd['warm/coherent']['signal_to_seed_noise'], 2),
+        _msd['warm/amplitude_damping']['selection_bias_sigma'],
+        _msd['warm/coherent']['selection_bias_sigma'],
+        sci(_msd['warm/amplitude_damping']['seed_std_vs_mc_sem'], 2)))
+    if _gc.get('available'):
+        _hr = _msd['warm/amplitude_damping']['headroom_mean']
+        A(r"""
+\paragraph*{ED Table 13c: why this sweep ran on pinned CPU cores, measured.}
+The same curriculum executed on CPU and on CUDA (%s, torch %s) reaches the same
+objective to %s, a factor $%s$ below the amplitude-damping headroom, which rules
+out the seed spread being an artifact of one host's BLAS association order.  The
+angle tables differ by %s while the objective differs by %s: a single fidelity is
+realised by a whole manifold of tables, so only $\bar F$ is a meaningful coordinate
+to compare across devices.  Timing one forward--backward pass of the exact
+objective at increasing batch shows the GPU $%.2f\times$ \emph{slower} at one seed
+and reaching parity only at four; it does amortise batching ($%.1f\times$ from
+batch 16 to 1024, against $%.1f\times$ on the CPU), but sixteen seeds batched would
+merely match eight-way process parallelism, and buying that would mean
+reimplementing the audited hypernetwork parameterisation in batched
+form---forfeiting the bit-exact reproduction this table rests on.""" % (
+            _gc['device'], _gc['torch'], sci(_gc['dF_cpu_vs_cuda'], 2),
+            '%.0f' % (_hr / max(_gc['dF_cpu_vs_cuda'], 1e-300)),
+            sci(_gc['dphi_cpu_vs_cuda'], 2), sci(_gc['dF_cpu_vs_cuda'], 2),
+            1.0 / _gc['cuda_speedup_at_one_seed'],
+            _gc['cuda_scaling_1024_over_16'],
+            _gc['cpu_scaling_1024_over_16']))
+        A(r'\begin{center}\begin{tabular}{lcccc}')
+        A(r'\toprule batch $B$ & seeds & CPU (ms) & CUDA (ms) & CUDA/CPU '
+          r'\\ \midrule')
+        for _b in sorted(_gc['batched_step'], key=int):
+            _r = _gc['batched_step'][_b]
+            A(f"${_b}$ & ${_r['seeds']}$ & {_r['cpu_ms']:.3f} & "
+              f"{_r['cuda_ms']:.3f} & {_r['cuda_over_cpu']:.2f} \\\\")
+        A(r'\bottomrule\end{tabular}\end{center}')
+
+# ----- ED Table 14: multi-round logical storage -------------------------------
+SR = os.path.join(ROOT, '..', 'storage_rounds.json')
+if os.path.exists(SR):
+    _sr = json.load(open(SR))
+    _srs = _sr['summary']
+    _srr = _sr['records']
+    _srf = _sr['full_space'] or []
+    _srb = _sr.get('device_benchmark') or {}
+    _srv = _sr.get('validation') or {}
+    _Rlast = _sr['config']['rounds'][-1]
+    A(r"""
+\subsection*{ED Table 14: multi-round logical storage}
+One round of noise, syndrome measurement and syndrome-conditioned recovery is the
+instrument $\mathcal{E}(\rho)=\sum_sR_sP_s\mathcal{N}(\rho)P_sR_s^\dagger$; a
+memory of $R$ rounds is $\mathcal{E}^R$.  Because $R_s$ maps
+$\operatorname{im}P_s$ into the code space, the map closes on the $2\times2$
+logical space,
+$\Lambda(\sigma)=\sum_sG_s(\sum_kA_k^{(s)}\sigma A_k^{(s)\dagger})G_s^\dagger$,
+so $\Lambda$ is a $4\times4$ superoperator and $R$ rounds cost a single
+eigendecomposition of it.  Since $\Lambda$ is linear in $\ket\psi\bra\psi$,
+$F(R)$ is degree $2$ in the Bloch vector for every $R$ and the $3\times7$ Haar
+rule used throughout the paper stays exact at all $R$: no curve below carries a
+Monte-Carlo error.  At $R=1$ the map reproduces \texttt{exact\_F} and
+\texttt{opt\_unitary\_ceiling[F\_dec]} to $10^{-12}$, and %d comparisons
+against the published \texttt{*\_p010} tables pass at their own sampling scale
+(%d failures).  ``survival'' is
+$\mathrm{adv}(R{=}%d)/\mathrm{adv}(R{=}1)$: above $1$ the single-round headroom
+\emph{compounds} into memory time, below $1$ it washes out.""" % (
+        _srv.get('n_comparisons', 0), _srv.get('n_failures', 0), _Rlast))
+
+    A(r"""
+\paragraph*{ED Table 14a: the advantage compounds (ideal readout).}
+``n/a'' in the survival column means the single-round advantage is at round-off
+($\le10^{-9}$), i.e.\ the two recoveries are the \emph{same} recovery on that
+channel because the decoder already is the family optimum; the ratio would be
+$0/0$.  $R_{1/2}$ is the round count at which $\bar F$ falls halfway to the fixed
+point $F_\infty$, which is $1/2$ throughout because the corrected logical channel
+is unital; ``$>$'' means it exceeded the $10^{6}$-round search cap, so the gain is
+a lower bound.""")
+    A(r'\begin{longtable}{llccccccc}')
+    A(r'\toprule channel & $p$ & recov. & adv@$R{=}1$ & adv@$R{=}%d$ & survival '
+      r'& $R_{1/2}$ dec. & $R_{1/2}$ alt. & gain \\ \midrule' % _Rlast)
+    for _r in _srs:
+        if _r['code'] != '5,1,3' or _r['eta'] != 0.0:
+            continue
+        if _r['recovery'] not in ('warm', 'ceiling'):
+            continue
+        # `sci()` already wraps its output in $...$, so anything passed through it
+        # must not be wrapped again; the same applies to the gain column, where a
+        # capped value is rendered as a lower bound.  Double wrapping produces
+        # `$$`, which LaTeX reads as display math and the audit rejects.
+        _g = _r['R_half_gain']
+        if _g is None:
+            _gtxt = ('>%.0f' % (1e6 / _r['R_half_dec'])
+                     if _r.get('R_half_capped') and _r['R_half_dec'] else None)
+        else:
+            _gtxt = '%.2f' % _g
+        _gt = 'n/a' if _gtxt is None else '$%s$' % _gtxt
+        _alt = _r['R_half_alt']
+        _altt = '$>10^{6}$' if _alt is None else '$%d$' % int(_alt)
+        _sv = _r['survival_ratio']
+        A(f"{_r['channel'].replace('_', ' ')} & ${_r['p']:.2f}$ & "
+          f"{_r['recovery']} & {sci(_r['advantage_R1'])} & "
+          f"{sci(_r['advantage_R%d' % _Rlast])} & "
+          f"{('n/a' if _sv is None else '$%.2f$' % _sv)} & "
+          f"${int(_r['R_half_dec'])}$ & {_altt} & {_gt} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+    A(r"""
+\paragraph*{ED Table 14b: readout error erodes the compounding.}
+A Pauli recovery has identically vanishing cross-branch blocks
+$V^\dagger R_{\tilde s}W_s$, so its fidelity obeys
+$F(\eta,R)=(1-\eta)^{(n-k)R}F(0,R)$ \emph{exactly}, verified to $10^{-13}$ out to
+$R=10$.  The learned recovery has cross-branch blocks of order $10^{-3}$ and does
+violate that law---at the $10^{-11}$ level, so it is unprotected in principle and
+protected to eight decimal places in practice.  What readout error does destroy is
+the \emph{accumulation}: the survival factor falls through $1$ at $\eta=0.02$, i.e.
+a few-percent mid-circuit readout error preserves the single-round advantage while
+abolishing the multi-round one.""")
+    A(r'\begin{longtable}{llcccc}')
+    A(r'\toprule channel & $p$ & $\eta$ & adv@$R{=}1$ & adv@$R{=}%d$ & survival '
+      r'\\ \midrule' % _Rlast)
+    for _row in _srs:
+        if _row['code'] != '5,1,3' or _row['recovery'] != 'warm':
+            continue
+        if _row['channel'] not in ('amplitude_damping', 'coherent'):
+            continue
+        A(f"{_row['channel'].replace('_', ' ')} & ${_row['p']:.2f}$ & "
+          f"${_row['eta']:.3f}$ & {sci(_row['advantage_R1'])} & "
+          f"{sci(_row['advantage_R%d' % _Rlast])} & "
+          f"{('n/a' if _row['survival_ratio'] is None else '%.2f' % _row['survival_ratio'])}"
+          r' \\')
+    A(r'\bottomrule\end{longtable}')
+
+
+
+    A(r"""
+\paragraph*{ED Table 14c: how the decoder's memory scales with the code.}
+Decoder-only, ideal readout: $n=7$ and $n=9$ have no trained table, but the
+minimum-weight lookup decoder is constructible from the stabilizers alone, so the
+baseline memory extends to all three codes while the learned curves do not.  These
+are the same reduced blocks that ED Table~11 certifies, iterated.  Note that
+$R_{1/2}$ is \emph{not} monotone in $n$: $[\![9,1,3]\!]$ stores longest under
+amplitude damping despite a lower single-round fidelity, because its asymptotic
+decay rate is set by how fast weight-two errors accumulate across three GHZ
+blocks rather than by the per-round correction quality.  Fixed $p$ across three
+different distance-$3$ codes is therefore not a scaling parameter, exactly as in
+ED Table~11.""")
+    A(r'\begin{longtable}{llcccccc}')
+    A(r'\toprule code & channel & $p$ & $\bar F(R{=}1)$ & $\bar F(R{=}12)$ & '
+      r'$\bar F(R{=}%d)$ & $R_{1/2}$ & $F_\infty$ \\ \midrule' % _Rlast)
+    for _rec in _srr:
+        if _rec['recovery'] != 'decoder' or _rec['eta'] != 0.0:
+            continue
+        _rd = _rec['rounds']
+        A(f"$[\\![{_rec['code']}]\\!]$ & {_rec['channel'].replace('_', ' ')} & "
+          f"${_rec['p']:.2f}$ & ${_rec['F'][_rd.index(1)]:.6f}$ & "
+          f"${_rec['F'][_rd.index(12)]:.6f}$ & ${_rec['F'][-1]:.6f}$ & "
+          f"{('$>10^{6}$' if _rec.get('R_half') is None else '$%d$' % _rec['R_half'])}"
+          f" & ${_rec['F_inf']:.6f}$ \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+    if _srf:
+        _wd = max(r['max_abs_full_vs_reduced'] for r in _srf
+                  if r['recovery'] == 'decoder')
+        _ww = max(r['max_abs_full_vs_reduced'] for r in _srf
+                  if r['recovery'] != 'decoder')
+        _lw = max(r['leakage_max'] for r in _srf)
+        A(r"""
+\paragraph*{ED Table 14d: the reduced map against the full density matrix.}
+The reduced map computes $(V^\dagger\mathcal{E}V)^R$ while the full simulation
+computes $V^\dagger\mathcal{E}^RV$; they coincide exactly when every $R_s$ maps
+$\operatorname{im}P_s$ isometrically into the code space, and differ by the
+leakage otherwise.  Over %d configurations the worst disagreement is %s for the
+Pauli decoder (round-off: the reduction is exact there) and %s for the learned
+table, whose unitarity deviation is of order $10^{-6}$.  The leaked fraction
+$1-\operatorname{Tr}[P\rho]/\operatorname{Tr}\rho$ peaks at %s and, decisively,
+\emph{saturates} with $R$ instead of compounding---each round re-projects onto the
+syndrome subspaces, so what the table leaks is set by its own unitarity deviation
+and does not accumulate.  That is what licenses the cheap map for long memories.
+The per-branch cost is held at $O(\dim^2)$ rather than $O(\dim^3)$ through
+$R_sP_s\rho P_sR_s^\dagger=(R_sW_s)(W_s^\dagger\rho W_s)(R_sW_s)^\dagger$, which is
+what makes $[\![9,1,3]\!]$ affordable at all.""" % (
+            len(_srf), sci(_wd, 2), sci(_ww, 2), sci(_lw, 2)))
+        A(r'\begin{longtable}{lllcclccc}')
+        A(r'\toprule code & channel & $p$ & recov. & device & '
+          r'max$\lvert$full$-$red.$\rvert$ & leakage & unitarity dev. & s '
+          r'\\ \midrule')
+        for _rec in _srf:
+            A(f"$[\\![{_rec['code']}]\\!]$ & "
+              f"{_rec['channel'].replace('_', ' ')} & ${_rec['p']:.2f}$ & "
+              f"{_rec['recovery']} & {_rec['device']} & "
+              f"{sci(_rec['max_abs_full_vs_reduced'])} & "
+              f"{sci(_rec['leakage_max'])} & {sci(_rec['unitarity_dev'])} & "
+              f"{_rec['wall_s']:.1f} \\\\")
+        A(r'\bottomrule\end{longtable}')
+    if _srb.get('points'):
+        _n9 = [q for q in _srb['points'] if q['code'] == '9,1,3']
+        _n5 = [q for q in _srb['points'] if q['code'] == '5,1,3']
+        _s9 = _n9[0]['cuda_speedup'] if _n9 and 'cuda_speedup' in _n9[0] else None
+        _s5 = _n5[0]['cuda_speedup'] if _n5 and 'cuda_speedup' in _n5[0] else None
+        A(r"""
+\paragraph*{ED Table 14e: device choice for the full-space path, measured.}
+Both ends of the crossover, so the policy is not quoted from whichever end
+flatters the GPU.  At $[\![5,1,3]\!]$ ($\dim=32$) the full-space path is
+launch-bound and CUDA is %.2f$\times$ \emph{slower} than a pinned core; at
+$[\![9,1,3]\!]$ ($\dim=512$) the branch einsum is real arithmetic and CUDA is
+%.2f$\times$ faster.  The curves agree to %s and %s respectively, so this is a
+throughput choice and not a numerical one.  Hence the policy in
+\texttt{storage\_rounds.device\_for}: CPU below $\dim=128$, CUDA at or above it.
+On this host \texttt{nvidia-smi} fails with a driver/library version mismatch
+(kernel module $595.84$ against a $595.91.07$ userspace) while the CUDA runtime
+works normally, so a broken NVML is not evidence that the GPU is unusable---only
+that \texttt{nvidia-smi} is.""" % (
+            1.0 / _s5 if _s5 else float('nan'), _s9 or float('nan'),
+            sci(_n5[0]['max_abs_curve_diff'], 2) if _n5 else 'n/a',
+            sci(_n9[0]['max_abs_curve_diff'], 2) if _n9 else 'n/a'))
+        A(r'\begin{longtable}{llcccc}')
+        A(r'\toprule code & recovery & $\dim$ & CPU (s) & CUDA (s) & CUDA '
+          r'speedup \\ \midrule')
+        for _q in _srb['points']:
+            _sp = _q.get('cuda_speedup')
+            A(f"$[\\![{_q['code']}]\\!]$ & {_q['recovery']} & ${_q['dim']}$ & "
+              f"{_q['cpu']['seconds']:.2f} & "
+              + (f"{_q['cuda']['seconds']:.2f} & " if 'cuda' in _q else 'n/a & ')
+              + ('n/a' if _sp is None else '%.2f$\\times$' % _sp) + r' \\')
+        A(r'\bottomrule\end{longtable}')
+
 A(r'\end{document}')
+
 open(os.path.join(ROOT, 'extended_data.tex'), 'w').write('\n'.join(lines))
 print('wrote paper/extended_data.tex,', len(lines), 'lines')

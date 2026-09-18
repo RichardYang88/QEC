@@ -49,6 +49,23 @@ a specific figure or table:
                                       unconstrained circuit optimisation lands on
                                       the same value, and both control channels
                                       give a FLAT ladder
+  multiseed_stats.selftest            the T3 statistics layer: ddof=1 std and sem
+                                      against hand-computed values, the two
+                                      refine-record shapes normalising to one
+                                      canonical record, production's label-free
+                                      selection reproduced (its "best of two" bias
+                                      can be negative), single-seed std 0.0 rather
+                                      than NaN, and degenerate ratios reported as
+                                      undefined rather than as large numbers
+  storage_rounds.selftest             the T4 multi-round reductions: full dim x dim
+                                      channel bit-exact against apply_channel, the
+                                      2x2 round map at R=1 reproducing exact_F and
+                                      F_dec, the 'Raw' restriction and its
+                                      trace-decrease, the ceiling's syndrome-basis
+                                      transport, the exact R-round Pauli readout law
+                                      and its measured violation by the learned
+                                      recovery, and reduced-vs-full agreement with
+                                      saturating leakage
 
 Usage:
     python run_selftests.py            # everything (slow: ~20-40 min)
@@ -104,6 +121,57 @@ def _t_ancilla():
     assert ar.main(['--selftest']) == 0
 
 
+def _t_multiseed():
+    """T3 statistics layer: the arithmetic that turns 16 seed runs into a claim.
+
+    Checked against hand-computed values rather than against itself: the sample
+    std really is ddof=1 and the sem really is std/sqrt(n); the two differently
+    shaped refine records that `train_warm_best` and `refine_with_floor` produce
+    normalise to ONE canonical record, without which warm and VQR-ind would not be
+    comparable; production's label-free selection is reproduced, and because it
+    ranks on worst-branch conditional fidelity rather than on F, the bias of
+    "best of two" is asserted to be able to come out NEGATIVE; a single-seed group
+    reports std 0.0 rather than NaN (a bare np.std(ddof=1) would poison the JSON
+    artifact); and the two degenerate ratios -- a sigma count when every seed
+    lands on the same optimum, and a signal-to-noise when the certified headroom
+    is itself zero -- must come back undefined rather than as large meaningless
+    numbers.  The physics is covered separately by `--verify-reproduction`, which
+    re-runs the production seeds and requires bit-exact agreement with
+    paper_numbers.json."""
+    import multiseed_stats as ms
+    assert ms.main(['--selftest']) == 0
+
+
+def _t_storage():
+    """T4 multi-round storage: every reduction this module makes, measured.
+
+    A multi-round number is only meaningful if it collapses onto the audited
+    single-round number at R=1, so that is asserted first and hardest: the full
+    dim x dim channel is BIT-EXACT against `ssvr_qec.apply_channel` on all four
+    channels, the reduced 2x2 round map at R=1 reproduces `abl.exact_F` and
+    `opt_unitary_ceiling[F_dec]`, and the 'Raw' baseline equals the direct
+    code-space restriction of the audited channel (and is trace-decreasing, since
+    uncorrected errors leave the code space).
+
+    Then the three traps that were each found and fixed while building this:
+    `code.lam` is only defined on the centralizer, so a Pauli-mixture 'Raw' map
+    built over all 4^n Paulis aborts on its unitarity assert; the composition of
+    code-space restrictions is NOT the restriction of the composition, so the
+    two-stage 'mixed' channel is refused by the closed form; and the ceiling's
+    optimal G lives in `vscr_paper_abl`'s syndrome basis while the branch
+    operators live in `vscr_general`'s, so without the transport G^g = G^a T^dag
+    the ceiling appears 0.15 BELOW the decoder -- impossible, and now asserted
+    impossible.
+
+    Finally the physics claims: the Pauli readout law extends exactly to
+    R rounds as F(eta,R) = (1-eta)^(mR) F(0,R) while the learned non-Pauli
+    recovery violates it (at only ~5e-11, which is asserted too, so the decoder
+    check is not vacuous); and the reduced map tracks the full density matrix over
+    12 rounds with leakage that SATURATES rather than compounds."""
+    import storage_rounds as sr
+    assert sr.main(['--selftest']) == 0
+
+
 # name -> (callable, slow?, description)
 TESTS = [
     ('gates',       m._selftest_gates, False,
@@ -136,6 +204,25 @@ TESTS = [
      'same value, a brute-force Haar quadrature of the physical estimator '
      'agrees, the (n+1)-qubit dilation exists on the PHYSICAL register, and '
      'both control channels give a FLAT ladder'),
+    ('multiseed',   _t_multiseed, False,
+     'T3 statistics layer: sample std (ddof=1) and sem against hand-computed '
+     'values, the two refine-record shapes normalise to one canonical record so '
+     'warm and VQR-ind are comparable, production\'s label-free selection is '
+     'reproduced (and because it ranks on worst-branch cf the "best of two" bias '
+     'is asserted able to come out negative), a single-seed group reports std 0.0 '
+     'not NaN, and the two degenerate ratios come back undefined rather than as '
+     'large meaningless numbers'),
+    ('storage',     _t_storage, True,
+     'T4 multi-round storage: the full dim x dim channel is BIT-EXACT against '
+     'ssvr_qec.apply_channel, the reduced 2x2 round map at R=1 reproduces '
+     'abl.exact_F and opt_unitary_ceiling[F_dec] so an R-round number is a '
+     'statement about the paper\'s quantity, the \'Raw\' baseline equals the '
+     'direct code-space restriction and is trace-decreasing, the ceiling\'s G is '
+     'transported between the two syndrome bases (without which it sits 0.15 '
+     'BELOW the decoder), the Pauli readout law extends exactly to R rounds as '
+     '(1-eta)^(mR) while the learned recovery violates it only at 1e-11, and the '
+     'reduced map tracks the full density matrix over 12 rounds with leakage '
+     'that saturates rather than compounds'),
 ]
 
 

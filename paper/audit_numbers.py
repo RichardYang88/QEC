@@ -30,9 +30,28 @@ It asserts, over `paper_numbers.json`, `paper/main.tex`,
      channels (and reports the coherent ones, which motivate ZNE-phys);
   8. every LaTeX \\cite and \\ref resolves, no \\label is orphaned, and the
      duplicate `fig:coherent` label stays removed;
-  9. all nine ED tables are present with balanced tabulars;
+  9. the ED tables through 11b are present with balanced tabulars, and
+     `extended_data.tex` is environment-balanced (Table 12 is locked in 9c/9d and
+     Tables 13-14 in section 14b);
  10. the key literature is in the bibliography;
  11. every \\includegraphics target exists on disk.
+
+  12. no math-mode symbol survives outside a $...$ span in the generated ED
+      file, which is the property a missing TeX engine would otherwise hide;
+  13. the T3 multi-seed artifact: the two production seeds reproduce
+      `paper_numbers.json` bit-for-bit, no seed breaches the decoder floor or the
+      certified ceiling, the certified headroom is seed-independent, the headroom
+      dwarfs the seed spread wherever there is headroom, the device decision is a
+      measurement on file, and the two degenerate ratios are reported undefined
+      rather than as 0/0 dressed up as large numbers;
+  14. the T4 storage artifact: the R=1 anchor against the published `*_p010`
+      tables, F(0)=1 and monotone F(R) in every record, the reduced map validated
+      against the full density matrix with leakage that saturates rather than
+      compounds, the advantage compounding where there is one and being identical
+      where the decoder is already optimal, readout error eroding it
+      monotonically, the decoder's cross-branch blocks vanishing (the premise of
+      the exact readout law) while the learned recovery's do not, and a device
+      policy that matches the CPU/CUDA measurement used to justify it.
 
 Exit status is 0 iff all checks pass, so it composes with `&&` in CI.
 """
@@ -58,12 +77,13 @@ print('=== FINAL CONSISTENCY AUDIT ===')
 for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.py',
           'vscr_general.py', 'scaling_analysis.py', 'stationarity_boundary.py',
           'run_selftests.py', 'diag_check.py', 'diag_optunit.py',
-          'ancilla_recovery.py',
+          'ancilla_recovery.py', 'multiseed_stats.py', 'storage_rounds.py',
           'paper/make_ed.py', 'paper/fill_numbers.py',
           'paper/main.tex', 'paper/extended_data.tex', 'paper/refs.bib',
           'paper/README.md',
           'scaling_results.json', 'stationarity_boundary.json',
-          'ancilla_recovery.json'):
+          'ancilla_recovery.json', 'multiseed_results.json',
+          'storage_rounds.json'):
     chk(os.path.getsize(f) > 0, f + ' present')
 
 P = json.load(open('paper_numbers.json'))
@@ -680,5 +700,299 @@ chk('$$' not in e,
     'extended_data.tex has no $$ display math from double-wrapped sci() output')
 
 print()
+# ---- 13. T3: the seed spread behind every "best of two" number ---------------
+# The main text reports the better of two seeds.  What makes that defensible is a
+# measured spread, and what makes the spread trustworthy is that the two production
+# seeds come back bit-for-bit from the new driver -- otherwise the extra fourteen
+# seeds would be measuring a different pipeline.  Also locked: no seed may breach
+# the decoder floor or the certified ceiling, the certified headroom must be
+# seed-independent (it is a function of the channel and code alone), and the two
+# degenerate ratios must be reported as undefined rather than as large numbers
+# manufactured from round-off.
+_ms = json.load(open('multiseed_results.json'))
+_msd = _ms['diagnostics']
+_rep = _ms['reproduction']
+chk(_rep['bit_exact'] and _rep['n_failures'] == 0,
+    'T3 reproduction gate: %d fields of seeds {1234,2024} are bit-exact against '
+    'paper_numbers.json across %d configs'
+    % (_rep['n_fields_compared'], _rep['n_configs_checked'] or 0))
+chk(_rep['n_fields_compared'] >= 48,
+    'T3 reproduction compares at least 48 fields (%d)'
+    % _rep['n_fields_compared'])
+chk(len(_msd) == 8,
+    'T3 covers 4 channels x 2 protocols (%d groups)' % len(_msd))
+for _k, _d in sorted(_msd.items()):
+    chk(_d['n_seeds'] >= 16, '%s ran %d seeds' % (_k, _d['n_seeds']))
+    chk(_d['n_below_decoder_floor'] == 0,
+        '%s: no seed below the decoder floor' % _k)
+    chk(_d['n_above_certified_ceiling'] == 0,
+        '%s: no seed above the certified ceiling' % _k)
+    chk(_d['headroom_is_seed_independent'],
+        '%s: certified headroom is seed-independent (std %.1e)'
+        % (_k, _d['headroom_std']))
+    chk(_d['F_used_min'] >= _d['F_used_mean'] - 10 * max(_d['F_used_std'], 1e-18),
+        '%s: no outlier seed below mean - 10 std' % _k)
+# Channels with a REAL certified headroom: the effect must dwarf the seed lottery,
+# and the reported number must not be a lucky draw.  Note that `ind` converges so
+# tightly (std ~2e-16) that its sigma count is legitimately suppressed as a 0/0
+# ratio, so the bias is asserted conditionally rather than assumed present.
+for _k in ('warm/amplitude_damping', 'warm/coherent',
+           'ind/amplitude_damping', 'ind/coherent'):
+    _d = _msd[_k]
+    chk(_d['signal_to_seed_noise'] >= 1e5,
+        '%s: headroom sits %.3g sigma above the seed spread'
+        % (_k, _d['signal_to_seed_noise']))
+    _bs = _d['selection_bias_sigma']
+    if _bs is None:
+        chk(_d['std_at_machine_precision'],
+            '%s: bias sigma suppressed only because std %.1e is at machine '
+            'precision (all seeds converged to one optimum)'
+            % (_k, _d['F_used_std']))
+    else:
+        chk(abs(_bs) <= 2.0,
+            '%s: best-of-two selection bias is %+.2f sigma (<= 2)' % (_k, _bs))
+    chk(_d['F_used_std'] < 1e-6,
+        '%s: seed std %.2e is far below the headroom' % (_k, _d['F_used_std']))
+# Channels where the decoder IS the optimum: both ratios are 0/0 and must be
+# reported as undefined.  This is the check that stops "-149 sigma" reaching print.
+for _k in ('warm/depolarizing', 'warm/mixed',
+           'ind/depolarizing', 'ind/mixed'):
+    _d = _msd[_k]
+    chk(_d['headroom_is_zero'] and _d['signal_to_seed_noise'] is None,
+        '%s: zero certified headroom -> SNR reported undefined, not as a ratio '
+        'of round-off' % _k)
+    chk(_d['std_at_machine_precision'] and _d['selection_bias_sigma'] is None,
+        '%s: machine-precision seed std -> sigma count suppressed' % _k)
+# The seed lottery must sit far below the estimator noise the paper refuses.
+chk(_msd['warm/amplitude_damping']['seed_std_vs_mc_sem'] < 1e-3,
+    'T3 seed std is %.2e of the 1.1e-4 Monte-Carlo SEM the quadrature avoids'
+    % _msd['warm/amplitude_damping']['seed_std_vs_mc_sem'])
+# The device decision must be a measurement on file, not an assertion.
+_gc = _ms.get('gpu_check') or {}
+chk(bool(_gc.get('available')),
+    'T3 records the CUDA cross-check in multiseed_results.json')
+if _gc.get('available'):
+    chk(_gc['dF_cpu_vs_cuda'] < 1e-7,
+        'T3 the same curriculum on CPU and CUDA agrees to %.2e'
+        % _gc['dF_cpu_vs_cuda'])
+    chk(_gc['verdict']['sweep_device'] == 'cpu'
+        and _gc['verdict']['gpu_slower_at_one_seed'],
+        'T3 device verdict recorded: the GPU is slower at one seed (%.2fx), so '
+        'the sweep runs on pinned CPU cores'
+        % _gc['cuda_speedup_at_one_seed'])
+    chk(_gc['cuda_scaling_1024_over_16']
+        < 0.5 * _gc['cpu_scaling_1024_over_16'],
+        'T3 the GPU does amortise batching (%.1fx vs %.1fx from B=16 to 1024) -- '
+        'the CPU choice is about reproduction, not ignorance of that'
+        % (_gc['cuda_scaling_1024_over_16'], _gc['cpu_scaling_1024_over_16']))
+    # The prose quotes "1.9x slower at one seed".  Wall-clock ratios jitter a few
+    # percent between runs, so this is locked as a band rather than a mantissa --
+    # the same reasoning `_chk_bound` uses for round-off defects.  The band is
+    # tight enough that the claim would fail if the GPU ever became the faster
+    # device for this workload, which is the only way the prose could become wrong.
+    _slow = 1.0 / _gc['cuda_speedup_at_one_seed']
+    chk(1.5 < _slow < 3.0,
+        'T3 the GPU is %.2fx slower than a pinned core at one seed, consistent '
+        'with the 1.9x the prose quotes' % _slow)
+
+
+# ---- 13c. main.tex quotes the seed statistics it is now entitled to ----------
+# Every mantissa below is RE-DERIVED from the artifact with the same renderer the
+# prose uses, so a regenerated sweep that moves a digit fails the audit instead of
+# leaving stale prose behind -- which is exactly how the 8.8e-14 / 9.3e-14 split
+# survived in section 9d until it was locked the same way.
+_tfn13 = ' '.join(t.split())
+_ad = _msd['warm/amplitude_damping']
+_co = _msd['warm/coherent']
+for _q, _why in (
+        (_tex_sci(_ad['F_used_std'], 2), 'the amplitude-damping seed std'),
+        (_tex_sci(_co['F_used_std'], 2), 'the coherent seed std'),
+        (_tex_sci(_ad['headroom_mean'], 2), 'the amplitude-damping headroom'),
+        (_tex_sci(_co['headroom_mean'], 2), 'the coherent headroom'),
+        (_tex_sci(_ad['signal_to_seed_noise'], 1),
+         'the amplitude-damping headroom-to-spread ratio in sigmas'),
+        (_tex_sci(_co['signal_to_seed_noise'], 1),
+         'the coherent headroom-to-spread ratio in sigmas'),
+        ('%+.2f' % _ad['selection_bias_sigma'] + r'\sigma',
+         'the amplitude-damping selection bias in sigmas'),
+        ('%+.2f' % _co['selection_bias_sigma'] + r'\sigma',
+         'the coherent selection bias in sigmas'),
+        (_tex_sci(_gc['dF_cpu_vs_cuda'], 1) if _gc.get('available') else None,
+         'the CPU-vs-CUDA objective agreement')):
+    if _q is None:
+        continue
+    chk(_q in _tfn13, 'main.tex quotes %s as %s' % (_why, _q))
+chk('%d fields of the two production seeds' % _rep['n_fields_compared']
+    in _tfn13.replace('Forty-eight', '48'),
+    'main.tex states the reproduction gate as %d bit-exact fields'
+    % _rep['n_fields_compared'])
+chk('best of two' in _tfn13 or 'better of two' in _tfn13,
+    'main.tex still says plainly that the reported value is a maximum over two '
+    'seeds, now that the spread is published beside it')
+
+# ---- 14. T4: multi-round logical storage ------------------------------------
+# A multi-round number is only a statement about the paper's quantity if it
+# collapses onto the audited single-round number at R=1, so that anchor is locked
+# first.  Then the physics claims the prose makes: the advantage compounds, the
+# Pauli readout law is exact while the learned recovery only nearly obeys it, the
+# reduced map matches the full density matrix, and leakage saturates.
+_st = json.load(open('storage_rounds.json'))
+_sv = _st['validation']
+chk(_sv['passed'] and _sv['n_failures'] == 0,
+    'T4 anchor: %d R=1 comparisons against paper_numbers.json[*_p010] pass at the '
+    'Monte-Carlo tolerance %.0e' % (_sv['n_comparisons'], _sv['tolerance']))
+_srs = _st['records']
+chk(all(abs(r['F'][0] - 1.0) < 1e-14 for r in _srs),
+    'T4 every curve starts at F(0)=1 (%d records)' % len(_srs))
+chk(all(all(r['F'][i] >= r['F'][i + 1] - 1e-12
+            for i in range(len(r['F']) - 1)) for r in _srs),
+    'T4 F(R) is monotone non-increasing in every record: each round applies a '
+    'noisy channel and no recovery can undo destroyed information')
+chk(all(abs(r['branch_prob_sum'] - 1.0) < 1e-12 for r in _srs),
+    'T4 branch probabilities sum to 1 in every record')
+_srf = _st['full_space'] or []
+chk(len(_srf) >= 20,
+    'T4 the reduced map is validated against the full density matrix on %d '
+    'configurations' % len(_srf))
+_wd = max(r['max_abs_full_vs_reduced'] for r in _srf
+          if r['recovery'] == 'decoder')
+_wl = max(r['leakage_max'] for r in _srf)
+chk(_wd < 1e-11,
+    'T4 full-space == reduced to %.2e for the Pauli decoder, where the reduction '
+    'is exact' % _wd)
+_warm = [r for r in _srf if r['recovery'] != 'decoder']
+chk(all(r['max_abs_full_vs_reduced'] < max(1e-6, 10 * r['unitarity_dev'])
+        for r in _warm),
+    'T4 full-space == reduced within the learned table\'s unitarity deviation')
+chk(_wl < 1e-7,
+    'T4 leaked fraction peaks at %.2e and saturates rather than compounding, '
+    'which is what licenses the 2x2 reduction for long memories' % _wl)
+chk(all(r['trace_dev_max'] < 1e-11 for r in _srf),
+    'T4 the full-space round map is trace-preserving over 40 rounds')
+
+# ---- 14b. T4 physics claims and the device policy ---------------------------
+_srs_idx = {(r['code'], r['channel'], r['p'], r['recovery'], r['eta']): r
+            for r in _srs}
+_sus = {(s['code'], s['channel'], s['p'], s['recovery'], s['eta']): s
+        for s in _st['summary']}
+
+
+def _adv(code, ch, p, kind, eta, R):
+    """advantage over the decoder at round index R, from the stored curves."""
+    a = _srs_idx[(code, ch, p, kind, eta)]['F'][R]
+    d = _srs_idx[(code, ch, p, 'decoder', eta)]['F'][R]
+    return a - d
+
+
+_RL = _st['config']['rounds'][-1]
+# (1) the advantage COMPOUNDS where there is one to compound.
+for _ch in ('amplitude_damping', 'coherent'):
+    for _p in (0.05, 0.10):
+        _s = _sus[('5,1,3', _ch, _p, 'warm', 0.0)]
+        chk(_s['survival_ratio'] is not None and _s['survival_ratio'] > 5.0,
+            'T4 %s p=%.2f: the warm advantage grows %.1fx from R=1 to R=%d'
+            % (_ch, _p, _s['survival_ratio'], _RL))
+        chk(_s['R_half_gain'] is None or _s['R_half_gain'] >= 1.0,
+            'T4 %s p=%.2f: memory time R_1/2 does not shrink (%s)'
+            % (_ch, _p, _s['R_half_gain']))
+# (2) where the decoder is already optimal the two must be IDENTICAL at every R,
+#     not merely close -- otherwise the multi-round map would be inventing an
+#     advantage the single-round certification says does not exist.
+for _ch in ('depolarizing', 'mixed'):
+    for _p in (0.05, 0.10):
+        _s = _sus[('5,1,3', _ch, _p, 'warm', 0.0)]
+        chk(_s['advantage_degenerate'] and abs(_s['advantage_R1']) < 1e-15,
+            'T4 %s p=%.2f: warm == decoder at R=1 to %.1e (decoder is optimal)'
+            % (_ch, _p, _s['advantage_R1']))
+        chk(abs(_s['advantage_R%d' % _RL]) < 1e-12,
+            'T4 %s p=%.2f: warm == decoder at R=%d to %.1e'
+            % (_ch, _p, _RL, _s['advantage_R%d' % _RL]))
+        chk(_s['survival_ratio'] is None,
+            'T4 %s p=%.2f: survival reported undefined, not as a 0/0 ratio'
+            % (_ch, _p))
+# (3) readout error monotonically erodes the compounding, and at a few percent
+#     abolishes it -- the honest limit on the claim.
+for _ch in ('amplitude_damping', 'coherent'):
+    _p = 0.10
+    _s0 = _sus[('5,1,3', _ch, _p, 'warm', 0.0)]['survival_ratio']
+    _s1 = _sus[('5,1,3', _ch, _p, 'warm', 0.005)]['survival_ratio']
+    _s2 = _sus[('5,1,3', _ch, _p, 'warm', 0.02)]['survival_ratio']
+    chk(_s0 > _s1 > _s2,
+        'T4 %s p=%.2f: survival falls monotonically with readout error '
+        '(%.1f -> %.1f -> %.1f)' % (_ch, _p, _s0, _s1, _s2))
+    chk(_s2 < 2.0,
+        'T4 %s p=%.2f: at eta=0.02 the compounding is gone (survival %.2f)'
+        % (_ch, _p, _s2))
+# (4) the device policy must match the measurement it is justified by.
+_srb = _st.get('device_benchmark') or {}
+_pts = {q['code']: q for q in (_srb.get('points') or [])}
+if _pts:
+    chk('cuda_speedup' in _pts.get('9,1,3', {})
+        and _pts['9,1,3']['cuda_speedup'] > 5.0,
+        'T4 at [[9,1,3]] CUDA is %.2fx faster than a pinned core'
+        % _pts.get('9,1,3', {}).get('cuda_speedup', float('nan')))
+    chk('cuda_speedup' in _pts.get('5,1,3', {})
+        and _pts['5,1,3']['cuda_speedup'] < 1.0,
+        'T4 at [[5,1,3]] CUDA is %.2fx SLOWER, which is why the policy is per '
+        'code size rather than global'
+        % _pts.get('5,1,3', {}).get('cuda_speedup', float('nan')))
+    chk(max(q['max_abs_curve_diff'] for q in _pts.values()) < 1e-12,
+        'T4 CPU and CUDA curves agree to %.2e, so the device choice is about '
+        'throughput and not numerics'
+        % max(q['max_abs_curve_diff'] for q in _pts.values()))
+# (5) prose locks, every mantissa re-derived from the artifact.
+_tfn14 = ' '.join(t.split())
+_w10 = _sus[('5,1,3', 'amplitude_damping', 0.10, 'warm', 0.0)]
+_c10 = _sus[('5,1,3', 'coherent', 0.10, 'warm', 0.0)]
+_wd = max(r['max_abs_full_vs_reduced'] for r in _srf
+          if r['recovery'] == 'decoder')
+_ww = max(r['max_abs_full_vs_reduced'] for r in _srf
+          if r['recovery'] != 'decoder')
+_cb_rec = _srs_idx[('5,1,3', 'amplitude_damping', 0.10, 'warm', 0.02)]
+# The prose quotes the amplitude-damping p=0.10 case specifically, so derive that
+# record rather than a maximum over all of them: a max would silently drift the
+# moment any other channel's block norm grew, and the lock would then be checking
+# a number the paper does not print.
+_cb = _cb_rec['cross_block_norm']
+chk(_cb > 1e-5,
+    'T4 the learned non-Pauli recovery really has non-vanishing cross-branch '
+    'blocks (%.2e), so it is genuinely unprotected by the readout law' % _cb)
+chk(max(r.get('cross_block_norm', 0.0) for r in _srs
+        if r['recovery'] == 'decoder') < 1e-13,
+    'T4 the Pauli decoder cross-branch blocks vanish identically -- the premise '
+    'of the exact suppression law F(eta,R)=(1-eta)^((n-k)R) F(0,R)')
+for _q, _why in (
+        (_tex_sci(_w10['advantage_R1'], 2), 'the R=1 amplitude-damping lead'),
+        (_tex_sci(_w10['advantage_R%d' % _RL], 2),
+         'the R=%d amplitude-damping lead' % _RL),
+        (_tex_sci(_c10['advantage_R1'], 2), 'the R=1 coherent lead'),
+        (_tex_sci(_c10['advantage_R%d' % _RL], 2),
+         'the R=%d coherent lead' % _RL),
+        (_tex_sci(_wd, 1), 'the decoder full-space/reduced agreement'),
+        (_tex_sci(_ww, 1), 'the learned-table full-space/reduced agreement'),
+        (_tex_sci(_wl, 1), 'the saturated leakage fraction'),
+        (_tex_sci(_cb, 1), "the learned recovery's cross-branch block size"),
+        ('%.1f' % _w10['survival_ratio'], 'the amplitude-damping survival factor'),
+        ('%.1f' % _c10['survival_ratio'], 'the coherent survival factor'),
+        ('%.1f' % _c10['R_half_gain'], 'the coherent memory-time gain'),
+        ('%d' % _c10['R_half_dec'], 'the decoder coherent memory time in rounds'),
+        ('%d' % _c10['R_half_alt'], 'the warm coherent memory time in rounds'),
+        (_tex_sci(_pts['9,1,3']['max_abs_curve_diff'], 1) if _pts else None,
+         'the CPU/CUDA curve agreement at [[9,1,3]]')):
+    if _q is None:
+        continue
+    chk(_q in _tfn14, 'main.tex quotes %s as %s' % (_why, _q))
+# (6) the ED tables exist and the main text points at them.
+chk('ED Table 13:' in e, 'ED Table 13 present (multi-seed statistics)')
+chk('ED Table 14:' in e, 'ED Table 14 present (multi-round storage)')
+for _sub in ('13b', '13c', '14a', '14b', '14c', '14d', '14e'):
+    chk('ED Table %s:' % _sub in e, 'ED Table %s present' % _sub)
+for _n in (13, 14):
+    chk(t.count('ED Table~%d' % _n) >= 1,
+        'main.tex points the reader at ED Table~%d' % _n)
+
+
+
 print('=== OVERALL:', 'ALL CHECKS PASSED' if ok else 'FAILURES PRESENT', '===')
 raise SystemExit(0 if ok else 1)
+

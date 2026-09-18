@@ -26,6 +26,8 @@ cd ..                                  # repo root
 ./qenv/bin/python vscr_paper_abl.py    # same-family baselines + SDP ceiling + ablations
 ./qenv/bin/python scaling_analysis.py  # exact n=5/7/9 ceilings + readout law
 ./qenv/bin/python ancilla_recovery.py  # Kraus-rank ladder -> ancilla_recovery.json
+./qenv/bin/python multiseed_stats.py --verify-reproduction  # 16 seeds -> multiseed_results.json
+./qenv/bin/python storage_rounds.py --validate              # 40 rounds -> storage_rounds.json
 ./qenv/bin/python hw_verify_analysis.py# hardware feasibility fig + numbers
 ./qenv/bin/python make_schematic.py    # Fig. 1
 cd paper && ./qenv/bin/python fill_numbers.py && ./qenv/bin/python make_ed.py
@@ -59,19 +61,57 @@ optimisation is asserted to land on the same value, and coherent/depolarizing ar
 run through the same ladder as negative controls that must come out flat.
 Use `--quick` for n=5,7 amplitude damping only, `--selftest` for the checks alone.
 
+`multiseed_stats.py` answers "is the reported number a lucky seed?". Every trained
+quantity in the manuscript is the better of seeds `{1234, 2024}`, so this runs the
+**unmodified** production path over 16 seeds × 4 channels × 2 protocols and reports
+mean, sample std (ddof=1), sem, the selection bias of "best of two" in sigmas, and
+the certified headroom divided by the seed std. Every fidelity it records is a
+deterministic quadrature, so the spread is seed variability with no Monte-Carlo term
+folded in. Two things make it trustworthy rather than merely reassuring: the
+production seeds must come back **bit-for-bit** against `paper_numbers.json`
+(`--verify-reproduction`, 48 fields), and a `--gpu-check` runs the identical
+curriculum on CUDA to show the spread is not one host's BLAS association order.
+Where a ratio would be `0/0` — a sigma count when every seed lands on the same
+table, or a signal-to-noise when the certified headroom is itself signed round-off —
+it reports undefined rather than a large meaningless number. The sweep is
+process-parallel over 8 pinned P-cores and deliberately **not** on the GPU: the
+per-epoch work is launch-bound, so the GPU is 1.9× slower at one seed, and 16 seeds
+batched would only match 8-way process parallelism while forfeiting the bit-exact
+reproduction. `--reaggregate` recomputes the reporting layer from stored records
+without re-training (~22 min).
+
+`storage_rounds.py` answers "does the advantage survive being a memory?". It
+iterates the instrument `E(rho) = sum_s R_s P_s N(rho) P_s R_s^dag` out to 40
+rounds. Because `R_s` maps `im P_s` into the code space, the map closes on the 2×2
+logical space, so it is a 4×4 superoperator and R rounds cost one
+eigendecomposition; since that map is linear in `|psi><psi|`, the paper's exact 3×7
+Haar rule stays exact at **every** R, so no curve carries Monte-Carlo error. It
+reports the advantage over the decoder at R=1 and R=40 (the "survival" ratio), the
+memory time `R_half` at which `F` falls halfway to its fixed point, the effect of
+per-bit readout error via the cross-branch blocks `V^dag R_s~ W_s`, and the decoder's
+memory against code size at n=5/7/9. The R=1 case is gated against `exact_F`,
+`opt_unitary_ceiling[F_dec]` and the published `*_p010` tables, the channel is
+bit-exact against `ssvr_qec.apply_channel`, and the reduced map is validated against
+the full `2^n × 2^n` density matrix with the leaked fraction reported — it
+saturates rather than compounds, which is what licenses the reduction. Unlike the
+seed sweep, this **does** use CUDA at n≥7: measured 8.8× faster than a pinned core
+at n=9 with curves agreeing to 8e-15, and 5× *slower* at n=5, so the device is
+chosen per code size by `device_for()`. Use `--selftest` for the 126 assertions,
+`--bench-only` to re-measure the device crossover without re-running the sweep.
+
 `run_selftests.py --list` shows what each test pins. All of them are assertions,
 not plots: if any one fails, a specific claim or figure in the manuscript is
 unsupported.
 
 Verification is deliberately two-layered, because the two layers fail differently:
 
-- `run_selftests.py` (11 tests) checks that the **code** computes what the
+- `run_selftests.py` (13 tests) checks that the **code** computes what the
   manuscript claims — the warm start is phase-exactly the Pauli decoder, the
   Haar×p quadrature equals the full 32×32 reference, the decoder is an exact
   stationary point, the SDP ceiling bounds it, and the refinement is monotone.
   It runs each test in its own subprocess with retries (see the host note
   below), so one native fault cannot abort the rest of the suite.
-- `audit_numbers.py` (543 checks, <1 s, exit 0 iff clean) checks that the
+- `audit_numbers.py` (690 checks, <1 s, exit 0 iff clean) checks that the
   **artifacts** are mutually consistent and physical: every reported fidelity
   lies in [0,1], `F_warm >= F_decoder` at *every* p on *every* channel, no
   Fig. 4(b) gap-to-ceiling bar is negative or above its own bound, the SDP
