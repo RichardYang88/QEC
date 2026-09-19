@@ -46,6 +46,35 @@ suppression law), but a learned non-Pauli R_s has no such protection -- so this
 module measures whether VSCR's advantage survives realistic mid-circuit readout
 over many rounds instead of assuming it does.
 
+RECOVERY-GATE NOISE.  Everything above still treats the R_s as exact unitaries,
+which no hardware delivers.  `noisy_round_affine` composes each recovery with a
+global depolarizing layer of strength lam and reports the round map as a 5x5
+AFFINE map on (4 logical components, 1 scalar for out-of-code escaped weight).
+Five dimensions are necessary, not a convenience: a 4x4 restriction of the same
+physics discards the weight R_s pushes out of the code space instead of tracking
+it and so UNDER-reports F -- by 0.37 at R=12 on coherent/warm at lam=0.2.  The
+error is invisible at R=1, where nothing has escaped yet, and grows with R, which
+is exactly why a single-round test cannot catch it; `--selftest` locks both halves
+of that fact.  The reduction's only approximation is q_escape, which is reported
+per row and checked against the exact full-space evolution rather than assumed
+small.
+
+`recovery_noise_scan` bisects two thresholds from that map.  lam* is where the
+advantage over the Pauli decoder CHANGES SIGN; lam_half is where its MAGNITUDE has
+halved.  The second is the binding one -- the tightest ratio measured is
+lam*/lam_half = 7.1, and paper/audit_numbers.py fails if any row drops below 5 --
+so quoting lam* alone would oversell.  lam_half is also UNIVERSAL: the normalised
+advantage advantage(lam)/advantage(0) is the same channel-blind curve on every
+non-degenerate configuration and equals exp(-lam*R), so lam_half*R -> ln 2
+(measured 0.685..0.687 at R=40).  lam* is NOT universal (it spans 0.12..0.25)
+because the sign change is governed by channel-specific subleading structure, not
+by the decay rate.  On depolarizing and mixed no threshold exists to report: the
+decoder is already the family optimum, the advantage is 0 at lam=0, and both
+thresholds are stored as None with `threshold_status` giving the reason rather
+than as a bisection artifact.  Note that lam is the strength of ONE recovery
+layer, not a per-gate error rate; the reported eps_per_qubit = lam/n is the
+depth-1 reading and is optimistic by the circuit depth d (lam ~ d*n*eps).
+
 ANCHORS (--validate).  The R=1 reduced map must reproduce, bit-for-bit where the
 code path is shared and to the unitarity deviation otherwise:
   * `abl.exact_F(phi, noise, p)` for the VSCR/VQR-ind tables;
@@ -55,10 +84,18 @@ A multi-round number that does not reduce to the audited single-round number at
 R=1 is meaningless, so this is a gate, not a diagnostic.
 
 Usage:
-    ./qenv/bin/python storage_rounds.py --selftest
+    ./qenv/bin/python storage_rounds.py --selftest            # full, ~15 min
+    ./qenv/bin/python storage_rounds.py --selftest --quick    # fast subset
     ./qenv/bin/python storage_rounds.py --validate
     ./qenv/bin/python storage_rounds.py                  # full T4 sweep
     ./qenv/bin/python storage_rounds.py --device cuda    # GPU full-space path
+    ./qenv/bin/python storage_rounds.py --no-rec-noise   # skip the lam scan
+    ./qenv/bin/python storage_rounds.py --reaggregate A.json  # re-aggregate only
+
+The lam scan runs by default in every mode listed above except --selftest (which
+returns before the sweep) and --no-rec-noise: it costs ~70 s (n=5 only, since the
+larger codes carry no trained table) and writes the `recovery_noise` section that
+paper/audit_numbers.py locks.
 """
 import argparse
 import json
@@ -696,10 +733,16 @@ def noisy_round_affine(code, channel, p, kind, rec_noise):
 
     `q_escape` in meta measures how much of Ebar(Q/(dim-2)) fails to land in the
     code space.  It is round-off for the Pauli decoder, whose C_s maps im P_s
-    exactly onto the code space, and O(unitarity_dev) for a learned non-Pauli
-    recovery.  It is the ONLY approximation here: when it is non-zero the
-    5-dimensional representation is not exactly closed.  It is reported so the
-    claim is bounded by a measurement rather than asserted.
+    exactly onto the code space.  For a learned non-Pauli recovery it is set by
+    how far R_s is from an isometry on the syndrome subspace; empirically it
+    tracks `unitarity_dev` to within a factor of a few, but the two measure
+    different things (out-of-code weight of R_s versus non-isometry of the
+    LOGICAL block V^dag R_s W_s), so that agreement is a correlation and is not
+    asserted as a bound anywhere.  q_escape is the ONLY approximation here: when
+    it is non-zero the 5-dimensional representation is not exactly closed.  It is
+    reported so the claim is bounded by a measurement rather than asserted, and
+    `--selftest` checks that the affine/full-space discrepancy sits at this
+    measured scale.
 
     Returns (A, meta).
     """
@@ -1168,6 +1211,7 @@ def selftest(log=print, heavy=True):
     _selftest_readout(ck, code5)
     _selftest_ceiling_basis(ck, code5)
     _selftest_full_vs_reduced(ck, code5, heavy=heavy)
+    _selftest_recovery_noise(ck, code5, heavy=heavy)
     log('[selftest] %d checks, %d failures' % (n[0], len(fails)))
     return fails
 
@@ -1376,6 +1420,141 @@ def _selftest_full_vs_reduced(ck, code5, heavy=True):
            % os.environ.get('CUDA_VISIBLE_DEVICES'), True)
 
 
+def _selftest_recovery_noise(ck, code5, heavy=True):
+    """The 5x5 affine noisy-recovery map against the FULL dim x dim evolution.
+
+    `noisy_round_affine` is only worth having if it is EXACT, because its whole
+    purpose is to make a long noisy memory as cheap as one eigendecomposition.
+    So this asserts four separate things rather than one:
+
+      1. structure -- the map conserves total trace as a row identity, which is
+         an algebraic property of A itself and needs no simulation;
+      2. degeneracy -- lam=0 reproduces the audited ideal curve, so the recovery
+         -noise axis cannot have perturbed the numbers the paper already locks;
+      3. exactness -- the affine curve equals `storage_full(..., rec_noise=lam)`
+         to round-off for the Pauli decoder and to the MEASURED q_escape scale
+         for a learned table.  Asserting 1e-14 for the learned table would be
+         asserting something false; q_escape is reported so the bound is a
+         measurement, not a hope;
+      4. necessity -- the naive 4x4 restriction V^dag D_lam(.) V, which drops the
+         out-of-code weight instead of tracking it, is materially WRONG from R=2
+         onward.  It coincides with the exact map at R=1 (nothing has escaped
+         yet), which is why a single-round test cannot catch it; both halves of
+         that fact are locked here so nobody "simplifies" the map back and
+         silently under-reports every multi-round fidelity in the paper.
+    """
+    dim = code5.dim
+    rounds = (1, 2, 3, 5, 8, 12) if heavy else (1, 2, 5)
+    taus = np.array([1.0, 0.0, 0.0, 1.0, 1.0])
+
+    # --- 1 & 2: cheap, so run them over the whole grid -------------------
+    # NOTE on the two tolerances below.  `unitarity_dev` is max_s ||G_s^dag G_s - I||
+    # for the LOGICAL block G_s = V^dag R_s W_s; it says nothing directly about
+    # Q R_s P_s, the out-of-code part of R_s, which is what q_escape measures.
+    # They are empirically the same size (ratio 3-6 here) because both are driven
+    # by the same non-isometry of the learned table, but that is a correlation,
+    # not a bound, so neither is asserted against the other.  What IS asserted is
+    # (a) the decoder's q_escape is round-off -- structural, since a Pauli
+    # decoder maps im P_s exactly into the code space -- and (b) for a learned
+    # table the affine/full-space agreement sits at the MEASURED q_escape scale,
+    # which is the coupling that actually licenses the reduced model.
+    for noise in CHANNELS:
+        for kind in ('decoder', 'warm', 'ind'):
+            A, ma = noisy_round_affine(code5, noise, 0.10, kind, 0.20)
+            gm = recovery_blocks(code5, kind, channel=noise, p=0.10)[2]
+            ud = gm['unitarity_dev']
+            tvar = float(np.abs(taus @ A - taus).max())
+            # Exact for the decoder (its round map is trace-preserving to
+            # round-off); for a learned table it degrades with unitarity_dev,
+            # because Tr[m_Q] = 1 only up to that same non-isometry.
+            ck('rec-noise: A conserves total trace (tau A == tau), %s/%s '
+               '(dev %.1e, unitarity_dev %.1e)' % (noise, kind, tvar, ud),
+               tvar < (1e-12 if kind == 'decoder'
+                       else 10.0 * max(ud, 1e-13)), tvar)
+            if kind == 'decoder':
+                ck('rec-noise: decoder q_escape is round-off, %s' % noise,
+                   ma['q_escape'] < 1e-13, ma['q_escape'])
+            else:
+                ck('rec-noise: learned q_escape is small -- it is the ONLY '
+                   'approximation in the 5-dim model, %s/%s (%.2e)'
+                   % (noise, kind, ma['q_escape']),
+                   ma['q_escape'] < 1e-4, ma['q_escape'])
+            ck('rec-noise: map is 5x5 and lam / eps_per_qubit are echoed, %s/%s'
+               % (noise, kind),
+               np.asarray(A).shape == (5, 5) and ma['rec_noise'] == 0.20
+               and abs(ma['eps_per_qubit_equiv'] - 0.20 / code5.n) < 1e-15)
+        for kind in ('decoder', 'warm', 'ind'):
+            S_ideal, _ = build_round(code5, noise, 0.10, kind)
+            A0, _m0 = noisy_round_affine(code5, noise, 0.10, kind, 0.0)
+            ck('rec-noise: lam=0 reproduces the IDEAL audited curve, %s/%s'
+               % (noise, kind),
+               max(abs(a - b) for a, b in
+                   zip(affine_fidelity_curve(A0, rounds),
+                       fidelity_curve(S_ideal, rounds))) < 1e-12)
+    ck("rec-noise: kind='none' is REFUSED (there is no gate to be noisy)",
+       _raises(lambda: noisy_round_affine(code5, 'depolarizing', 0.10,
+                                          'none', 0.1), ValueError))
+    ck('rec-noise: lam outside [0,1) is REFUSED',
+       all(_raises(lambda L=L: noisy_round_affine(
+           code5, 'depolarizing', 0.10, 'decoder', L), ValueError)
+           for L in (-0.1, 1.0, 1.5)))
+    ck('rec-noise: a block-only recovery is REFUSED rather than invented',
+       _raises(lambda: noisy_round_affine(code5, 'depolarizing', 0.10,
+                                          'ceiling', 0.1), ValueError))
+
+    # --- 3 & 4: the expensive exactness comparison -----------------------
+    chans = CHANNELS if heavy else ('amplitude_damping',)
+    kinds = ('decoder', 'warm') if heavy else ('decoder',)
+    lam = 0.20
+    for noise in chans:
+        for kind in kinds:
+            _G, R, _gm = recovery_blocks(code5, kind, channel=noise, p=0.10)
+            A, ma = noisy_round_affine(code5, noise, 0.10, kind, lam)
+            aff = affine_fidelity_curve(A, rounds)
+            # storage_full returns `want = sorted(rounds | {0})`, so index the
+            # curve with the list it actually returned, never with `rounds`.
+            w, cf, _lk, tr = storage_full(code5, noise, 0.10, R, rounds,
+                                          rec_noise=lam)
+            dmax = max(abs(cf[w.index(r)] - aff[i])
+                       for i, r in enumerate(rounds))
+            qe = ma['q_escape']
+            tol = 1e-12 if kind == 'decoder' else 10.0 * max(qe, 1e-13)
+            ck('rec-noise: 5x5 affine == full space at lam=%.2f, %s/%s '
+               '(%.1e vs tol %.0e, q_escape %.1e)'
+               % (lam, noise, kind, dmax, tol, qe), dmax < tol, dmax)
+            ck('rec-noise: full-space trace stays 1 at lam=%.2f, %s/%s'
+               % (lam, noise, kind),
+               max(abs(t - 1.0) for t in tr) < 1e-12, tr)
+            # The naive 4x4 restriction V^dag D_lam(.) V, for the record.  At
+            # R=1 it COINCIDES with the exact map -- t_0 = 0, so nothing has
+            # escaped yet and there is no out-of-code weight to track.  The two
+            # separate only from R=2, which is precisely why a single-round test
+            # cannot catch this error and why it survived an initial
+            # implementation.  Both facts are locked here.
+            Mbar, _ = build_round(code5, noise, 0.10, kind)
+            naive = ((1.0 - lam) * np.asarray(Mbar, dtype=complex)
+                     + (lam / dim) * np.outer(_TRACE_ROW, _TRACE_ROW))
+            nv = fidelity_curve(naive, rounds)
+            ck('rec-noise: naive 4x4 restriction coincides with the exact map at '
+               'R=1 (t_0=0), %s/%s' % (noise, kind),
+               abs(nv[0] - aff[0]) < 1e-12, abs(nv[0] - aff[0]))
+            gap = aff[-1] - nv[-1]
+            ck('rec-noise: naive 4x4 restriction UNDER-reports F(R=%d) and is '
+               'therefore wrong, %s/%s (gap %.2e)'
+               % (rounds[-1], noise, kind, gap), gap > 1e-4, gap)
+
+
+def _raises(fn, exc):
+    """True iff fn() raises exc -- the refusal paths must be tested, not trusted."""
+    try:
+        fn()
+    except exc:
+        return True
+    except Exception:
+        return False
+    return False
+
+
 # ---------------------------------------------------------------------
 # The T4 sweep
 # ---------------------------------------------------------------------
@@ -1400,6 +1579,15 @@ ETA_OK = ('decoder', 'warm', 'ind')
 SURVIVAL_FLOOR = 1e-9
 
 
+# Keys copied verbatim from build_round's meta into every sweep record.  Shared
+# by sweep() and by --quick so the two cannot drift: _finish's invariants index
+# some of these unconditionally, and a record missing one dies with a KeyError
+# instead of reporting a result.  That is exactly what --quick did before this
+# list existed (it copied only F_R1/unitarity_dev and so crashed in _finish).
+RECORD_META_KEYS = ('F_R1', 'unitarity_dev', 'cross_block_norm',
+                    'branch_prob_sum', 'picked')
+
+
 def sweep(log=print):
     """F(R) for every code x channel x strength x recovery x readout rate."""
     out = []
@@ -1421,8 +1609,7 @@ def sweep(log=print):
                                'wall_s': time.time() - t0}
                         rec.update(asymptotic_decay(S))
                         rec.update(storage_lifetime(S))
-                        for k in ('F_R1', 'unitarity_dev', 'cross_block_norm',
-                                  'branch_prob_sum', 'picked'):
+                        for k in RECORD_META_KEYS:
                             if k in meta:
                                 rec[k] = meta[k]
                         out.append(rec)
@@ -1560,6 +1747,253 @@ def summarise(records, log=print):
     log('           (the decoder is already the family optimum there), so the ratio')
     log('           is 0/0 and would otherwise print a trend made of noise.')
     return rows
+
+
+# ---------------------------------------------------------------------
+# Recovery-gate-noise threshold: the T4 robustness axis
+# ---------------------------------------------------------------------
+# lam is the GLOBAL depolarizing strength of ONE recovery layer, not a per-gate
+# error rate.  A recovery built as a depth-d circuit of n-qubit gates with
+# per-gate error eps gives lam ~ d*n*eps to leading order, so the reported
+# eps_per_qubit = lam/n is the d=1 reading: optimistic at any depth d > 1 by that
+# factor.  It is reported for physical readability only and is never an input.
+REC_NOISE_GRID = (0.0, 0.005, 0.01, 0.02, 0.04, 0.06, 0.08, 0.10,
+                  0.15, 0.20, 0.30, 0.50)
+REC_NOISE_OK = ('decoder', 'warm', 'ind')
+# A full affine build + curve costs 1.6 ms (decoder) to 14 ms (learned), so both
+# thresholds are bisected rather than read off the grid.  1e-12 in lam is ~5
+# orders of magnitude finer than the 1e-7..9e-7 affine-vs-full-space residual of
+# the learned tables, i.e. past this point the bisection is no longer the
+# limiting error source -- the reduced model itself is.
+REC_NOISE_TOL = 1e-12
+REC_NOISE_HI = 0.80
+# The NORMALISED advantage advantage(lam)/advantage(0) turns out to be universal
+# across every non-degenerate (channel, p, recovery): the curves coincide to ~4
+# decimals and follow exp(-lam*R_last).  The law is only claimed where it holds,
+# i.e. while lam*R_last is order unity; beyond that the subleading eigen-
+# directions take over and the deviation grows to a few percent.  Both limits
+# below are MEASUREMENTS of where the law stops being tight, not a proof that it
+# holds inside them.
+EXP_LAW_LAM_MAX = 0.04
+EXP_LAW_TOL = 1.5e-2
+# Max spread of the normalised advantage between any two non-degenerate rows,
+# over lam <= EXP_LAW_LAM_MAX.  Measured spread there is ~2.1e-3, from the
+# coherent/p=0.05 rows at the top of the range; 5e-3 keeps a 2x margin while
+# still failing loudly if a row stops sharing the common curve.  Comparing over
+# the full grid instead would measure ~9e-3, but that number would be dominated
+# by lam where the module explicitly does NOT claim the law holds.
+UNIVERSALITY_TOL = 5e-3
+# Rounds used for the in-scan full-space spot check.  Deliberately short: the
+# check validates the MAP, and R<=12 already exercises the out-of-code feedback
+# that only exists from R=2 onward.  Extending it to R=40 would multiply the cost
+# of the artifact without testing anything new.
+REC_NOISE_CHECK_ROUNDS = (1, 2, 3, 5, 8, 12)
+
+
+def _rec_noise_curve(code, channel, p, kind, lam):
+    """(F over ROUNDS, meta) for one noisy-recovery round map."""
+    A, meta = noisy_round_affine(code, channel, p, kind, lam)
+    return affine_fidelity_curve(A, ROUNDS), meta
+
+
+def _rec_noise_advantage(code, channel, p, kind, lam):
+    """F_learned(R_last) - F_decoder(R_last), BOTH at the same lam.
+
+    The comparison has to be at equal lam or it is not a comparison: recovery
+    noise degrades the learned table and the decoder alike, and the question is
+    whether the learned table still wins once both have paid that price.
+    """
+    fa, _ = _rec_noise_curve(code, channel, p, kind, lam)
+    fd, _ = _rec_noise_curve(code, channel, p, 'decoder', lam)
+    return fa[-1] - fd[-1]
+
+
+def _bisect_lam(code, channel, p, kind, target, lo, hi):
+    """Bisect the lam at which the advantage crosses `target` from above.
+
+    Returns None unless [lo, hi] genuinely straddles the crossing, so a caller can
+    never be handed a threshold that was not actually located.
+    """
+    if _rec_noise_advantage(code, channel, p, kind, lo) <= target:
+        return None
+    if _rec_noise_advantage(code, channel, p, kind, hi) > target:
+        return None
+    while hi - lo > REC_NOISE_TOL:
+        mid = 0.5 * (lo + hi)
+        if _rec_noise_advantage(code, channel, p, kind, mid) > target:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
+def _locate_lam(code, channel, p, kind, target):
+    """Expand geometrically to bracket the crossing, then bisect it."""
+    lo, hi = 0.0, 0.05
+    while hi <= REC_NOISE_HI:
+        if _rec_noise_advantage(code, channel, p, kind, hi) <= target:
+            return _bisect_lam(code, channel, p, kind, target, lo, hi)
+        lo, hi = hi, hi * 1.6
+    return None
+
+
+
+def recovery_noise_scan(log=print):
+    """How much recovery-gate noise the multi-round advantage can absorb.
+
+    `summarise` answers "does the single-round advantage survive rounds?" at
+    lam=0.  This answers the question a referee will actually ask: does it survive
+    a REALISTIC RECOVERY?  Every number in the ideal-recovery sweep assumes the
+    R_s are exact unitaries, which no hardware delivers.
+
+    For each (code, channel, p, learned recovery) this reports F(R_last) for the
+    learned recovery and for the Pauli decoder at EQUAL lam, plus
+
+      * lam_star : where the advantage CHANGES SIGN -- the learned recovery stops
+        beating the decoder and starts losing to it;
+      * lam_half : where the advantage has fallen to HALF its lam=0 value.  This
+        is the number that matters for a magnitude claim and it bites far earlier
+        than lam_star does, so quoting only lam_star would oversell;
+      * q_escape_max over the scan, the reduced model's only approximation.
+
+    Both thresholds are None plus a reason string wherever they do not exist.  On
+    depolarizing and mixed the decoder is already the family optimum, so the
+    advantage is 0 at lam=0 and there is nothing to erode; emitting a bisected
+    number there would be manufacturing a threshold out of round-off.
+
+    A short full-space run at lam_star (or at the largest grid lam when there is
+    no threshold) is stored alongside, so the headline of each row is checked
+    against the exact dim x dim evolution in the same artifact that reports it.
+    """
+    out = []
+    for spec in CODE_ORDER:
+        code = get_code(spec)
+        if 'decoder' not in RECOVERIES_BY_CODE[spec]:
+            continue
+        alts = [k for k in RECOVERIES_BY_CODE[spec]
+                if k in REC_NOISE_OK and k != 'decoder']
+        if not alts:
+            # Larger codes carry no trained table, so there is no learned recovery
+            # to compare against and no threshold to locate.  Skipped, not zeroed.
+            continue
+        for channel in CHANNELS_BY_CODE[spec]:
+            for p in P_GRID:
+                for kind in alts:
+                    t0 = time.time()
+                    grid, qe_max = [], 0.0
+                    for lam in REC_NOISE_GRID:
+                        fa, ma = _rec_noise_curve(code, channel, p, kind, lam)
+                        fd, md = _rec_noise_curve(code, channel, p,
+                                                  'decoder', lam)
+                        qe_max = max(qe_max, float(ma['q_escape']),
+                                     float(md['q_escape']))
+                        # float() everywhere: affine_fidelity_curve accumulates
+                        # np.float64, and json.dump cannot serialise a numpy
+                        # scalar.  The existing full_space path wraps for the
+                        # same reason.
+                        grid.append({'lam': float(lam), 'F_alt': float(fa[-1]),
+                                     'F_dec': float(fd[-1]),
+                                     'advantage': float(fa[-1] - fd[-1])})
+                    a0 = grid[0]['advantage']
+                    if abs(a0) <= SURVIVAL_FLOOR:
+                        star = half = None
+                        status = 'advantage_degenerate_at_lam0'
+                    else:
+                        star = _locate_lam(code, channel, p, kind, 0.0)
+                        half = _locate_lam(code, channel, p, kind, 0.5 * a0)
+                        status = ('ok' if star is not None else
+                                  'no_sign_change_below_%.2f' % REC_NOISE_HI)
+                    # Universality of the erosion, measured rather than assumed.
+                    # Across every non-degenerate (channel, p, recovery) the
+                    # NORMALISED advantage advantage(lam)/advantage(0) is the same
+                    # curve to ~4 decimals, and that curve is exp(-lam*R_last).
+                    # Physically: at R_last the advantage is carried by one
+                    # dominant eigen-direction of the round map, and a depolarizing
+                    # recovery layer shrinks that direction by the SAME factor for
+                    # the learned table and for the decoder, so the ratio is
+                    # channel-blind even though neither fidelity is.  That is why
+                    # lam_half ~ ln2/R_last is nearly identical across rows, while
+                    # lam* -- set by the channel-specific SUBLEADING structure that
+                    # decides when the sign flips -- varies by a factor of 2.
+                    if abs(a0) > SURVIVAL_FLOOR:
+                        exp_dev = float(max(abs(g['advantage'] / a0
+                                                - np.exp(-g['lam']
+                                                         * ROUNDS[-1]))
+                                            for g in grid
+                                            if g['lam'] <= EXP_LAW_LAM_MAX))
+                        half_R = (None if half is None
+                                  else half * ROUNDS[-1])
+                    else:
+                        exp_dev = half_R = None
+                    lam_chk = star if star is not None else REC_NOISE_GRID[-1]
+                    A, _ma = noisy_round_affine(code, channel, p, kind, lam_chk)
+                    aff = affine_fidelity_curve(A, REC_NOISE_CHECK_ROUNDS)
+                    _G, R, _gm = recovery_blocks(code, kind, channel=channel,
+                                                 p=p)
+                    w, cf, _lk, tr = storage_full(
+                        code, channel, p, R, REC_NOISE_CHECK_ROUNDS,
+                        rec_noise=lam_chk)
+                    chk = float(max(abs(cf[w.index(r)] - aff[i])
+                                    for i, r in
+                                    enumerate(REC_NOISE_CHECK_ROUNDS)))
+                    out.append({
+                        'code': spec, 'n': code.n, 'channel': channel, 'p': p,
+                        'recovery': kind, 'R_last': ROUNDS[-1],
+                        'lam_grid': grid,
+                        'advantage_lam0': a0,
+                        'lam_star': star, 'lam_half': half,
+                        'eps_per_qubit_star': (None if star is None
+                                               else star / code.n),
+                        'eps_per_qubit_half': (None if half is None
+                                               else half / code.n),
+                        'threshold_status': status,
+                        # ln2 = 0.693147; lam_half*R_last converges to it from
+                        # below as R grows (0.647 at R=5, 0.687 at R=40).
+                        'lam_half_times_R': half_R,
+                        'exp_law_max_dev': exp_dev,
+                        'exp_law_lam_max': EXP_LAW_LAM_MAX,
+                        'q_escape_max': qe_max,
+                        'full_space_check': {
+                            'lam': lam_chk,
+                            'rounds': list(REC_NOISE_CHECK_ROUNDS),
+                            'q_escape_at_lam': _ma['q_escape'],
+                            'max_abs_affine_vs_full': chk,
+                            'trace_dev_max': float(max(abs(t - 1.0)
+                                                       for t in tr))},
+                        'wall_s': time.time() - t0})
+                    log('  [rec-noise|%s|%s|p=%.2f|%-4s] adv(lam=0)=%+.4e  '
+                        'lam*=%s  lam_half=%s (xR=%s)  exp-law dev=%s  '
+                        'q_escape<=%.1e  full-space chk=%.1e (%.1fs)'
+                        % (spec, channel, p, kind, a0,
+                           'n/a' if star is None else '%.6f' % star,
+                           'n/a' if half is None else '%.6f' % half,
+                           'n/a' if half_R is None else '%.4f' % half_R,
+                           'n/a' if exp_dev is None else '%.1e' % exp_dev,
+                           qe_max, chk, time.time() - t0))
+    log('\nlam*     = recovery-layer depolarizing strength at which the R=%d'
+        % ROUNDS[-1])
+    log('           advantage of the learned recovery over the Pauli decoder')
+    log('           CHANGES SIGN.  eps_per_qubit = lam*/n is the depth-1 reading')
+    log('           and is optimistic by the circuit depth d (lam ~ d*n*eps).')
+    log('lam_half = where the advantage has fallen to HALF its lam=0 value: the')
+    log('           magnitude budget, which is the binding constraint in practice.')
+    prod = [r['lam_half_times_R'] for r in out
+            if r['lam_half_times_R'] is not None]
+    if prod:
+        log('           It is UNIVERSAL: lam_half*R = %.4f..%.4f on every'
+            % (min(prod), max(prod)))
+        log('           non-degenerate row against ln2 = %.6f, because the'
+            % np.log(2.0))
+        log('           NORMALISED advantage advantage(lam)/advantage(0) is the')
+        log('           same channel-blind curve everywhere and equals')
+        log('           exp(-lam*R) to <%.0e for lam<=%.2f.'
+            % (EXP_LAW_TOL, EXP_LAW_LAM_MAX))
+        log('           lam* is NOT universal (it varies 2x): the sign change is')
+        log('           set by channel-specific subleading structure, not by the')
+        log('           decay rate.')
+    log('n/a      = the advantage is 0 at lam=0 (the decoder is already the family')
+    log('           optimum on that channel), so there is no threshold to report.')
+    return out
 
 
 # ---------------------------------------------------------------------
@@ -1744,6 +2178,11 @@ def main(argv=None):
                     help='reduced 2x2 sweep only (fast, no leakage measurement)')
     ap.add_argument('--no-bench', action='store_true',
                     help='skip the ~3 min CPU-vs-CUDA benchmark at [[9,1,3]]')
+    ap.add_argument('--no-rec-noise', action='store_true',
+                    help='skip the recovery-gate-noise scan (lam* / lam_half).  '
+                         'It is cheap (~30 s: n=5 only, since the larger codes '
+                         'carry no trained table) and deterministic, so there is '
+                         'normally no reason to skip it.')
     ap.add_argument('--bench-only', action='store_true',
                     help='run only the device benchmark and merge it into '
                          '--out, keeping the stored sweep.  The benchmark is the '
@@ -1770,9 +2209,14 @@ def main(argv=None):
               % (len(old['records']), args.reaggregate), flush=True)
         recs = enrich_records(old['records'])
         rows = summarise(recs)
+        # The scan is RECOMPUTED rather than carried over from the old artifact:
+        # it is cheap and deterministic, and carrying it over would let a stale
+        # lam* survive a change to the round map -- exactly the silent
+        # inconsistency --reaggregate exists to prevent.
+        rn = None if args.no_rec_noise else recovery_noise_scan()
         return _finish(args, recs, rows, old.get('full_space'),
                        old.get('device_benchmark'), old.get('validation'),
-                       old.get('meta', {}).get('wall_s', 0.0))
+                       old.get('meta', {}).get('wall_s', 0.0), recnoise=rn)
     if args.bench_only:
         if not os.path.exists(args.out):
             raise SystemExit('--bench-only needs an existing artifact at %s; '
@@ -1803,22 +2247,39 @@ def main(argv=None):
         code5 = get_code('5,1,3')
         for channel in CHANNELS:
             for kind in ('decoder', 'warm'):
+                # NB: not `t0` -- main() uses t0 for the total wall time and
+                # rebinding it here would silently corrupt meta.wall_s.
+                tb = time.time()
                 S, meta = build_round(code5, channel, 0.10, kind)
                 rec = {'code': '5,1,3', 'n': 5, 'channel': channel, 'p': 0.10,
                        'recovery': kind, 'eta': 0.0, 'rounds': list(ROUNDS),
-                       'F': [float(x) for x in fidelity_curve(S, ROUNDS)]}
-                rec.update({k: meta[k] for k in ('F_R1', 'unitarity_dev')
-                            if k in meta})
+                       'F': [float(x) for x in fidelity_curve(S, ROUNDS)],
+                       'wall_s': time.time() - tb}
+                # Same meta keys as sweep(), via the shared constant, so a
+                # --quick record satisfies the same invariants as a full one.
+                for k in RECORD_META_KEYS:
+                    if k in meta:
+                        rec[k] = meta[k]
                 rec.update(asymptotic_decay(S))
                 rec.update(storage_lifetime(S))
                 recs.append(rec)
         rows = summarise(recs)
         full = bench = None
+        rn = None
+        if not args.no_rec_noise:
+            print('\n--- recovery-gate-noise scan (lam* / lam_half) ---',
+                  flush=True)
+            rn = recovery_noise_scan()
     else:
         print('\n--- reduced 2x2 sweep (exact, all codes) ---', flush=True)
         recs = sweep()
         rows = summarise(recs)
         full = bench = None
+        rn = None
+        if not args.no_rec_noise:
+            print('\n--- recovery-gate-noise scan (lam* / lam_half) ---',
+                  flush=True)
+            rn = recovery_noise_scan()
         if not args.no_full_space:
             print('\n--- full dim x dim sweep (leakage; device chosen per code) '
                   '---', flush=True)
@@ -1835,10 +2296,11 @@ def main(argv=None):
         if not args.no_bench:
             print('\n--- device benchmark ([[9,1,3]] full space) ---', flush=True)
             bench = device_benchmark()
-    return _finish(args, recs, rows, full, bench, val, time.time() - t0)
+    return _finish(args, recs, rows, full, bench, val, time.time() - t0,
+                   recnoise=rn)
 
 
-def _finish(args, recs, rows, full, bench, val, wall_s):
+def _finish(args, recs, rows, full, bench, val, wall_s, recnoise=None):
     """Write the artifact and enforce the invariants every curve must satisfy."""
     payload = {
         'meta': {
@@ -1872,6 +2334,7 @@ def _finish(args, recs, rows, full, bench, val, wall_s):
         'full_space': full,
         'device_benchmark': bench,
         'validation': val,
+        'recovery_noise': recnoise,
     }
     tmp = args.out + '.tmp'
     with open(tmp, 'w') as fh:
@@ -1922,6 +2385,119 @@ def _finish(args, recs, rows, full, bench, val, wall_s):
             if r['trace_dev_max'] > 1e-11:
                 bad.append('%s/%s: round map not trace-preserving (%.2e)'
                            % (r['code'], r['channel'], r['trace_dev_max']))
+    if recnoise:
+        worst_rn = max(r['full_space_check']['max_abs_affine_vs_full']
+                       for r in recnoise)
+        n_thr = sum(1 for r in recnoise if r['lam_star'] is not None)
+        print('\n  worst |affine - full space| over %d recovery-noise rows: %.2e'
+              % (len(recnoise), worst_rn))
+        print('  %d/%d rows carry a located lam*; the remainder are channels where'
+              % (n_thr, len(recnoise)))
+        print('  the decoder is already the family optimum, so the advantage is 0')
+        print('  at lam=0 and there is no threshold to report (recorded as None')
+        print("  with threshold_status='advantage_degenerate_at_lam0')")
+        for r in recnoise:
+            fsc = r['full_space_check']
+            # The reduced model's ONLY approximation is q_escape, so the honest
+            # tolerance is the q_escape MEASURED at the lam being checked, not a
+            # constant.  Decoder rows are exact (q_escape = round-off) and get
+            # 1e-11, the same allowance the full_space block uses for R=40
+            # round-off accumulation; learned rows get 10x q_escape, which is the
+            # coupling --selftest locks.
+            tol = (1e-11 if r['recovery'] == 'decoder'
+                   else max(1e-8, 10.0 * fsc['q_escape_at_lam']))
+            if fsc['max_abs_affine_vs_full'] > tol:
+                bad.append('%s/%s/p=%.2f/%s: rec-noise affine vs full %.2e > '
+                           'tol %.0e (q_escape %.2e)'
+                           % (r['code'], r['channel'], r['p'], r['recovery'],
+                              fsc['max_abs_affine_vs_full'], tol,
+                              fsc['q_escape_at_lam']))
+            if fsc['trace_dev_max'] > 1e-9:
+                bad.append('%s/%s/p=%.2f/%s: rec-noise full-space trace dev %.2e'
+                           % (r['code'], r['channel'], r['p'], r['recovery'],
+                              fsc['trace_dev_max']))
+            # More recovery noise can never help, so both curves must fall in lam.
+            for key in ('F_alt', 'F_dec'):
+                seq = [g[key] for g in r['lam_grid']]
+                if not all(seq[i] >= seq[i + 1] - 1e-12
+                           for i in range(len(seq) - 1)):
+                    bad.append('%s/%s/p=%.2f/%s: %s is NOT monotone in lam'
+                               % (r['code'], r['channel'], r['p'],
+                                  r['recovery'], key))
+            # A reported threshold must be a genuine crossing inside the scanned
+            # range, and the half-advantage point must precede the sign change
+            # because the advantage decays monotonically.
+            if r['lam_star'] is not None:
+                if not 0.0 < r['lam_star'] < REC_NOISE_HI:
+                    bad.append('%s/%s/p=%.2f/%s: lam*=%.6f outside (0, %.2f)'
+                               % (r['code'], r['channel'], r['p'],
+                                  r['recovery'], r['lam_star'], REC_NOISE_HI))
+                if r['lam_half'] is not None and r['lam_half'] > r['lam_star']:
+                    bad.append('%s/%s/p=%.2f/%s: lam_half=%.6f > lam*=%.6f'
+                               % (r['code'], r['channel'], r['p'],
+                                  r['recovery'], r['lam_half'], r['lam_star']))
+                if (r['eps_per_qubit_star'] is None
+                        or abs(r['eps_per_qubit_star']
+                               - r['lam_star'] / r['n']) > 1e-15):
+                    bad.append('%s/%s/p=%.2f/%s: eps_per_qubit_star != lam*/n'
+                               % (r['code'], r['channel'], r['p'],
+                                  r['recovery']))
+            elif r['threshold_status'] == 'advantage_degenerate_at_lam0':
+                if abs(r['advantage_lam0']) > SURVIVAL_FLOOR:
+                    bad.append('%s/%s/p=%.2f/%s: marked degenerate at lam=0 but '
+                               'advantage=%.3e'
+                               % (r['code'], r['channel'], r['p'],
+                                  r['recovery'], r['advantage_lam0']))
+                if r['lam_half'] is not None:
+                    bad.append('%s/%s/p=%.2f/%s: degenerate row must not report '
+                               'lam_half' % (r['code'], r['channel'], r['p'],
+                                            r['recovery']))
+            # The erosion law, bounded by measurement rather than by prose: the
+            # normalised advantage must track exp(-lam*R_last) wherever lam is
+            # small enough for the leading eigen-direction to dominate, and
+            # lam_half*R_last must land at ln2.
+            if r['exp_law_max_dev'] is not None:
+                if r['exp_law_max_dev'] > EXP_LAW_TOL:
+                    bad.append('%s/%s/p=%.2f/%s: advantage(lam)/advantage(0) '
+                               'deviates from exp(-lam*R) by %.2e > %.0e'
+                               % (r['code'], r['channel'], r['p'],
+                                  r['recovery'], r['exp_law_max_dev'],
+                                  EXP_LAW_TOL))
+                if (r['lam_half_times_R'] is not None
+                        and abs(r['lam_half_times_R'] - np.log(2.0))
+                        > 0.05 * np.log(2.0)):
+                    bad.append('%s/%s/p=%.2f/%s: lam_half*R = %.6f, more than 5%% '
+                               'from ln2 = %.6f'
+                               % (r['code'], r['channel'], r['p'],
+                                  r['recovery'], r['lam_half_times_R'],
+                                  np.log(2.0)))
+        # Cross-row universality.  This is the claim the manuscript makes -- that
+        # the fractional erosion of the advantage is channel-blind -- so it is
+        # asserted here over every pair of rows instead of being described.
+        # Restricted to lam <= EXP_LAW_LAM_MAX for the same reason the exp-law
+        # check is: beyond that the leading eigen-direction has decayed away and
+        # the ratio is governed by channel-specific subleading structure, so
+        # asserting universality there would contradict the range this module
+        # documents.  Measured spread inside the range is ~2e-3.
+        live = [r for r in recnoise if r['advantage_lam0'] > SURVIVAL_FLOOR]
+        if len(live) > 1:
+            idx = [i for i, g in enumerate(live[0]['lam_grid'])
+                   if g['lam'] <= EXP_LAW_LAM_MAX]
+            ref = [live[0]['lam_grid'][i]['advantage']
+                   / live[0]['advantage_lam0'] for i in idx]
+            uni = max(abs(r['lam_grid'][i]['advantage'] / r['advantage_lam0']
+                          - ref[j])
+                      for r in live for j, i in enumerate(idx))
+            print('  normalised advantage advantage(lam)/advantage(0) is shared by '
+                  'all %d' % len(live))
+            print('  non-degenerate rows to %.1e over lam<=%.2f (tol %.0e): the '
+                  'erosion is' % (uni, EXP_LAW_LAM_MAX, UNIVERSALITY_TOL))
+            print('  channel-blind, so lam_half ~ ln2/R while lam*, set by '
+                  'subleading structure, is not')
+            if uni > UNIVERSALITY_TOL:
+                bad.append('normalised advantage is NOT universal across rows '
+                           'for lam<=%.2f (max spread %.2e > %.0e)'
+                           % (EXP_LAW_LAM_MAX, uni, UNIVERSALITY_TOL))
     if bad:
         print('\nFAILURES (%d):' % len(bad))
         for b in bad:

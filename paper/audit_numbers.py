@@ -56,6 +56,7 @@ It asserts, over `paper_numbers.json`, `paper/main.tex`,
 Exit status is 0 iff all checks pass, so it composes with `&&` in CI.
 """
 import json
+import math
 import os
 import re
 
@@ -990,6 +991,103 @@ for _sub in ('13b', '13c', '14a', '14b', '14c', '14d', '14e'):
 for _n in (13, 14):
     chk(t.count('ED Table~%d' % _n) >= 1,
         'main.tex points the reader at ED Table~%d' % _n)
+
+
+# ---- 14c. T4: recovery-gate noise (the realistic-recovery axis) -------------
+# Every lock above assumes the recoveries R_s are EXACT unitaries, which no
+# hardware delivers.  This section locks the threshold at which the multi-round
+# advantage stops surviving a noisy recovery layer.  The sweep is affordable only
+# because it runs on a reduced 5x5 affine map (4 logical components + 1 scalar for
+# out-of-code escaped weight) rather than the dim x dim evolution, so that
+# reduction's own approximation -- q_escape, the weight a learned recovery fails to
+# bring back into the code space -- is locked against the exact full space in the
+# same breath.  Otherwise these would be thresholds for a model nobody checked.
+_rn = _st.get('recovery_noise') or []
+chk(len(_rn) == 16,
+    'T4 recovery-gate-noise scan covers all %d (channel, p, learned recovery) '
+    'rows at n=5' % len(_rn))
+_rn_idx = {(r['channel'], r['p'], r['recovery']): r for r in _rn}
+_live = [r for r in _rn if r['lam_star'] is not None]
+_dead = [r for r in _rn if r['lam_star'] is None]
+chk(len(_live) == 8 and len(_dead) == 8,
+    'T4 %d rows carry a located lam* (amplitude damping + coherent) and %d report '
+    'None with a reason (depolarizing + mixed, where the decoder is already the '
+    'family optimum)' % (len(_live), len(_dead)))
+chk(all(r['threshold_status'] == 'advantage_degenerate_at_lam0'
+        and r['lam_half'] is None and abs(r['advantage_lam0']) < 1e-15
+        for r in _dead),
+    'T4 every threshold-less row is threshold-less because the advantage is 0 at '
+    'lam=0, not because a bisection failed to converge')
+chk(all(r['full_space_check']['max_abs_affine_vs_full']
+        < (1e-11 if r['recovery'] == 'decoder'
+           else max(1e-8, 10 * r['full_space_check']['q_escape_at_lam']))
+        for r in _rn),
+    'T4 the 5x5 affine noisy-recovery map equals the exact full-space evolution on '
+    'every row (worst %.2e), each at its own MEASURED q_escape scale rather than '
+    'a shared constant'
+    % max(r['full_space_check']['max_abs_affine_vs_full'] for r in _rn))
+chk(max(r['q_escape_max'] for r in _rn) < 1e-4,
+    'T4 q_escape, the reduced model\'s only approximation, peaks at %.2e over the '
+    'whole lam scan' % max(r['q_escape_max'] for r in _rn))
+chk(all(r['full_space_check']['trace_dev_max'] < 1e-9 for r in _rn),
+    'T4 the noisy full-space evolution stays trace-preserving over %d rounds at '
+    'every lam' % max(len(r['full_space_check']['rounds']) for r in _rn))
+chk(all(all(seq[i] >= seq[i + 1] - 1e-12 for i in range(len(seq) - 1))
+        for r in _rn for key in ('F_alt', 'F_dec')
+        for seq in [[g[key] for g in r['lam_grid']]]),
+    'T4 F(R=%d) falls monotonically in lam for the learned recovery AND the '
+    'decoder: more recovery noise can never help' % _RL)
+# The headline thresholds.  The manuscript quotes amplitude damping and coherent at
+# p=0.10 with the warm recovery, so those two rows are locked SPECIFICALLY rather
+# than through a maximum over all rows: a max would drift the moment another
+# channel's table changed and would then be checking a number the paper never
+# prints.  5e-4 in lam is far tighter than the 1e-7..2e-7 affine-vs-full residual
+# these thresholds inherit, so the lock is on the physics, not on the last
+# bisection digit.
+_w_ad = _rn_idx[('amplitude_damping', 0.10, 'warm')]
+_w_co = _rn_idx[('coherent', 0.10, 'warm')]
+chk(abs(_w_ad['lam_star'] - 0.2497) < 5e-4,
+    'T4 amplitude damping p=0.10: the warm advantage over the decoder changes sign '
+    'at lam* = %.6f' % _w_ad['lam_star'])
+chk(abs(_w_co['lam_star'] - 0.1746) < 5e-4,
+    'T4 coherent p=0.10: lam* = %.6f, a factor %.2f tighter than amplitude damping'
+    % (_w_co['lam_star'], _w_ad['lam_star'] / _w_co['lam_star']))
+chk(abs(_w_ad['eps_per_qubit_star'] - _w_ad['lam_star'] / 5) < 1e-15
+    and abs(_w_ad['eps_per_qubit_star'] - 0.0499) < 1e-3
+    and abs(_w_co['eps_per_qubit_star'] - 0.0349) < 1e-3,
+    'T4 eps*/n equals lam*/n as advertised: %.4f (amplitude damping) and %.4f '
+    '(coherent).  This is the DEPTH-1 reading; a depth-d recovery tolerates '
+    'roughly this divided by d'
+    % (_w_ad['eps_per_qubit_star'], _w_co['eps_per_qubit_star']))
+# The magnitude budget is the honest limit on the claim: the advantage is halved
+# long before it changes sign, so quoting lam* alone would oversell it.
+chk(all(r['lam_half'] * 5.0 < r['lam_star'] for r in _live),
+    'T4 lam_half < lam*/5 on all %d non-degenerate rows (min ratio %.1f): the '
+    'MAGNITUDE of the advantage erodes long before its sign flips'
+    % (len(_live), min(r['lam_star'] / r['lam_half'] for r in _live)))
+# Universality of the erosion: the FRACTION of advantage lost depends only on
+# lam*R, not on which channel or which learned table produced it.
+_prod = [r['lam_half_times_R'] for r in _live
+         if r['lam_half_times_R'] is not None]
+chk(bool(_prod) and max(abs(x - math.log(2.0)) for x in _prod)
+    < 0.05 * math.log(2.0),
+    'T4 lam_half*R = %.4f..%.4f against ln2 = %.6f: the erosion RATE is set by the '
+    'round count, not by the channel' % (min(_prod), max(_prod), math.log(2.0)))
+chk(all(r['exp_law_max_dev'] < 1.5e-2 for r in _live),
+    'T4 advantage(lam)/advantage(0) tracks exp(-lam*R) to %.1e for lam<=%.2f'
+    % (max(r['exp_law_max_dev'] for r in _live), _live[0]['exp_law_lam_max']))
+_lam_u = [i for i, g in enumerate(_live[0]['lam_grid'])
+          if g['lam'] <= _live[0]['exp_law_lam_max']]
+_ref = [_live[0]['lam_grid'][i]['advantage'] / _live[0]['advantage_lam0']
+        for i in _lam_u]
+_uni = max(abs(r['lam_grid'][i]['advantage'] / r['advantage_lam0'] - _ref[j])
+           for r in _live for j, i in enumerate(_lam_u))
+chk(_uni < 5e-3,
+    'T4 that normalised curve is shared by all %d non-degenerate rows to %.1e over '
+    'lam<=%.2f: the erosion is channel-blind, while lam* (which spans %.3f..%.3f) '
+    'is not' % (len(_live), _uni, _live[0]['exp_law_lam_max'],
+                min(r['lam_star'] for r in _live),
+                max(r['lam_star'] for r in _live)))
 
 
 
