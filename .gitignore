@@ -15,9 +15,16 @@ build/
 .vscode/
 
 # logs & secrets
-#*.log
+# NOTE: 43 .log files were committed before this rule existed and are still
+# TRACKED; gitignore does not untrack them.  `git rm --cached *.log` happens in
+# the pre-archive repository cleanup, not here.
+*.log
 .env
 .originq_token
+# never let a credentials file be committed under any name
+*token*
+*secret*
+*credential*
 
 # generated reports (kept locally, not committed)
 report/
