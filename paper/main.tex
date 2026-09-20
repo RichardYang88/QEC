@@ -602,6 +602,51 @@ curves agreeing to $8.0\times10^{-15}$---the opposite device verdict from the
 seed sweep, where the same kernel-launch overhead makes the GPU $1.9\times$
 \emph{slower}. The choice follows the matrix size, not the workload.
 
+\emph{Noisy recovery gates.} Readout error is one of the two idealisations behind
+the numbers above; the other is that the $R_s$ are exact unitaries, which no
+hardware delivers. Composing each recovery with a global depolarizing layer of
+strength $\lambda$ forces the round map from $4\times4$ to \emph{five} dimensions:
+the four logical components plus one scalar carrying the out-of-code weight that a
+noisy recovery fails to return. The fifth component is a necessity, not a
+refinement---restricting the same physics to $4\times4$ discards that weight and
+under-reports $\bar F$ by $0.37$ at $R=12$ on coherent noise. The error is exactly
+zero at $R=1$, where nothing has escaped yet, and grows with $R$, so no
+single-round validation can see it; both halves of that fact are locked in
+\texttt{storage\_rounds.py --selftest}. The reduction's only approximation is the
+escaped fraction $q_\mathrm{esc}$, measured per configuration
+($6.1\times10^{-6}$ on amplitude damping, $1.1\times10^{-5}$ on coherent noise) and
+checked against the exact $32\times32$ evolution in the same artifact that reports
+the threshold, worst disagreement $2.0\times10^{-7}$. On decoder rows
+$q_\mathrm{esc}$ is round-off, because a Pauli recovery returns every branch to the
+code space exactly.
+
+Bisecting in $\lambda$ at $R=40$ yields two thresholds an order of magnitude apart,
+and quoting the larger one would oversell the result. The advantage over the Pauli
+decoder \emph{changes sign} at $\lambda^*=0.2497$ on amplitude damping at $p=0.10$
+and at $\lambda^*=0.1746$ on coherent noise, i.e.\ a depth-$1$ budget of
+$\epsilon^*/n=0.0499$ and $0.0349$---optimistic by the recovery circuit depth $d$,
+since $\lambda\sim d\,n\,\epsilon$. But the advantage has already lost \emph{half
+its magnitude} at $\lambda_{1/2}=0.01718$, a factor $14.5$ and $10.2$ below the
+respective $\lambda^*$ (tightest over all eight non-degenerate configurations,
+$7.1$). A recovery layer that has erased half the headroom is operationally
+uninteresting long before that headroom changes sign, so $\lambda_{1/2}$ is the
+budget and $\lambda^*$ is merely the point at which the claim stops being a claim.
+
+What is universal is the erosion \emph{rate}, not the threshold. The normalised
+advantage $\mathrm{adv}(\lambda)/\mathrm{adv}(0)$ tracks $e^{-\lambda R}$ to
+$8.8\times10^{-3}$ over $\lambda\le0.04$, and that same normalised curve is shared
+by all eight non-degenerate configurations to $2.3\times10^{-3}$---independently of
+channel, of $p$, and of which learned table produced it. Hence
+$\lambda_{1/2}R=0.6852$--$0.6872$ against $\ln2=0.693147$, and the practical budget
+collapses to the one-line rule $\lambda_{1/2}\approx\ln2/R$, which needs no
+knowledge of the channel at all. $\lambda^*$ is emphatically \emph{not} universal,
+spanning $0.121$ to $0.253$, because a sign change is governed by channel-specific
+subleading structure rather than by the decay rate. On depolarizing and mixed noise
+there is no threshold to report: the decoder is already the family optimum, the
+advantage is zero at $\lambda=0$, and the scan records that explicitly instead of
+bisecting round-off into a number. The full $\lambda$ grid, per-row $q_\mathrm{esc}$
+and per-row full-space checks are in ED Table~14f.
+
 \subsection*{Exact circuit compilation and a Pauli-frame hardware protocol}
 
 To move the trained instrument onto hardware we compile each branch to a

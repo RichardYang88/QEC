@@ -2,6 +2,7 @@
 artifacts: ideal per-frame references, per-branch conditional fidelities,
 hardware feasibility statistics, and bit-layout evidence."""
 import json, os, sys
+import math
 import numpy as np
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -649,7 +650,14 @@ feed-forward.  $\sum_iB_i^\dagger B_i=I$ to %s and $U^\dagger U=I$ to %s.""" % (
                   for M in _B]
         A(_cells[0] + ' & ' + _cells[1] + r' \\')
         A(r'\bottomrule\end{tabular}\end{center}')
-        A(r'\begin{center}$U=$ '
+        # `$U=$ \begin{pmatrix}` closed math before the matrix, leaving pmatrix in
+        # TEXT mode (a hard LaTeX error) plus a dangling `$` that never closed --
+        # and because no TeX engine exists on this host the file has never been
+        # compiled, so it survived.  The math span must cover the whole matrix, as
+        # the $B_0$/$B_1$ cells above already do.  audit_numbers.py now asserts both
+        # that the file's unescaped `$` count is even and that every `\begin{pmatrix}`
+        # sits inside a math span.
+        A(r'\begin{center}$U='
           r'\begin{pmatrix}'
           + ' & '.join('%s' % _cx(z) for z in _U[0]) + r'\\ '
           + ' & '.join('%s' % _cx(z) for z in _U[1]) + r'\\ '
@@ -940,6 +948,84 @@ that \texttt{nvidia-smi} is.""" % (
               f"{_q['cpu']['seconds']:.2f} & "
               + (f"{_q['cuda']['seconds']:.2f} & " if 'cuda' in _q else 'n/a & ')
               + ('n/a' if _sp is None else '%.2f$\\times$' % _sp) + r' \\')
+        A(r'\bottomrule\end{longtable}')
+
+    # ---- ED Table 14f: recovery-gate noise --------------------------------
+    # Every table above composes EXACT unitaries R_s.  This one composes each
+    # recovery with a global depolarizing layer of strength lam and bisects the
+    # thresholds, so that the multi-round claim is quoted at a recovery noise
+    # level nobody has to take on faith.
+    _rn = _sr.get('recovery_noise') or []
+    if _rn:
+        _live = [r for r in _rn if r['lam_star'] is not None]
+        _RL = _rn[0]['R_last']
+        _prod = [r['lam_half_times_R'] for r in _live
+                 if r['lam_half_times_R'] is not None]
+        _uni = max(abs(r['lam_grid'][i]['advantage'] / r['advantage_lam0']
+                       - (_live[0]['lam_grid'][i]['advantage']
+                          / _live[0]['advantage_lam0']))
+                   for r in _live
+                   for i, g in enumerate(r['lam_grid'])
+                   if g['lam'] <= r['exp_law_lam_max'])
+        A(r"""
+\paragraph*{ED Table 14f: recovery-gate noise, and where the advantage stops surviving it.}
+Every table above composes \emph{exact} unitaries $R_s$, which no hardware
+delivers.  Here each recovery is composed with a global depolarizing layer of
+strength $\lambda$ and the round map becomes a $5\times5$ \emph{affine} map on the
+$4$ logical components plus one scalar carrying the out-of-code weight the
+recovery fails to return.  Five dimensions are necessary rather than convenient:
+the $4\times4$ restriction of the same physics discards that escaped weight and
+therefore \emph{under-reports} $F$, by $0.37$ at $R=12$ on coherent/warm at
+$\lambda=0.2$.  It is invisible at $R=1$, where nothing has escaped yet, and grows
+with $R$---which is why a single-round check cannot catch it and why
+\texttt{storage\_rounds.py --selftest} locks both halves of that fact.  The
+reduction's only approximation is $q_\mathrm{esc}$, reported per row and checked
+against the exact $\dim\times\dim$ evolution in the same row rather than assumed
+small; on the decoder rows it is round-off because a Pauli recovery returns every
+branch exactly to the code space.
+
+Two thresholds are bisected to $10^{-12}$ in $\lambda$, both at \emph{equal}
+$\lambda$ for the learned table and the decoder: $\lambda^*$, where the
+$R=%d$ advantage \emph{changes sign}, and $\lambda_{1/2}$, where its
+\emph{magnitude} has halved.  The second is the binding one---the tightest ratio
+here is $\lambda^*/\lambda_{1/2}=%.1f$---so quoting $\lambda^*$ alone would
+oversell the claim.  On depolarizing and mixed noise no threshold exists: the
+decoder is already the family optimum, the advantage is $0$ at $\lambda=0$, and the
+scan reports ``degenerate'' rather than manufacturing a number out of round-off.
+
+$\lambda$ is the strength of \emph{one recovery layer}, not a per-gate error rate,
+so $\epsilon^*/n=\lambda^*/n$ is the depth-$1$ reading and is optimistic by the
+recovery circuit depth $d$ (roughly $\lambda\sim d\,n\,\epsilon$).  A universality
+result falls out of the grid: the \emph{normalised} advantage
+$\mathrm{adv}(\lambda)/\mathrm{adv}(0)$ is the same channel-blind curve on all %d
+non-degenerate rows (spread %s over $\lambda\le%.2f$) and tracks
+$e^{-\lambda R}$, so $\lambda_{1/2}R\to\ln2$: measured %s--%s against %s.
+$\lambda^*$ is \emph{not} universal, spanning %.3f--%.3f, because the sign change
+is set by channel-specific subleading structure rather than by the decay rate."""
+          % (_RL, min(r['lam_star'] / r['lam_half'] for r in _live),
+             len(_live), sci(_uni, 1), _live[0]['exp_law_lam_max'],
+             '$%.4f$' % min(_prod), '$%.4f$' % max(_prod),
+             '$%.6f$' % math.log(2.0),
+             min(r['lam_star'] for r in _live),
+             max(r['lam_star'] for r in _live)))
+        A(r'\begin{longtable}{llccccccc}')
+        A(r'\toprule channel & $p$ & recov. & $\lambda^*$ & $\epsilon^*/n$ & '
+          r'$\lambda_{1/2}$ & $\lambda_{1/2}R$ & $q_\mathrm{esc}$ & '
+          r'max$\lvert$affine$-$full$\rvert$ \\ \midrule')
+        for _r in _rn:
+            _fs = _r['full_space_check']
+            A(f"{_r['channel'].replace('_', ' ')} & ${_r['p']:.2f}$ & "
+              f"{_r['recovery']} & "
+              + ('$%.6f$' % _r['lam_star'] if _r['lam_star'] is not None
+                 else 'degenerate') + ' & '
+              + ('$%.4f$' % _r['eps_per_qubit_star']
+                 if _r['eps_per_qubit_star'] is not None else '---') + ' & '
+              + ('$%.6f$' % _r['lam_half'] if _r['lam_half'] is not None
+                 else '---') + ' & '
+              + ('$%.4f$' % _r['lam_half_times_R']
+                 if _r['lam_half_times_R'] is not None else '---') + ' & '
+              + f"{sci(_r['q_escape_max'], 1)} & "
+              + f"{sci(_fs['max_abs_affine_vs_full'], 1)} \\\\")
         A(r'\bottomrule\end{longtable}')
 
 A(r'\end{document}')

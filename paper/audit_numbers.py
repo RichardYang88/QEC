@@ -268,6 +268,47 @@ chk(e.count(BS + 'begin{') == e.count(BS + 'end{'),
 chk(e.count(BS + 'begin{tabular}') == e.count(BS + 'end{tabular}'),
     'extended_data.tex tabular balance (%d/%d)'
     % (e.count(BS + 'begin{tabular}'), e.count(BS + 'end{tabular}')))
+
+
+def _math_spans(src):
+    """Return the [open, close) index pairs of every inline-math span in `src`.
+
+    Only unescaped `$` delimiters count, so a literal `\\$` in prose cannot shift
+    the pairing.  The second return value is the index of an opener that never
+    closed (-1 when the file ends outside math mode).
+    """
+    idx = [i for i, c in enumerate(src)
+           if c == '$' and (i == 0 or src[i - 1] != '\\')]
+    spans, start = [], -1
+    for i in idx:
+        if start < 0:
+            start = i
+        else:
+            spans.append((start, i))
+            start = -1
+    return spans, (start if start >= 0 else -1), len(idx)
+
+
+# No TeX engine exists on this host, so `extended_data.tex` has never been compiled
+# and a malformed math delimiter cannot be caught by building the PDF.  That is not
+# hypothetical: ED Table 12 emitted `\begin{center}$U=$ \begin{pmatrix}...`, which
+# closes math BEFORE the matrix -- putting pmatrix in text mode (a hard LaTeX error)
+# and leaving a dangling `$` that unbalances every span after it.  It survived for
+# exactly the reason the 411 bare `\times` cells did.  These three checks are the
+# cheap structural substitute for a compile: balanced delimiters, no unclosed span,
+# and no matrix environment sitting outside math.
+for _nm, _src in (('extended_data.tex', e), ('main.tex', t)):
+    _sp, _open, _n = _math_spans(_src)
+    chk(_n % 2 == 0, '%s has an even number of unescaped $ delimiters (%d)'
+        % (_nm, _n))
+    chk(_open < 0, '%s ends outside math mode (no unclosed $ span)' % _nm)
+    for _env in ('pmatrix', 'bmatrix', 'vmatrix', 'matrix', 'cases', 'aligned'):
+        _beg = BS + 'begin{' + _env + '}'
+        _out = [i for i in range(len(_src))
+                if _src.startswith(_beg, i)
+                and not any(a <= i < b for a, b in _sp)]
+        chk(not _out, '%s keeps every %s inside a math span (%d stray)'
+            % (_nm, _beg, len(_out)))
 for n in range(1, 12):
     if n == 10:
         # Table 10 was split: 10a is the analytic nine-sector certificate and 10b
@@ -795,6 +836,36 @@ if _gc.get('available'):
     chk(1.5 < _slow < 3.0,
         'T3 the GPU is %.2fx slower than a pinned core at one seed, consistent '
         'with the 1.9x the prose quotes' % _slow)
+    # ED Table 13c renders its timings straight out of `gpu_check`, and until now
+    # nothing in this audit ever compared the RENDERED table against the artifact
+    # it was rendered from -- the ED file was only checked for the presence of its
+    # subsection headings.  That gap is not hypothetical: multiseed_results.json was
+    # regenerated and committed on 2026-09-18 without re-running make_ed.py, so the
+    # committed extended_data.tex quoted 1.88x / 3.0x / 36.3x and a timing table
+    # reading 5.405/10.863 against an artifact that said 1.86x / 2.9x / 33.3x and
+    # 5.216/10.616 -- and all 705 checks still passed, because every one of them
+    # looked at main.tex or at the artifact, never at the ED rendering of it.
+    # main.tex quotes none of these numbers, so it was an Extended-Data-only
+    # inconsistency; it is locked here so the table cannot drift from its source
+    # again.  The format strings below are make_ed.py's own, character for character.
+    _efn = ' '.join(e.split())
+    for _q, _why in (
+            ('GPU $%.2f\\times$' % (1.0 / _gc['cuda_speedup_at_one_seed']),
+             'the one-seed GPU slowdown'),
+            ('batching ($%.1f\\times$' % _gc['cuda_scaling_1024_over_16'],
+             'the CUDA batch-scaling factor'),
+            ('against $%.1f\\times$ on the CPU'
+             % _gc['cpu_scaling_1024_over_16'],
+             'the CPU batch-scaling factor')):
+        chk(_q in _efn, 'ED Table 13c quotes %s as %s' % (_why, _q))
+    for _b in sorted(_gc['batched_step'], key=int):
+        _r = _gc['batched_step'][_b]
+        _row = ('$%s$ & $%d$ & %.3f & %.3f & %.2f'
+                % (_b, _r['seeds'], _r['cpu_ms'], _r['cuda_ms'],
+                   _r['cuda_over_cpu']))
+        chk(_row in _efn,
+            'ED Table 13c batch-%s timing row matches multiseed_results.json (%s)'
+            % (_b, _row))
 
 
 # ---- 13c. main.tex quotes the seed statistics it is now entitled to ----------
@@ -1088,6 +1159,88 @@ chk(_uni < 5e-3,
     'is not' % (len(_live), _uni, _live[0]['exp_law_lam_max'],
                 min(r['lam_star'] for r in _live),
                 max(r['lam_star'] for r in _live)))
+# (7) main.tex and extended_data.tex quote the thresholds they are entitled to.
+# Same re-derivation discipline as 13c and 14a/14b: every mantissa below is rendered
+# out of the artifact with the format string the prose uses, so a regenerated scan
+# that moves a digit fails HERE instead of leaving a stale number inside a published
+# claim.  Note the two erosion quantities are locked separately because they are
+# different quantities and the prose must not conflate them: `exp_law_max_dev` is
+# one row's deviation from exp(-lam*R), `_uni` is the spread of the normalised curve
+# ACROSS rows.  Quoting the second where the first belongs would understate the
+# approximation by a factor of four.
+for _q, _why in (
+        ('%.4f' % _w_ad['lam_star'], 'the amplitude-damping sign-change lam*'),
+        ('%.4f' % _w_co['lam_star'], 'the coherent sign-change lam*'),
+        ('%.4f' % _w_ad['eps_per_qubit_star'],
+         'the amplitude-damping depth-1 eps*/n'),
+        ('%.4f' % _w_co['eps_per_qubit_star'], 'the coherent depth-1 eps*/n'),
+        ('%.5f' % _w_ad['lam_half'],
+         'the amplitude-damping half-magnitude lam'),
+        ('%.5f' % _w_co['lam_half'], 'the coherent half-magnitude lam'),
+        ('%.1f' % (_w_ad['lam_star'] / _w_ad['lam_half']),
+         'the amplitude-damping lam*/lam_half ratio'),
+        ('%.1f' % (_w_co['lam_star'] / _w_co['lam_half']),
+         'the coherent lam*/lam_half ratio'),
+        ('%.1f' % min(r['lam_star'] / r['lam_half'] for r in _live),
+         'the tightest lam*/lam_half ratio over all non-degenerate rows'),
+        (_tex_sci(max(r['exp_law_max_dev'] for r in _live), 1),
+         'the worst single-row deviation of adv(lam)/adv(0) from exp(-lam*R)'),
+        (_tex_sci(_uni, 1), 'the cross-row spread of the normalised curve'),
+        ('%.4f' % min(_prod), 'the low end of lam_half*R'),
+        ('%.4f' % max(_prod), 'the high end of lam_half*R'),
+        ('%.6f' % math.log(2.0), 'ln 2'),
+        ('%.3f' % min(r['lam_star'] for r in _live),
+         'the low end of the lam* span'),
+        ('%.3f' % max(r['lam_star'] for r in _live),
+         'the high end of the lam* span'),
+        (_tex_sci(_w_ad['q_escape_max'], 1),
+         'the amplitude-damping escaped fraction'),
+        (_tex_sci(_w_co['q_escape_max'], 1), 'the coherent escaped fraction'),
+        (_tex_sci(max(r['full_space_check']['max_abs_affine_vs_full']
+                      for r in _rn), 1),
+         'the worst affine-versus-full-space disagreement')):
+    chk(_q in _tfn14, 'main.tex quotes %s as %s' % (_why, _q))
+# The two headline rows must be quoted to five decimals as the SAME number, because
+# that near-coincidence is what the "lambda_half is channel-blind" sentence rests
+# on; if a regenerated scan split them, the prose would be claiming a universality
+# the artifact no longer shows.
+chk(abs(_w_ad['lam_half'] - _w_co['lam_half']) < 5e-5,
+    'T4 the two headline lam_half agree to 5 decimals (%.5f vs %.5f), which is what '
+    'licences quoting one number for both channels'
+    % (_w_ad['lam_half'], _w_co['lam_half']))
+chk('ED Table~14f' in t, 'main.tex points the reader at ED Table 14f')
+chk('ED Table 14f:' in e, 'ED Table 14f present (recovery-gate noise)')
+# Every one of the 16 scan rows must appear in ED Table 14f, degenerate ones
+# included: a table that silently dropped the eight rows with no threshold would
+# show only the configurations where the method looks good.  The row prefix
+# `channel & $p$ & recovery &` is NOT unique to 14f -- Tables 14a, 14b and 14d
+# render the same prefix -- so searching the whole ED file passes vacuously even
+# with a 14f row deleted (verified by mutation).  The slice below is bounded to
+# 14f's own longtable body, which is the only scope in which these checks mean
+# anything.
+_i14f = e.index('ED Table 14f:')
+_ib14f = e.index(r'\begin{longtable}', _i14f)
+_ie14f = e.index(r'\end{longtable}', _ib14f)
+_tb14f = e[_ib14f:_ie14f]
+for _r in _rn:
+    _tag = '%s & $%.2f$ & %s &' % (_r['channel'].replace('_', ' '), _r['p'],
+                                    _r['recovery'])
+    chk(_tag in _tb14f, 'ED Table 14f renders the %s p=%.2f %s row'
+        % (_r['channel'], _r['p'], _r['recovery']))
+chk(_tb14f.count('degenerate') == len(_rn) - len(_live),
+    'ED Table 14f labels exactly the %d threshold-less rows as degenerate rather '
+    'than omitting them or bisecting round-off into a number'
+    % (len(_rn) - len(_live)))
+# The two headline thresholds must be readable off the table, not only off the
+# prose: a reader checking the paper's central robustness claim looks at the table.
+for _r, _nm in ((_w_ad, 'amplitude damping p=0.10 warm'),
+                (_w_co, 'coherent p=0.10 warm')):
+    _row = ('%s & $%.2f$ & %s & $%.6f$ & $%.4f$ & $%.6f$ & $%.4f$ &'
+            % (_r['channel'].replace('_', ' '), _r['p'], _r['recovery'],
+               _r['lam_star'], _r['eps_per_qubit_star'], _r['lam_half'],
+               _r['lam_half_times_R']))
+    chk(_row in _tb14f,
+        'ED Table 14f renders the full %s threshold row' % _nm)
 
 
 
