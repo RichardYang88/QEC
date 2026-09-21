@@ -94,6 +94,211 @@ for name in 'ABCD':
       f"{c['tv_distance_hw_ideal']:.3f} \\\\")
 A(r'\bottomrule\end{longtable}')
 
+# ---- ED Table 3b: the end-to-end shot budget --------------------------------
+# ED Table 3 gives the per-circuit COUNTS.  It does not give what a claim costs,
+# which is the thing a reviewer has to be able to check: how many shots were
+# executed to produce the 55 the headline fidelity rests on, and how many would be
+# needed to make that headline precise.  Post-selection is a diagnostic here, not a
+# protocol, so its discard ratio is reported rather than absorbed silently into an
+# error bar.
+def _wilson(k, n, z=1.96):
+    """Wilson score interval, reproducing branch_stats' F_s_lo95/F_s_hi95 exactly.
+
+    Verified bit-for-bit against the artifact for both circuits that define an
+    interval (44/55 and 9/25), so the sample sizes derived here are consistent with
+    the intervals the paper already prints rather than with some other normal
+    approximation.
+    """
+    p = k / n
+    d = 1.0 + z * z / n
+    c = (p + z * z / (2.0 * n)) / d
+    h = z * math.sqrt(p * (1.0 - p) / n + z * z / (4.0 * n * n)) / d
+    return c - h, c + h
+
+
+def _n_for_half(p, target, z=1.96):
+    """Smallest n whose Wilson interval at observed rate p is no wider than
+    +/-`target`.  Bisected on the true Wilson half-width rather than on the
+    textbook normal approximation, which differs by a few percent at these n."""
+    lo, hi = 1, 10 ** 9
+    while lo < hi:
+        mid = (lo + hi) // 2
+        a, b = _wilson(round(p * mid), mid, z)
+        if (b - a) / 2.0 <= target:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
+def _grp(x):
+    """Thousands grouping with a LaTeX thin-space, not a comma.
+
+    A comma renders as punctuation with a following space, so `44,691` reads as two
+    numbers in a table cell.  Both this file and main.tex go through the same
+    rendering so that audit_numbers.py can re-derive one string and match it in
+    both places.
+    """
+    return '{:,}'.format(int(x)).replace(',', r'\,')
+
+
+_C = HW['circuits']
+_REQ = HW['shots_requested']
+_tot_req = _REQ * len(_C)
+_tot_use = sum(_C[n]['shots_used'] for n in 'ABCD')
+_tot_sel = sum(_C[n]['branch_stats']['n_sel'] for n in 'ABCD')
+_tot_hit = sum(_C[n]['branch_stats']['n_hit'] for n in 'ABCD')
+_D = _C['D']['branch_stats']
+_Ci = _C['C']['branch_stats']
+_B = _C['B']['branch_stats']
+_yD = _D['n_sel'] / float(_REQ)
+_yC = _Ci['n_sel'] / float(_REQ)
+_hwD = (_wilson(_D['n_hit'], _D['n_sel'])[1] - _wilson(_D['n_hit'], _D['n_sel'])[0]) / 2.0
+A(r"""
+\paragraph*{ED Table 3b: what the feasibility run cost, end to end.}
+Table 3 reports counts; this reports the accounting behind them.  ``Executed'' is
+what was requested from the device, ``usable'' what came back parseable under the
+established layout, ``sel'' the subset post-selected on the \emph{correctly read}
+syndrome, and ``hit'' the subset of those whose data register reproduces the decoded
+logical state.  Every yield is taken against \emph{executed}, so the last column is
+the true end-to-end efficiency of turning one device shot into one usable
+post-selected logical outcome: $%s$ shots bought $%d$ of them, $%.2f\%%$.
+
+Two entries are easy to misread and are stated explicitly.  Circuit A has
+$\mathrm{sel}=0$, so its conditional fidelity is \emph{undefined}, not zero; circuit
+B, with $%d$ selected shots and no hits, is the one that measures $F_s=0.00$ with an
+interval.  The two together are the ``$0$ hits in $%d$ shots'' statement in the main
+text.  And the headline $F_{12}=0.80$ rests on $%d$ of the $%d$ shots executed on
+circuit D, a Wilson half-width of $\pm%.3f$: a feasibility signal, not a precision
+measurement."""
+  % (_grp(_tot_req), _tot_hit, 100.0 * _tot_hit / _tot_req, _B['n_sel'],
+     _C['A']['shots_used'] + _B['n_total'], _D['n_sel'], _REQ, _hwD))
+A(r'\begin{longtable}{lclccccccc}')
+A(r'\toprule circuit & scheme & $s$ & executed & usable & sel & hit & '
+  r'usable/exec & sel/exec & hit/exec \\ \midrule')
+for _nm in 'ABCD':
+    _c = _C[_nm]
+    _st = _c['branch_stats']
+    A('%s & %s & %d & %d & %d & %d & %d & %.1f\\%% & %.1f\\%% & %.2f\\%% \\\\'
+      % (_nm, _c['kind'], _c['s'], _REQ, _c['shots_used'], _st['n_sel'],
+         _st['n_hit'], 100.0 * _c['shots_used'] / _REQ,
+         100.0 * _st['n_sel'] / _REQ, 100.0 * _st['n_hit'] / _REQ))
+A('total & --- & --- & %s & %s & %d & %d & %.1f\\%% & %.1f\\%% & %.2f\\%% \\\\'
+  % (_grp(_tot_req), _grp(_tot_use), _tot_sel, _tot_hit,
+     100.0 * _tot_use / _tot_req,
+     100.0 * _tot_sel / _tot_req, 100.0 * _tot_hit / _tot_req))
+A(r'\bottomrule\end{longtable}')
+
+# The costing of precision, from the MEASURED selection yields of the two
+# late-measure circuits.  Both are priced: the injected branch and the identity
+# branch differ by a factor 2.2 in selection yield, so quoting only the cheaper one
+# would understate what the benchmark actually costs.
+_rows = []
+for _tgt in (0.05, 0.02, 0.01):
+    _nD = _n_for_half(_D['F_s'], _tgt)
+    _nC = _n_for_half(_Ci['F_s'], _tgt)
+    _rows.append((_tgt, _nD, math.ceil(_nD / _yD), _nC, math.ceil(_nC / _yC)))
+A(r"""
+\vspace{4pt}\noindent\emph{What precision would cost.}  Holding each circuit at its
+observed rate and pricing it at its own \emph{measured} selection yield (injected
+branch $%.4f$, identity branch $%.4f$, a factor $%.1f$ apart):
+
+\noindent\begin{tabular}{lcccc}
+\toprule target half-width & sel (D) & executed (D) & sel (C) & executed (C) \\
+\midrule""" % (_yD, _yC, _yD / _yC))
+for _tgt, _nD, _eD, _nC, _eC in _rows:
+    A('$\\pm%.2f$ & %d & %s & %d & %s \\\\'
+      % (_tgt, _nD, _grp(_eD), _nC, _grp(_eC)))
+A(r'\bottomrule\end{tabular}')
+_nselD = int(round(1000 * _yD))
+_nselC = int(round(1000 * _yC))
+_hw1kD = (_wilson(round(_D['F_s'] * _nselD), _nselD)[1]
+          - _wilson(round(_D['F_s'] * _nselD), _nselD)[0]) / 2.0
+_hw1kC = (_wilson(round(_Ci['F_s'] * _nselC), _nselC)[1]
+          - _wilson(round(_Ci['F_s'] * _nselC), _nselC)[0]) / 2.0
+A(r"""
+\vspace{4pt}\noindent The benchmark designed in Methods is $2$ logical states
+$\times$ $2$ error rates $\times$ $2$ Pauli frames $\times$ $16$ branches at $10^3$
+shots: $%d$ circuits and $%s$ executed shots in total.  At the measured yields that
+buys $\pm%.3f$ per injected branch and $\pm%.3f$ per identity-like one---and the
+\emph{entire} benchmark budget is smaller than what a single identity-like branch
+needs for $\pm0.01$ ($%s$ shots).  The design is therefore a survey of $16$ branches
+at few-percent-to-ten-percent precision, not a precision measurement of any one of
+them, and on this device the shot budget, not the gate count, is what bounds it.
+None of this is an argument against running it; it is the statement of what the
+result would mean if it were run."""
+  % (2 * 2 * 2 * 16, _grp(2 * 2 * 2 * 16 * 1000), _hw1kD, _hw1kC,
+     _grp(_rows[-1][4])))
+
+# ---- ED Table 3c: where the syndrome weight actually sits -------------------
+# main.tex's second and third findings are statements about the SHAPE of the
+# hardware syndrome distribution, not only about how much of it survives
+# post-selection, and one of them is a mode claim ("the s=8 relaxation satellite
+# is the mode; the correctly read s=12 is second").  A mode claim is exactly the
+# kind that a reader can only check against a bar chart, and exactly the kind that
+# goes silently wrong when the prose is written from memory of the chart: the first
+# draft of that sentence said the distribution "peaks at s=12", which the artifact
+# contradicts by a factor 1.75.  Tabulated so the claim is checkable arithmetic.
+_SUM = HW['summary']
+
+
+def _syn(c):
+    """Shape of one circuit's read-syndrome distribution, from the artifact.
+
+    `excess` is P(injected s) against the 1/16 that a distribution blind to the
+    code would put there.  `rank` counts strictly heavier outcomes, so a tie never
+    promotes a syndrome.  `mode` breaks ties towards the smaller index, which is
+    irrelevant here (all four modes are unique) but keeps it deterministic.
+    """
+    d = {int(k): float(v) for k, v in c['syndrome_dist_hw'].items()}
+    s = c['s']
+    n = c['shots_used']
+    sd = math.sqrt((1.0 / 16) * (15.0 / 16) / n)   # binomial sd of one cell
+    return {'d': d, 'sum': sum(d.values()),
+            'mode': max(sorted(d), key=lambda k: d[k]),
+            'p_mode': d[max(sorted(d), key=lambda k: d[k])],
+            'p_s': d[s], 'rank': 1 + sum(1 for v in d.values() if v > d[s] + 1e-12),
+            'excess': 16.0 * d[s], 'z_uniform': (d[s] - 1.0 / 16) / sd,
+            'tv_uniform': 0.5 * sum(abs(v - 1.0 / 16) for v in d.values()),
+            'tv_ideal': c['tv_distance_hw_ideal']}
+
+
+_S = {n: _syn(_C[n]) for n in 'ABCD'}
+A(r"""
+\paragraph*{ED Table 3c: where the syndrome weight actually sits.}
+Table 3 counts post-selected shots; this gives the distribution they were drawn
+from.  ``mode'' is the most likely read syndrome, ``rank'' the position of the
+\emph{correctly read} syndrome within it, ``excess'' that syndrome's probability
+against the $1/16=0.0625$ a distribution blind to the code would place there, and
+$\sigma$ the same excess in binomial standard deviations at that circuit's shot
+count.  Four entries carry the main text's findings.  On the injected late-measure
+circuit D the $a_1$-relaxation satellite $s=8$ is the mode and the correct $s=12$
+is second, out-occurred by a factor $%.2f$---yet that second place is still a
+$%.1f\sigma$ excess over code-blind, which is what makes the post-selected
+$F_{12}=0.80$ a syndrome-conditioned result rather than a selection artefact.  On
+the identity circuit C the correct syndrome shows $%.1f\sigma$: no detectable
+excess at all.  The mid-measure injected circuit B keeps a $%.1f\sigma$ syndrome
+excess while producing zero data hits, so what fails under mid-circuit measurement
+is the \emph{data} register, not the syndrome readout.  And the mid-measure
+identity circuit A never returns the correct all-zero syndrome ($0$ of $%d$ shots,
+a $%.1f\sigma$ deficit).  TV uniform is the total-variation distance to the flat
+distribution, TV ideal the distance to the exact ideal joint distribution already
+reported in Table 3."""
+  % (_SUM['late_D_relaxation_satellite_s8_over_s12'], _S['D']['z_uniform'],
+     _S['C']['z_uniform'], _S['B']['z_uniform'], _C['A']['shots_used'],
+     abs(_S['A']['z_uniform'])))
+A(r'\begin{longtable}{lclcccccccc}')
+A(r'\toprule circuit & scheme & injected $s$ & mode & $P(\mathrm{mode})$ & '
+  r'$P(s)$ & rank of $s$ & excess & $\sigma$ & TV uniform & TV ideal \\ \midrule')
+for _nm in 'ABCD':
+    _s = _S[_nm]
+    A('%s & %s & %d & %d & %.3f & %.3f & %d & %.2f$\\times$ & %+.1f & %.3f & '
+      '%.3f \\\\'
+      % (_nm, _C[_nm]['kind'], _C[_nm]['s'], _s['mode'], _s['p_mode'], _s['p_s'],
+         _s['rank'], _s['excess'], _s['z_uniform'], _s['tv_uniform'],
+         _s['tv_ideal']))
+A(r'\bottomrule\end{longtable}')
+
 # ---------------- ED Table 4: layout evidence ---------------------------
 A(r"""
 \subsection*{ED Table 4: bitstring-layout hypothesis evidence}

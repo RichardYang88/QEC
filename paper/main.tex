@@ -688,33 +688,59 @@ interface~\cite{pyqpanda3,originq_cloud}, using compiler options
 (amendment, qubit mapping, optimization) and a fixed best-quality $9$-qubit
 physical block; the returned bitstring layout was established empirically as
 $[a_3a_2a_1a_0][d_4d_3d_2d_1d_0]$ by hypothesis scoring over data-hit
-evidence. Four branch circuits ($400$ shots each) probe the two measurement
-schemes and two error injections (Fig.~\ref{fig:hardware}).
+evidence. Four branch circuits ($400$ shots each, $1\,600$ executed in total)
+probe the two measurement schemes and two error injections
+(Fig.~\ref{fig:hardware}): $1\,476$ shots came back parseable under that
+layout, $124$ of those survived post-selection on a correctly read syndrome,
+and $53$ reproduced the decoded logical state---an end-to-end yield of $3.31\%$
+per executed shot. ED Table~3b tabulates that budget per circuit and prices the
+precision of every hardware claim that follows.
 
 Three findings define the operating envelope of near-term QPU QEC
 benchmarks. First, \emph{mid-circuit measurement is dysfunctional} on this
 device: for both mid-measure circuits the post-selected data register never
 reproduces the decoded logical state ($0$ hits in $735$ shots across all
-layout hypotheses), while the late-measure variants retain syndrome
-correlation. Second, the error-injected branch shows genuine
-syndrome-conditioned recovery: for an injected $X_2$ error (syndrome
-$s=12$) the hardware syndrome distribution peaks at $s=12$ with a dominant
-satellite at $s=8$---the signature of ancilla $a_1$ relaxing during the
-late-measurement wait, occurring $1.75\times$ more often than the correct
-peak---and, post-selecting on correctly read syndromes, the recovered logical
-state is correct in $44/55$ shots, $F_{12}=0.80$ ($95\%$ Wilson interval
-$[0.68,0.88]$) against an ideal reference of $1.000$. Third, the
+layout hypotheses), and the mid-measure identity circuit never returns the
+correct all-zero syndrome at all ($0$ of $369$ shots, a $5.0\sigma$ deficit).
+The mid-measure \emph{injected} circuit still reads its syndrome $4.6\sigma$
+above code-blind, so what mid-circuit measurement destroys on this device is
+the data register, not the syndrome readout; the late-measure variants retain
+both (ED Table~3c). Second, the error-injected branch retains genuine
+syndrome-conditioned structure, but not at the top of the distribution: for an
+injected $X_2$ error (syndrome $s=12$) the correctly read syndrome is the
+\emph{second}-most-likely outcome, at $0.148$ against $1/16=0.063$ for a
+distribution blind to the code---a factor $2.37$, or $6.8\sigma$ at $371$
+shots---and it is exceeded by the
+$s=8$ satellite---the signature of ancilla $a_1$ relaxing to $\ket 0$ during
+the late-measurement wait, which turns $s=12=1100_2$ into $s=8=1000_2$---by a
+factor $1.75$ ($0.259$ against $0.148$). Post-selecting on correctly read
+syndromes, the recovered logical state is correct in $44/55$ shots,
+$F_{12}=0.80$ ($95\%$ Wilson interval $[0.68,0.88]$) against an ideal
+reference of $1.000$. Those $55$ shots are the $13.8\%$ of the $400$ executed
+that read the syndrome correctly, which is why the interval is $\pm0.104$ wide:
+at the same measured yield, $\pm0.01$ on this single branch would cost
+$44\,691$ executed shots, $112\times$ what was run. Third, the
 identity branch ($s=0$, no injected error) is dominated by accumulated
 gate and readout errors over the $\sim\!160$-gate circuit: the expected
-bitstring appears in only $2.4\%$ of shots and the syndrome distribution is
-nearly uniform, quantifying the distance between current cloud hardware and
-the fault-tolerant regime for dense codes. The total-variation distances
+bitstring appears in only $2.4\%$ of shots, and the syndrome distribution
+carries no excess weight at the correct syndrome ($p(s{=}0)=0.068$, a factor
+$1.08$ over uniform and $0.4\sigma$---indistinguishable from code-blind,
+against $6.8\sigma$ on the injected branch), quantifying the
+distance between current cloud hardware and the fault-tolerant regime for dense
+codes. The total-variation distances
 between hardware and ideal joint distributions ($0.88$ for the injected
 branch, $0.98$ for the identity branch) are consistent with these
 observations and motivate readout-error mitigation and shorter extraction
 schedules in the full benchmark, whose design ($2$ logical states $\times$
 $2$ error rates $\times$ $2$ Pauli frames $\times$ $16$ branches at $10^3$
-shots) and exact ideal reference are specified in Methods and Extended Data.
+shots, i.e.\ $128$ circuits and $128\,000$ executed shots) and exact ideal
+reference are specified in Methods and Extended Data. Priced at the yields
+measured here, that entire budget buys $\pm0.067$ on an injected branch and
+$\pm0.116$ on an identity-like one, and is \emph{smaller} than what a single
+identity-like branch needs for $\pm0.01$ ($141\,568$ shots): the design is a
+survey of $16$ branches at few-percent-to-ten-percent precision, not a
+precision measurement of any one of them, and on this device the shot budget,
+not the gate count, is what bounds it.
 
 \section*{Discussion}
 
@@ -1331,7 +1357,10 @@ returned key layout $[a_3a_2a_1a_0][d_4d_3d_2d_1d_0]$ was established by
 scoring four layout hypotheses on data-hit evidence. Branch statistics use
 post-selection on the ancilla field with Wilson $95\%$ intervals; ideal
 references are exact statevector branch amplitudes of the identical circuits.
-Feasibility data: $4$ circuits $\times$ $400$ shots ($369$--$371$ usable).
+Feasibility data: $4$ circuits $\times$ $400$ shots ($366$--$371$ usable;
+$1\,476$ of $1\,600$ executed, $124$ post-selected on a correctly read
+syndrome, $53$ data hits, an end-to-end yield of $3.31\%$). The per-circuit
+budget and the shot cost of each quoted precision are in ED Table~3b.
 
 \paragraph{Data and code availability.}
 Training/evaluation code (\texttt{ssvr\_qec.py}, \texttt{vscr\_paper.py},
@@ -1445,8 +1474,8 @@ $\bar F$, dotted: worst-branch conditional fidelity $\min_s\mathrm{cf}_s$.}
 \centering\includegraphics[width=\textwidth]{fig_hw_feasibility.pdf}
 \caption{\textbf{Hardware feasibility on OriginQ Wukong \texttt{WK\_C180}.}
 (a) Syndrome distribution for the late-measure circuit with injected $X_2$
-(frame $IIXII$): hardware peak at $s=12$ with ancilla-relaxation satellite
-$s=8$, versus the ideal delta. (b) Post-selected recovery fidelity
+(frame $IIXII$): the $a_1$-relaxation satellite $s=8$ is the mode and the
+correctly read $s=12$ is second, versus the ideal delta. (b) Post-selected recovery fidelity
 $F_{12}=0.80$ ($44/55$ shots, Wilson $95\%$ interval) against ideal $1.0$.
 (c) Identity branch: hardware syndrome distribution nearly uniform.
 (d) Probability of the expected bitstring per circuit: mid-measure circuits

@@ -111,14 +111,18 @@ Verification is deliberately two-layered, because the two layers fail differentl
   stationary point, the SDP ceiling bounds it, and the refinement is monotone.
   It runs each test in its own subprocess with retries (see the host note
   below), so one native fault cannot abort the rest of the suite.
-- `audit_numbers.py` (690 checks, <1 s, exit 0 iff clean) checks that the
+- `audit_numbers.py` (864 checks, <1 s, exit 0 iff clean) checks that the
   **artifacts** are mutually consistent and physical: every reported fidelity
   lies in [0,1], `F_warm >= F_decoder` at *every* p on *every* channel, no
   Fig. 4(b) gap-to-ceiling bar is negative or above its own bound, the SDP
   ceiling satisfies weak duality at all 8 operating points, every `\cite` and
-  `\ref` resolves, no `\label` is orphaned, and every `\includegraphics` target
-  exists. It recomputes nothing — it reads `paper_numbers.json` and the `.tex`
-  files — so it is a cheap pre-submission gate. Run it after any regeneration.
+  `\ref` resolves, no `\label` is orphaned, every `\includegraphics` target
+  exists, and (§15) every hardware shot count, yield and precision cost in
+  `main.tex` and ED Tables 3b/3c is re-derived from
+  `hw_feasibility_numbers.json` — the one artifact nothing in the repository
+  can regenerate. It recomputes nothing else — it reads the JSON artifacts and
+  the `.tex` files — so it is a cheap pre-submission gate. Run it after any
+  regeneration.
 
 Artifacts consumed by the manuscript:
 `vscr_paper_results.npz`, `vscr_angles_paper_{dep,ad,mixed,coh}.npz`,
@@ -193,6 +197,21 @@ full benchmark as a revision/strengthener.
 - The identity branch ($s=0$) failure on WK_C180 (2.4% expected bitstring) is
   reported, not hidden; it motivates the readout-mitigation design of the
   full benchmark.
+- **The hardware headline is post-selected, and what it cost is published.**
+  $F_{12}=0.80$ is 44/55 shots, and those 55 are the 13.8% of the 400 executed
+  on that circuit that read the syndrome correctly; end to end, 1,600 executed
+  shots bought 53 usable post-selected logical outcomes (3.31%). ED Table 3b
+  prices every precision target at each circuit's *measured* selection yield
+  ($\pm0.01$ on the injected branch costs 44,691 executed shots, on the
+  identity-like branch 141,568; the entire designed 128-circuit benchmark is
+  128,000 shots and buys only $\pm0.067$/$\pm0.116$), so the design is a survey
+  of 16 branches rather than a precision measurement of one. ED Table 3c
+  tabulates where the syndrome weight sits — and note that the injected
+  branch's **mode is the $s=8$ $a_1$-relaxation satellite, not the correct
+  $s=12$**, which is second at $6.8\sigma$ over a code-blind distribution. An
+  earlier draft of both the Results text and the Fig. 4 caption said "peak at
+  $s=12$", which the artifact contradicts by $1.75\times$; `audit_numbers.py`
+  §15 now locks the ordering and asserts the negation of that wording.
 - Same-family ablations (`vscr_paper_abl.py`, ED Tables 5–7): the per-syndrome
   independent parameter table (VQR-ind) now receives the **same** separable
   refinement as the warm hypernetwork, so the comparison isolates the

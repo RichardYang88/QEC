@@ -52,6 +52,13 @@ It asserts, over `paper_numbers.json`, `paper/main.tex`,
       monotonically, the decoder's cross-branch blocks vanishing (the premise of
       the exact readout law) while the learned recovery's do not, and a device
       policy that matches the CPU/CUDA measurement used to justify it.
+  15. the hardware feasibility artifact: the counts nest, the reported Wilson
+      intervals are the z=1.96 ones recomputed here, the summary block agrees with
+      the per-circuit records, the syndrome mode really is the relaxation satellite
+      the prose says it is, and every shot-count, yield and precision-cost mantissa
+      in main.tex and ED Tables 3b/3c is re-derived from the artifact -- these being
+      the only numbers in the paper that no script in the repository can regenerate.
+
 
 Exit status is 0 iff all checks pass, so it composes with `&&` in CI.
 """
@@ -84,7 +91,7 @@ for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.p
           'paper/README.md',
           'scaling_results.json', 'stationarity_boundary.json',
           'ancilla_recovery.json', 'multiseed_results.json',
-          'storage_rounds.json'):
+          'storage_rounds.json', 'hw_feasibility_numbers.json'):
     chk(os.path.getsize(f) > 0, f + ' present')
 
 P = json.load(open('paper_numbers.json'))
@@ -1242,6 +1249,337 @@ for _r, _nm in ((_w_ad, 'amplitude damping p=0.10 warm'),
     chk(_row in _tb14f,
         'ED Table 14f renders the full %s threshold row' % _nm)
 
+
+
+# ---- 15. hardware feasibility: the shot budget behind every quoted number ----
+# Every other section of this audit re-derives a number that some script in the
+# repository could regenerate.  The hardware numbers are the exception: they come
+# from a device run that costs money and queue time to repeat, so
+# hw_feasibility_numbers.json is the terminal artifact and nothing downstream can
+# recompute it.  That makes it the section most in need of locks, and it is where
+# a stale or mis-read mantissa would otherwise survive indefinitely -- as one did:
+# main.tex said the injected-branch syndrome distribution "peaks at s=12", while
+# the artifact has the s=8 relaxation satellite as the mode by a factor 1.75.
+_hw = json.load(open('hw_feasibility_numbers.json'))
+_hwc, _hws = _hw['circuits'], _hw['summary']
+_REQ = _hw['shots_requested']
+_tfn15 = ' '.join(t.split())
+_efn15 = ' '.join(e.split())
+
+
+def _grp(x):
+    """Thousands grouping with a LaTeX thin-space -- the renderer make_ed.py uses."""
+    return '{:,}'.format(int(x)).replace(',', BS + ',')
+
+
+def _wilson95(k, n, z=1.96):
+    """Wilson 95% interval, identical to hw_verify_analysis.py:data_hit_stats.
+
+    Re-implemented rather than imported: the audit must not share code with the
+    thing it checks, or a bug in the estimator would pass silently.  z=1.96 is the
+    value the artifact was written with, and the two circuits that define an
+    interval reproduce it to the last bit (locked below).
+    """
+    if not n:
+        return float('nan'), float('nan')
+    p = k / n
+    den = 1 + z * z / n
+    ctr = (p + z * z / (2 * n)) / den
+    half = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return max(0.0, ctr - half), min(1.0, ctr + half)
+
+
+def _n_for_half(p, target, z=1.96):
+    """Smallest sample whose Wilson interval at rate p is no wider than +/-target.
+
+    Bisected on the true Wilson half-width, not the normal approximation, so the
+    shot costs quoted in the paper are the costs of the interval the paper prints.
+    """
+    lo, hi = 1, 10 ** 9
+    while lo < hi:
+        mid = (lo + hi) // 2
+        a, b = _wilson95(round(p * mid), mid, z)
+        if (b - a) / 2.0 <= target:
+            hi = mid
+        else:
+            lo = mid + 1
+    return lo
+
+
+# 15a. the artifact is internally consistent before any prose is trusted -------
+chk(_REQ == 400 and ''.join(sorted(_hwc)) == 'ABCD',
+    'HW artifact describes %d circuits at %d requested shots each'
+    % (len(_hwc), _REQ))
+_syn = {}
+for _n in 'ABCD':
+    _c, _b = _hwc[_n], _hwc[_n]['branch_stats']
+    _syn[_n] = {int(k): float(v) for k, v in _c['syndrome_dist_hw'].items()}
+    chk(_b['n_total'] == _c['shots_used'] <= _REQ,
+        'HW circuit %s: %d usable shots of %d executed, and the post-selected '
+        'total is the usable count' % (_n, _c['shots_used'], _REQ))
+    chk(0 <= _b['n_hit'] <= _b['n_sel'] <= _b['n_total'],
+        'HW circuit %s: counts nest, hit(%d) <= sel(%d) <= usable(%d)'
+        % (_n, _b['n_hit'], _b['n_sel'], _b['n_total']))
+    chk(abs(sum(_syn[_n].values()) - 1.0) < 1e-12 and len(_syn[_n]) == 16,
+        'HW circuit %s: the read-syndrome distribution is normalised over all 16 '
+        'syndromes' % _n)
+    if _b['n_sel']:
+        _lo, _hi = _wilson95(_b['n_hit'], _b['n_sel'])
+        chk(abs(_b['F_s'] - _b['n_hit'] / _b['n_sel']) < 1e-12,
+            'HW circuit %s: F_s = %d/%d = %.4f as reported'
+            % (_n, _b['n_hit'], _b['n_sel'], _b['F_s']))
+        chk(abs(_lo - _b['F_s_lo95']) < 1e-12 and abs(_hi - _b['F_s_hi95']) < 1e-12,
+            'HW circuit %s: the Wilson interval is the z=1.96 one this audit '
+            'recomputes, bit for bit' % _n)
+        chk(_lo - 1e-15 <= _b['F_s'] <= _hi + 1e-15
+            and -1e-15 <= _lo <= _hi <= 1.0 + 1e-15,
+            'HW circuit %s: F_s inside its own clamped interval (at n_hit=0 the '
+            'lower endpoint is 0 up to %.1e of round-off, which is not a violation)'
+            % (_n, abs(_lo - min(_lo, _b['F_s']))))
+    else:
+        chk(math.isnan(_b['F_s']) and math.isnan(_b['F_s_lo95'])
+            and math.isnan(_b['F_s_hi95']),
+            'HW circuit %s: with sel=0 the conditional fidelity is recorded as '
+            'undefined (nan), not as 0/0 dressed up as a number' % _n)
+
+
+# 15b. the summary block agrees with the per-circuit records it summarises -----
+_A, _B, _Cc, _D = (_hwc[x] for x in 'ABCD')
+chk(_hws['mid_measure_hits_total'] == 0
+    == _A['branch_stats']['n_hit'] + _B['branch_stats']['n_hit'],
+    'HW summary: the two mid-measure circuits produced 0 data hits between them')
+chk(_hws['mid_measure_shots_total'] == _A['shots_used'] + _B['shots_used'],
+    'HW summary: the %d shots behind that zero are the usable counts of circuits '
+    'A and B' % _hws['mid_measure_shots_total'])
+chk(_hws['late_D_F_s'] == _D['branch_stats']['F_s']
+    and _hws['late_D_F_s_wilson95']
+    == [_D['branch_stats']['F_s_lo95'], _D['branch_stats']['F_s_hi95']],
+    'HW summary: the headline F_12 and its interval are circuit D\'s')
+_sat = _syn['D'][8] / _syn['D'][12]
+chk(abs(_hws['late_D_relaxation_satellite_s8_over_s12'] - _sat) < 1e-12,
+    'HW summary: the relaxation satellite ratio is P(s=8)/P(s=12) = %.4f' % _sat)
+chk(abs(_hws['ideal_frame_fidelity_v1_model'] - _D['P_expected_key_ideal']) < 1e-12,
+    'HW summary: the ideal reference is the exact statevector branch weight of '
+    'the identical circuit (%.9f), not a simulation of a different one'
+    % _hws['ideal_frame_fidelity_v1_model'])
+
+# 15c. the mode claim, which is the defect this section exists for -------------
+_rank = {n: 1 + sum(1 for v in _syn[n].values()
+                    if v > _syn[n][_hwc[n]['s']] + 1e-12) for n in 'ABCD'}
+_mode = {n: max(sorted(_syn[n]), key=lambda k: _syn[n][k]) for n in 'ABCD'}
+_sd = {n: math.sqrt((1.0 / 16) * (15.0 / 16) / _hwc[n]['shots_used'])
+       for n in 'ABCD'}
+_zed = {n: (_syn[n][_hwc[n]['s']] - 1.0 / 16) / _sd[n] for n in 'ABCD'}
+chk(_mode['D'] == 8 and _rank['D'] == 2,
+    'HW circuit D: the a1-relaxation satellite s=8 is the MODE (%.3f) and the '
+    'correctly read s=12 is second (%.3f)' % (_syn['D'][8], _syn['D'][12]))
+chk(_syn['D'][8] > _syn['D'][12] and _sat > 1.0,
+    'HW circuit D: the satellite out-occurs the correct syndrome by %.2fx, so no '
+    'wording may call s=12 the peak' % _sat)
+chk('peaks at $s=12$' not in t and 'hardware peak at $s=12$' not in t,
+    'main.tex and the Fig.~4 caption no longer claim a hardware peak at the '
+    'correct syndrome, which the artifact contradicts')
+chk(r'\emph{second}-most-likely outcome' in _tfn15
+    and 'satellite $s=8$ is the mode' in _tfn15,
+    'main.tex and its figure caption state the ordering the artifact shows')
+chk(_syn['A'][0] == 0.0 and _rank['A'] == 16,
+    'HW circuit A: the correct all-zero syndrome is never returned (0 of %d '
+    'shots), a %.1f-sigma deficit against code-blind'
+    % (_A['shots_used'], abs(_zed['A'])))
+chk(_zed['B'] > 4.0 and _B['branch_stats']['n_hit'] == 0,
+    'HW circuit B: the syndrome excess survives mid-circuit measurement (%.1f '
+    'sigma) while the data register does not, so the failure is localised'
+    % _zed['B'])
+chk(abs(_zed['C']) < 1.0 and _zed['D'] > 6.0,
+    'HW: the identity branch shows no detectable syndrome excess (%.1f sigma) '
+    'where the injected branch shows %.1f sigma' % (_zed['C'], _zed['D']))
+
+
+# 15d. main.tex quotes the budget, and pays for every precision claim ----------
+# Each mantissa is re-derived here with the renderer the prose uses, so a
+# re-analysis of the raw cloud returns that moves a digit fails the audit instead
+# of leaving stale prose behind.  The precision costs are re-derived through the
+# SAME Wilson interval the artifact prints, at each circuit's own measured
+# selection yield -- quoting one branch's yield for both would understate the
+# identity-branch cost by a factor 2.2.
+_tot_req = _REQ * len(_hwc)
+_tot_use = sum(_hwc[n]['shots_used'] for n in 'ABCD')
+_tot_sel = sum(_hwc[n]['branch_stats']['n_sel'] for n in 'ABCD')
+_tot_hit = sum(_hwc[n]['branch_stats']['n_hit'] for n in 'ABCD')
+_yD = _D['branch_stats']['n_sel'] / float(_REQ)
+_yC = _Cc['branch_stats']['n_sel'] / float(_REQ)
+_loD, _hiD = _wilson95(_D['branch_stats']['n_hit'], _D['branch_stats']['n_sel'])
+_hwD = (_hiD - _loD) / 2.0
+_exD = math.ceil(_n_for_half(_D['branch_stats']['F_s'], 0.01) / _yD)
+_exC = math.ceil(_n_for_half(_Cc['branch_stats']['F_s'], 0.01) / _yC)
+_bench = 2 * 2 * 2 * 16
+_1kD = int(round(1000 * _yD))
+_1kC = int(round(1000 * _yC))
+_h1kD = (_wilson95(round(_D['branch_stats']['F_s'] * _1kD), _1kD)[1]
+         - _wilson95(round(_D['branch_stats']['F_s'] * _1kD), _1kD)[0]) / 2.0
+_h1kC = (_wilson95(round(_Cc['branch_stats']['F_s'] * _1kC), _1kC)[1]
+         - _wilson95(round(_Cc['branch_stats']['F_s'] * _1kC), _1kC)[0]) / 2.0
+for _q, _why in (
+        ('$%s$ executed in total' % _grp(_tot_req), 'the executed shot count'),
+        ('$%s$ shots came back parseable' % _grp(_tot_use), 'the usable count'),
+        ('$%d$ of those survived post-selection' % _tot_sel,
+         'the post-selected count'),
+        ('$%d$ reproduced the decoded logical state' % _tot_hit,
+         'the data-hit count'),
+        ('end-to-end yield of $%.2f\\%%$' % (100.0 * _tot_hit / _tot_req),
+         'the end-to-end yield'),
+        ('$0$ hits in $%d$ shots' % _hws['mid_measure_shots_total'],
+         'the shots behind the mid-measure zero'),
+        ('$0$ of $%d$ shots, a $%.1f\\sigma$ deficit'
+         % (_A['shots_used'], abs(_zed['A'])),
+         'the never-returned all-zero syndrome on circuit A'),
+        ('$%.1f\\sigma$ above code-blind' % _zed['B'],
+         'the syndrome excess that survives mid-circuit measurement'),
+        ('at $%.3f$ against $1/16=0.063$' % _syn['D'][12],
+         'the correctly read syndrome probability on circuit D'),
+        ('a factor $%.2f$, or $%.1f\\sigma$ at $%d$ shots'
+         % (16.0 * _syn['D'][12], _zed['D'], _D['shots_used']),
+         'the code-blind excess factor and its significance'),
+        ('by a factor $%.2f$ ($%.3f$ against $%.3f$)'
+         % (_sat, _syn['D'][8], _syn['D'][12]),
+         'the relaxation satellite ratio and the two probabilities behind it'),
+        ('correct in $%d/%d$ shots'
+         % (_D['branch_stats']['n_hit'], _D['branch_stats']['n_sel']),
+         'the headline 44/55 count'),
+        ('$F_{12}=%.2f$' % _D['branch_stats']['F_s'], 'the headline fidelity'),
+        ('Those $%d$ shots are the $%.1f\\%%$ of the $%d$ executed'
+         % (_D['branch_stats']['n_sel'], 100.0 * _yD, _REQ),
+         'the selection yield the headline rests on'),
+        ('interval is $\\pm%.3f$ wide' % _hwD, 'the Wilson half-width'),
+        ('would cost $%s$ executed shots, $%d\\times$ what was run'
+         % (_grp(_exD), round(_exD / float(_REQ))),
+         'the shot cost of +/-0.01 on the injected branch'),
+        ('only $%.1f\\%%$ of shots' % (100.0 * _Cc['P_expected_key_hw']),
+         'the identity-branch expected-bitstring rate'),
+        ('$p(s{=}0)=%.3f$' % _syn['C'][0],
+         'the identity-branch correct-syndrome probability'),
+        ('a factor $%.2f$ over uniform and $%.1f\\sigma$'
+         % (16.0 * _syn['C'][0], _zed['C']),
+         'the identity-branch excess, or absence of one'),
+        ('against $%.1f\\sigma$ on the injected branch' % _zed['D'],
+         'the injected-branch significance quoted for contrast'),
+        ('$%.2f$ for the injected branch, $%.2f$ for the identity branch'
+         % (_D['tv_distance_hw_ideal'], _Cc['tv_distance_hw_ideal']),
+         'the two total-variation distances to the ideal joint distribution'),
+        ('$%d$ circuits and $%s$ executed shots' % (_bench, _grp(_bench * 1000)),
+         'the size of the designed benchmark'),
+        ('buys $\\pm%.3f$ on an injected branch and $\\pm%.3f$ on an '
+         'identity-like one' % (_h1kD, _h1kC),
+         'what the designed 10^3 shots per branch would buy'),
+        ('needs for $\\pm0.01$ ($%s$ shots)' % _grp(_exC),
+         'the identity-branch cost of +/-0.01'),
+        ('($%d$--$%d$ usable' % (min(_hwc[n]['shots_used'] for n in 'ABCD'),
+                                 max(_hwc[n]['shots_used'] for n in 'ABCD')),
+         'the Methods usable-shot range'),
+        ('$%s$ of $%s$ executed, $%d$ post-selected'
+         % (_grp(_tot_use), _grp(_tot_req), _tot_sel),
+         'the Methods budget summary'),
+        ('$%d$ data hits, an end-to-end yield of $%.2f\\%%$'
+         % (_tot_hit, 100.0 * _tot_hit / _tot_req),
+         'the Methods end-to-end yield'),
+        ('$F_{12}=%.2f$ ($%d/%d$ shots, Wilson $95\\%%$ interval)'
+         % (_D['branch_stats']['F_s'], _D['branch_stats']['n_hit'],
+            _D['branch_stats']['n_sel']),
+         'the Fig.~4 panel-(b) caption')):
+    chk(_q in _tfn15, 'main.tex quotes %s as %s' % (_why, _q))
+chk(_tfn15.count('$[%.2f,%.2f]$' % (_loD, _hiD)) >= 2,
+    'main.tex prints the Wilson interval [%.2f,%.2f] in both the abstract and the '
+    'hardware section' % (_loD, _hiD))
+chk('ED Table~3b' in t and 'ED Table~3c' in t,
+    'main.tex points the reader at the budget (3b) and syndrome-shape (3c) tables')
+chk('ED Table 3b:' in e and 'ED Table 3c:' in e,
+    'ED Tables 3b and 3c present')
+
+
+# 15e. ED Tables 3b/3c render the artifact, in make_ed.py's own format strings --
+# Same discipline as 13c: the RENDERED table is compared against the artifact it
+# was rendered from, because a regenerated artifact that is not followed by a
+# re-run of make_ed.py leaves the ED file quoting numbers nothing else in the
+# repository still says.  Row checks are scoped to each table's own body -- the
+# circuit labels A-D also occur in Tables 3 and 4, so a whole-file search would
+# pass vacuously with a 3b row deleted.
+def _body(tag, env='longtable'):
+    """The body of the first `env` after `tag`, plus its column spec."""
+    i = e.index(tag)
+    b = e.index(BS + 'begin{' + env + '}', i)
+    j = b + len(BS + 'begin{' + env + '}')
+    spec = e[e.index('{', j):e.index('}', j) + 1]
+    return e[b:e.index(BS + 'end{' + env + '}', b)], spec[1:-1]
+
+
+_tb3b, _spec3b = _body('ED Table 3b:')
+_tb3c, _spec3c = _body('ED Table 3c:')
+_tp3b, _ = _body('ED Table 3b:', 'tabular')
+for _n in 'ABCD':
+    _c, _b = _hwc[_n], _hwc[_n]['branch_stats']
+    _row = ('%s & %s & %d & %d & %d & %d & %d & %.1f' + BS + '%% & %.1f' + BS
+            + '%% & %.2f' + BS + '%% ' + BS * 2) % (
+        _n, _c['kind'], _c['s'], _REQ, _c['shots_used'], _b['n_sel'],
+        _b['n_hit'], 100.0 * _c['shots_used'] / _REQ,
+        100.0 * _b['n_sel'] / _REQ, 100.0 * _b['n_hit'] / _REQ)
+    chk(_row in _tb3b, 'ED Table 3b renders circuit %s against the artifact (%s)'
+        % (_n, _row))
+    _row = ('%s & %s & %d & %d & %.3f & %.3f & %d & %.2f$' + BS + 'times$ & '
+            '%+.1f & %.3f & %.3f ' + BS * 2) % (
+        _n, _c['kind'], _c['s'], _mode[_n], _syn[_n][_mode[_n]],
+        _syn[_n][_c['s']], _rank[_n], 16.0 * _syn[_n][_c['s']], _zed[_n],
+        0.5 * sum(abs(v - 1.0 / 16) for v in _syn[_n].values()),
+        _c['tv_distance_hw_ideal'])
+    chk(_row in _tb3c, 'ED Table 3c renders circuit %s against the artifact (%s)'
+        % (_n, _row))
+chk(('total & --- & --- & %s & %s & %d & %d & %.1f' + BS + '%% & %.1f' + BS
+     + '%% & %.2f' + BS + '%% ' + BS * 2)
+    % (_grp(_tot_req), _grp(_tot_use), _tot_sel, _tot_hit,
+       100.0 * _tot_use / _tot_req, 100.0 * _tot_sel / _tot_req,
+       100.0 * _tot_hit / _tot_req) in _tb3b,
+    'ED Table 3b renders the total row against the artifact')
+for _tgt in (0.05, 0.02, 0.01):
+    _nD = _n_for_half(_D['branch_stats']['F_s'], _tgt)
+    _nC = _n_for_half(_Cc['branch_stats']['F_s'], _tgt)
+    _row = ('$' + BS + 'pm%.2f$ & %d & %s & %d & %s ' % (
+        _tgt, _nD, _grp(math.ceil(_nD / _yD)), _nC,
+        _grp(math.ceil(_nC / _yC)))) + BS * 2
+    chk(_row in _tp3b,
+        'ED Table 3b prices +/-%.2f at both measured yields (%s)' % (_tgt, _row))
+for _tab, _spec, _nm, _nrow in ((_tb3b, _spec3b, '3b', 5),
+                                (_tb3c, _spec3c, '3c', 4)):
+    _rows = [r for r in _tab.split(BS * 2) if '&' in r and 'toprule' not in r]
+    chk(len(_rows) == _nrow,
+        'ED Table %s renders exactly its %d rows (found %d): a table that quietly '
+        'dropped a circuit would show only the ones that look good'
+        % (_nm, _nrow, len(_rows)))
+    chk(all(r.count('&') == len(_spec) - 1 for r in _rows),
+        'ED Table %s: every body row has the %d columns its preamble declares '
+        '(a mismatch no absent TeX engine would catch)' % (_nm, len(_spec)))
+for _q, _why in (
+        ('$%s$ shots bought $%d$ of them, $%.2f\\%%$'
+         % (_grp(_tot_req), _tot_hit, 100.0 * _tot_hit / _tot_req),
+         'the end-to-end efficiency'),
+        ('rests on $%d$ of the $%d$ shots executed'
+         % (_D['branch_stats']['n_sel'], _REQ), 'what the headline rests on'),
+        ('a Wilson half-width of $\\pm%.3f$' % _hwD, 'the headline half-width'),
+        ('injected branch $%.4f$, identity branch $%.4f$, a factor $%.1f$ apart'
+         % (_yD, _yC, _yD / _yC), 'the two measured selection yields'),
+        ('$%d$ circuits and $%s$ executed shots in total'
+         % (_bench, _grp(_bench * 1000)), 'the designed benchmark size'),
+        ('buys $\\pm%.3f$ per injected branch and $\\pm%.3f$ per identity-like one'
+         % (_h1kD, _h1kC), 'what the design buys'),
+        ('needs for $\\pm0.01$ ($%s$ shots)' % _grp(_exC),
+         'the identity-branch cost of +/-0.01'),
+        ('out-occurred by a factor $%.2f$' % _sat, 'the satellite ratio'),
+        ('still a $%.1f\\sigma$ excess' % _zed['D'], 'the injected-branch excess'),
+        ('the correct syndrome shows $%.1f\\sigma$' % _zed['C'],
+         'the identity-branch non-excess'),
+        ('keeps a $%.1f\\sigma$ syndrome' % _zed['B'],
+         'the mid-measure syndrome excess'),
+        ('$0$ of $%d$ shots, a $%.1f\\sigma$ deficit'
+         % (_A['shots_used'], abs(_zed['A'])), 'the circuit-A zero')):
+    chk(_q in _efn15, 'ED Tables 3b/3c quote %s as %s' % (_why, _q))
 
 
 print('=== OVERALL:', 'ALL CHECKS PASSED' if ok else 'FAILURES PRESENT', '===')

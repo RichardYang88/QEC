@@ -70,6 +70,81 @@ C & late & 0 & 370 & 0.024 & 1.000 & 25 & 9 & 0.36 [0.20,0.55] & 0.976 \\
 D & late & 12 & 371 & 0.119 & 1.000 & 55 & 44 & 0.80 [0.68,0.88] & 0.881 \\
 \bottomrule\end{longtable}
 
+\paragraph*{ED Table 3b: what the feasibility run cost, end to end.}
+Table 3 reports counts; this reports the accounting behind them.  ``Executed'' is
+what was requested from the device, ``usable'' what came back parseable under the
+established layout, ``sel'' the subset post-selected on the \emph{correctly read}
+syndrome, and ``hit'' the subset of those whose data register reproduces the decoded
+logical state.  Every yield is taken against \emph{executed}, so the last column is
+the true end-to-end efficiency of turning one device shot into one usable
+post-selected logical outcome: $1\,600$ shots bought $53$ of them, $3.31\%$.
+
+Two entries are easy to misread and are stated explicitly.  Circuit A has
+$\mathrm{sel}=0$, so its conditional fidelity is \emph{undefined}, not zero; circuit
+B, with $44$ selected shots and no hits, is the one that measures $F_s=0.00$ with an
+interval.  The two together are the ``$0$ hits in $735$ shots'' statement in the main
+text.  And the headline $F_{12}=0.80$ rests on $55$ of the $400$ shots executed on
+circuit D, a Wilson half-width of $\pm0.104$: a feasibility signal, not a precision
+measurement.
+\begin{longtable}{lclccccccc}
+\toprule circuit & scheme & $s$ & executed & usable & sel & hit & usable/exec & sel/exec & hit/exec \\ \midrule
+A & mid & 0 & 400 & 369 & 0 & 0 & 92.2\% & 0.0\% & 0.00\% \\
+B & mid & 12 & 400 & 366 & 44 & 0 & 91.5\% & 11.0\% & 0.00\% \\
+C & late & 0 & 400 & 370 & 25 & 9 & 92.5\% & 6.2\% & 2.25\% \\
+D & late & 12 & 400 & 371 & 55 & 44 & 92.8\% & 13.8\% & 11.00\% \\
+total & --- & --- & 1\,600 & 1\,476 & 124 & 53 & 92.2\% & 7.8\% & 3.31\% \\
+\bottomrule\end{longtable}
+
+\vspace{4pt}\noindent\emph{What precision would cost.}  Holding each circuit at its
+observed rate and pricing it at its own \emph{measured} selection yield (injected
+branch $0.1375$, identity branch $0.0625$, a factor $2.2$ apart):
+
+\noindent\begin{tabular}{lcccc}
+\toprule target half-width & sel (D) & executed (D) & sel (C) & executed (C) \\
+\midrule
+$\pm0.05$ & 245 & 1\,782 & 351 & 5\,616 \\
+$\pm0.02$ & 1535 & 11\,164 & 2209 & 35\,344 \\
+$\pm0.01$ & 6145 & 44\,691 & 8848 & 141\,568 \\
+\bottomrule\end{tabular}
+
+\vspace{4pt}\noindent The benchmark designed in Methods is $2$ logical states
+$\times$ $2$ error rates $\times$ $2$ Pauli frames $\times$ $16$ branches at $10^3$
+shots: $128$ circuits and $128\,000$ executed shots in total.  At the measured yields that
+buys $\pm0.067$ per injected branch and $\pm0.116$ per identity-like one---and the
+\emph{entire} benchmark budget is smaller than what a single identity-like branch
+needs for $\pm0.01$ ($141\,568$ shots).  The design is therefore a survey of $16$ branches
+at few-percent-to-ten-percent precision, not a precision measurement of any one of
+them, and on this device the shot budget, not the gate count, is what bounds it.
+None of this is an argument against running it; it is the statement of what the
+result would mean if it were run.
+
+\paragraph*{ED Table 3c: where the syndrome weight actually sits.}
+Table 3 counts post-selected shots; this gives the distribution they were drawn
+from.  ``mode'' is the most likely read syndrome, ``rank'' the position of the
+\emph{correctly read} syndrome within it, ``excess'' that syndrome's probability
+against the $1/16=0.0625$ a distribution blind to the code would place there, and
+$\sigma$ the same excess in binomial standard deviations at that circuit's shot
+count.  Four entries carry the main text's findings.  On the injected late-measure
+circuit D the $a_1$-relaxation satellite $s=8$ is the mode and the correct $s=12$
+is second, out-occurred by a factor $1.75$---yet that second place is still a
+$6.8\sigma$ excess over code-blind, which is what makes the post-selected
+$F_{12}=0.80$ a syndrome-conditioned result rather than a selection artefact.  On
+the identity circuit C the correct syndrome shows $0.4\sigma$: no detectable
+excess at all.  The mid-measure injected circuit B keeps a $4.6\sigma$ syndrome
+excess while producing zero data hits, so what fails under mid-circuit measurement
+is the \emph{data} register, not the syndrome readout.  And the mid-measure
+identity circuit A never returns the correct all-zero syndrome ($0$ of $369$ shots,
+a $5.0\sigma$ deficit).  TV uniform is the total-variation distance to the flat
+distribution, TV ideal the distance to the exact ideal joint distribution already
+reported in Table 3.
+\begin{longtable}{lclcccccccc}
+\toprule circuit & scheme & injected $s$ & mode & $P(\mathrm{mode})$ & $P(s)$ & rank of $s$ & excess & $\sigma$ & TV uniform & TV ideal \\ \midrule
+A & mid & 0 & 6 & 0.111 & 0.000 & 16 & 0.00$\times$ & -5.0 & 0.194 & 1.000 \\
+B & mid & 12 & 7 & 0.175 & 0.120 & 3 & 1.92$\times$ & +4.6 & 0.267 & 1.000 \\
+C & late & 0 & 10 & 0.135 & 0.068 & 6 & 1.08$\times$ & +0.4 & 0.235 & 0.976 \\
+D & late & 12 & 8 & 0.259 & 0.148 & 2 & 2.37$\times$ & +6.8 & 0.319 & 0.881 \\
+\bottomrule\end{longtable}
+
 \subsection*{ED Table 4: bitstring-layout hypothesis evidence}
 Branch-consistency scores over the four feasibility circuits (pre-fix
 scoring) and data-hit evidence that established the final layout
