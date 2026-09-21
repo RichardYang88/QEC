@@ -145,6 +145,82 @@ C & late & 0 & 10 & 0.135 & 0.068 & 6 & 1.08$\times$ & +0.4 & 0.235 & 0.976 \\
 D & late & 12 & 8 & 0.259 & 0.148 & 2 & 2.37$\times$ & +6.8 & 0.319 & 0.881 \\
 \bottomrule\end{longtable}
 
+\paragraph*{ED Table 3d: the effective error budget of the four circuits.}
+No vendor calibration accompanies this run: the cloud interface exposes per-qubit
+readout fidelity, single-gate fidelity, $T_1$ and $T_2$ only behind the same
+authorisation as a job submission, and that query is refused (\texttt{RuntimeError('query chip\_info failed: Unauthorized')},
+re-attempted 2026-09-21T15:12:04Z, spending no QPU time).  The gate counts below are therefore exact
+while the rates are \emph{effective}: each is a marginal of the measured
+distribution against a deterministic ideal syndrome (branch weight $\ge0.999996$), so
+no error model enters it, and each lumps every physical error incurred before the
+readout together with the assignment error of the readout itself.  ``Instr'' counts
+the compiled circuit as submitted---204 instructions for the injected late-measure
+one, split $113$ single-qubit, $82$ CNOT and $9$ measurements, and by section encoder $36$, frame $1$, extraction $32$, recovery $90$, decoder $36$, measure ancilla $4$, measure data $5$.
+The last two columns are the point of the table:
+$P(\mathrm{expected\ key}) = P(\mathrm{correct\ syndrome})\times F_s$ is an
+identity of how the post-selection is defined, not a fit, and the method's own
+share of the observed loss is $4.8\times 10^{-6}$ against the exact statevector reference of the
+identical circuit.
+\begin{longtable}{lclcccclll}
+\toprule circuit & scheme & instr & 1Q & 2Q & meas & $P$(correct syndrome) & $F_s$ & $P$(expected key) & method share of loss \\ \midrule
+A & mid & 203 & 112 & 82 & 9 & 0.0000 & undef. & 0.00000 & $2.29\times 10^{-7}$ \\
+B & mid & 204 & 113 & 82 & 9 & 0.1202 & 0.00 & 0.00000 & $4.26\times 10^{-6}$ \\
+C & late & 203 & 112 & 82 & 9 & 0.0676 & 0.36 & 0.02432 & $2.34\times 10^{-7}$ \\
+D & late & 204 & 113 & 82 & 9 & 0.1482 & 0.80 & 0.11860 & $4.83\times 10^{-6}$ \\
+\bottomrule\end{longtable}
+
+\vspace{4pt}\noindent Read on the injected late-measure circuit, whose $55$
+post-selected shots carry the headline: $85.2\%$ of the shots are lost before the
+syndrome is even read correctly, and of the shots that survive that selection a
+further $20.0\%$ of the logical information is lost in the data register.  The
+method's own contribution to the same end-to-end quantity is $4.3\times 10^{-6}$---the exact
+statevector reference for the identical circuit---so the device accounts for all
+but a few parts in $10^{6}$ of the observed loss.  Spread evenly over the $204$
+instructions that is an implied mean per-instruction error of $1.04\%$
+($1.81\%$ on the identity circuit); the conversion assumes independent errors and
+is quoted as an order of magnitude, not as a calibration.
+
+\paragraph*{ED Table 3e: the per-ancilla syndrome channel, and which qubit relaxes.}
+Because the ideal syndrome of each circuit is deterministic, the marginal of each
+measured ancilla bit against it \emph{is} that bit's effective error probability:
+no error model, no fit, no independence assumption.  ``mean $w$'' is the mean
+Hamming distance between the read and the injected syndrome (so $4\times$ the
+symmetric rate), ``joint'' the measured all-four-correct rate, ``product'' what
+independence of those marginals would predict, and ``ratio'' their quotient---$1$
+for independent bit errors, below $1$ for correlated ones, which is the number a
+decoder prior would need.  ``TV(Bin)'' is the total-variation distance between the
+observed weight histogram and the symmetric $\mathrm{Bin}(4,\bar w/4)$ model, i.e.
+how much of the channel a single symmetric rate fails to capture.
+
+On the circuit that carries the headline, $a_1$ is not merely the worst bit
+($0.558$) but the only one worse than a coin flip, while the all-four-correct rate is
+$0.908\times$ the independent prediction.  The lower panel is why the manuscript
+attributes the $s=8$ satellite to $a_1$ relaxing rather than asserting it: the
+identity circuits set every ancilla's ideal bit to $0$, so their marginals are
+effective $0\to1$ rates, and the injected circuits set $a_0a_1=11$, so theirs are
+effective $1\to0$ rates.  $a_1$ is the \emph{only} ancilla whose $1\to0$ rate
+exceeds its $0\to1$ rate ($0.558$ against $0.389$), and deferring the readout to the
+end of the circuit---which lengthens $a_1$'s idle wait by the recovery and decode
+sections, $126$ instructions---flips its asymmetry from $-0.301$ to $+0.169$ while
+$a_0$'s stays at $-0.363$.  The two directions come from different circuits, so
+this is an asymmetry of the effective end-to-end channel and not a calibrated
+assignment matrix; what makes it diagnostic is that it moves only for the bit the
+satellite implicates, and only in the variant that idles.
+\begin{longtable}{llccccccccc}
+\toprule circuit & ideal bits & $a_0$ & $a_1$ & $a_2$ & $a_3$ & mean $w$ & joint & product & ratio & TV(Bin) \\ \midrule
+A & 0000 & 0.564 & 0.577 & 0.607 & 0.482 & 2.230 & 0.0000 & 0.0375 & 0.000 & 0.0699 \\
+B & 1100 & 0.448 & 0.276 & 0.587 & 0.503 & 1.814 & 0.1202 & 0.0820 & 1.466 & 0.0580 \\
+C & 0000 & 0.616 & 0.389 & 0.405 & 0.419 & 1.830 & 0.0676 & 0.0810 & 0.834 & 0.0416 \\
+D & 1100 & 0.253 & 0.558 & 0.305 & 0.288 & 1.404 & 0.1482 & 0.1633 & 0.908 & 0.0515 \\
+\bottomrule\end{longtable}
+
+\vspace{4pt}\noindent\begin{tabular}{lccccccc}
+\toprule ancilla & $0\to1$ mid & $1\to0$ mid & bias mid & $0\to1$ late & $1\to0$ late & bias late & swing \\
+\midrule
+$a_0$ & 0.564 & 0.448 & -0.116 & 0.616 & 0.253 & -0.363 & -0.247 \\
+$a_1$ & 0.577 & 0.276 & -0.301 & 0.389 & 0.558 & +0.169 & +0.470 \\
+\bottomrule\end{tabular}
+
 \subsection*{ED Table 4: bitstring-layout hypothesis evidence}
 Branch-consistency scores over the four feasibility circuits (pre-fix
 scoring) and data-hit evidence that established the final layout

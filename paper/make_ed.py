@@ -299,6 +299,140 @@ for _nm in 'ABCD':
          _s['tv_ideal']))
 A(r'\bottomrule\end{longtable}')
 
+# ---- ED Tables 3d/3e: the effective error budget -----------------------------
+# The question these answer is the one a reviewer cannot settle from Table 3: is
+# F_12 = 0.80 limited by the METHOD or by the DEVICE?  Vendor calibration is not
+# available for this run -- the per-qubit readout/gate fidelities, T1 and T2 that
+# ChipInfo exposes sit behind the same authorisation as a job submission, which
+# this account no longer holds, and hw_error_budget.py records the refusal verbatim
+# with a timestamp rather than letting the gap pass silently -- so every rate below
+# is EFFECTIVE: a model-free marginal of the measured distribution against a
+# deterministic ideal syndrome, lumping pre-measurement physical error together
+# with readout assignment error.  The gate counts, by contrast, are exact: the
+# circuits are rebuilt offline from the v1 angle snapshot and counted.
+_EB = json.load(open(os.path.join(ROOT, '..', 'hw_error_budget.json')))
+_EBC, _EBI, _EBH = _EB['circuits'], _EB['gate_inventory'], _EB['headline']
+_CAL, _ASY = _EB['vendor_calibration'], _EB['readout_asymmetry']
+_SEC = _EBI['D']['by_section']
+_sec_txt = ', '.join('%s $%d$' % (k.replace('_', ' '), v) for k, v in _SEC.items())
+A(r"""
+\paragraph*{ED Table 3d: the effective error budget of the four circuits.}
+No vendor calibration accompanies this run: the cloud interface exposes per-qubit
+readout fidelity, single-gate fidelity, $T_1$ and $T_2$ only behind the same
+authorisation as a job submission, and that query is refused (\texttt{%s},
+re-attempted %s, spending no QPU time).  The gate counts below are therefore exact
+while the rates are \emph{effective}: each is a marginal of the measured
+distribution against a deterministic ideal syndrome (branch weight $\ge%.6f$), so
+no error model enters it, and each lumps every physical error incurred before the
+readout together with the assignment error of the readout itself.  ``Instr'' counts
+the compiled circuit as submitted---%d instructions for the injected late-measure
+one, split $%d$ single-qubit, $%d$ CNOT and $%d$ measurements, and by section %s.
+The last two columns are the point of the table:
+$P(\mathrm{expected\ key}) = P(\mathrm{correct\ syndrome})\times F_s$ is an
+identity of how the post-selection is defined, not a fit, and the method's own
+share of the observed loss is %s against the exact statevector reference of the
+identical circuit."""
+  % (_CAL.get('error', 'unavailable').replace('_', r'\_'),
+     _CAL.get('attempted_utc') or 'not re-attempted',
+     min(HW['circuits'][n]['P_expected_key_ideal'] for n in 'ABCD'),
+     _EBI['D']['instructions'], _EBI['D']['single_qubit_gates'],
+     _EBI['D']['two_qubit_gates'], _EBI['D']['measurements'], _sec_txt,
+     sci(_EBH['method_share_of_loss_D'], 1)))
+A(r'\begin{longtable}{lclcccclll}')
+A(r'\toprule circuit & scheme & instr & 1Q & 2Q & meas & '
+  r'$P$(correct syndrome) & $F_s$ & $P$(expected key) & method share of loss '
+  r'\\ \midrule')
+for _nm in 'ABCD':
+    _g, _c = _EBI[_nm], _EBC[_nm]
+    _b = _c['budget']
+    A('%s & %s & %d & %d & %d & %d & %.4f & %s & %.5f & %s \\\\'
+      % (_nm, _g['kind'], _g['instructions'], _g['single_qubit_gates'],
+         _g['two_qubit_gates'], _g['measurements'],
+         _c['syndrome_channel']['joint_all_correct'],
+         ('%.2f' % _c['data_channel']['F_s']) if _c['data_channel']['defined']
+         else 'undef.',
+         _b['end_to_end_expected_key'], sci(_b['method_share_of_loss'])))
+A(r'\bottomrule\end{longtable}')
+A(r"""
+\vspace{4pt}\noindent Read on the injected late-measure circuit, whose $%d$
+post-selected shots carry the headline: $%.1f\%%$ of the shots are lost before the
+syndrome is even read correctly, and of the shots that survive that selection a
+further $%.1f\%%$ of the logical information is lost in the data register.  The
+method's own contribution to the same end-to-end quantity is %s---the exact
+statevector reference for the identical circuit---so the device accounts for all
+but a few parts in $10^{6}$ of the observed loss.  Spread evenly over the $%d$
+instructions that is an implied mean per-instruction error of $%.2f\%%$
+($%.2f\%%$ on the identity circuit); the conversion assumes independent errors and
+is quoted as an order of magnitude, not as a calibration."""
+  % (_EBC['D']['syndrome_channel']['joint_all_correct_counts'],
+     100.0 * _EBC['D']['budget']['syndrome_channel_loss'],
+     100.0 * _EBC['D']['budget']['conditional_data_error'],
+     sci(_EBH['method_loss_D'], 1), _EBI['D']['instructions'],
+     100.0 * _EBH['implied_mean_instruction_error_D'],
+     100.0 * _EBH['implied_mean_instruction_error_C']))
+
+
+A(r"""
+\paragraph*{ED Table 3e: the per-ancilla syndrome channel, and which qubit relaxes.}
+Because the ideal syndrome of each circuit is deterministic, the marginal of each
+measured ancilla bit against it \emph{is} that bit's effective error probability:
+no error model, no fit, no independence assumption.  ``mean $w$'' is the mean
+Hamming distance between the read and the injected syndrome (so $4\times$ the
+symmetric rate), ``joint'' the measured all-four-correct rate, ``product'' what
+independence of those marginals would predict, and ``ratio'' their quotient---$1$
+for independent bit errors, below $1$ for correlated ones, which is the number a
+decoder prior would need.  ``TV(Bin)'' is the total-variation distance between the
+observed weight histogram and the symmetric $\mathrm{Bin}(4,\bar w/4)$ model, i.e.
+how much of the channel a single symmetric rate fails to capture.
+
+On the circuit that carries the headline, $a_1$ is not merely the worst bit
+($%.3f$) but the only one worse than a coin flip, while the all-four-correct rate is
+$%.3f\times$ the independent prediction.  The lower panel is why the manuscript
+attributes the $s=8$ satellite to $a_1$ relaxing rather than asserting it: the
+identity circuits set every ancilla's ideal bit to $0$, so their marginals are
+effective $0\to1$ rates, and the injected circuits set $a_0a_1=11$, so theirs are
+effective $1\to0$ rates.  $a_1$ is the \emph{only} ancilla whose $1\to0$ rate
+exceeds its $0\to1$ rate ($%.3f$ against $%.3f$), and deferring the readout to the
+end of the circuit---which lengthens $a_1$'s idle wait by the recovery and decode
+sections, $%d$ instructions---flips its asymmetry from $%+.3f$ to $%+.3f$ while
+$a_0$'s stays at $%+.3f$.  The two directions come from different circuits, so
+this is an asymmetry of the effective end-to-end channel and not a calibrated
+assignment matrix; what makes it diagnostic is that it moves only for the bit the
+satellite implicates, and only in the variant that idles."""
+  % (_EBC['D']['syndrome_channel']['worst_bit_error'],
+     _EBC['D']['syndrome_channel']['independence_ratio'],
+     _ASY['per_bit']['a1']['one_to_zero_late'],
+     _ASY['per_bit']['a1']['zero_to_one_late'],
+     _SEC['recovery'] + _SEC['decoder'],
+     _ASY['per_bit']['a1']['bias_mid'], _ASY['per_bit']['a1']['bias_late'],
+     _ASY['per_bit']['a0']['bias_late']))
+A(r'\begin{longtable}{llccccccccc}')
+A(r'\toprule circuit & ideal bits & $a_0$ & $a_1$ & $a_2$ & $a_3$ & mean $w$ & '
+  r'joint & product & ratio & TV(Bin) \\ \midrule')
+for _nm in 'ABCD':
+    _s = _EBC[_nm]['syndrome_channel']
+    A('%s & %s & %.3f & %.3f & %.3f & %.3f & %.3f & %.4f & %.4f & %.3f & %.4f \\\\'
+      % (_nm, ''.join(str(b) for b in _s['injected_bits']),
+         _s['per_bit_error']['a0'], _s['per_bit_error']['a1'],
+         _s['per_bit_error']['a2'], _s['per_bit_error']['a3'],
+         _s['mean_hamming_weight'], _s['joint_all_correct'],
+         _s['product_of_marginals'], _s['independence_ratio'],
+         _s['weight_tv_vs_symmetric_binomial']))
+A(r'\bottomrule\end{longtable}')
+A(r"""
+\vspace{4pt}\noindent\begin{tabular}{lccccccc}
+\toprule ancilla & $0\to1$ mid & $1\to0$ mid & bias mid & $0\to1$ late & """
+  + r"""$1\to0$ late & bias late & swing \\
+\midrule""")
+for _bn in _ASY['bits_scored']:
+    _r = _ASY['per_bit'][_bn]
+    A('$a_%s$ & %.3f & %.3f & %+.3f & %.3f & %.3f & %+.3f & %+.3f \\\\'
+      % (_bn[1], _r['zero_to_one_mid'], _r['one_to_zero_mid'], _r['bias_mid'],
+         _r['zero_to_one_late'], _r['one_to_zero_late'], _r['bias_late'],
+         _r['bias_swing_on_deferral']))
+A(r'\bottomrule\end{tabular}')
+
+
 # ---------------- ED Table 4: layout evidence ---------------------------
 A(r"""
 \subsection*{ED Table 4: bitstring-layout hypothesis evidence}

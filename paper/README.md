@@ -29,6 +29,10 @@ cd ..                                  # repo root
 ./qenv/bin/python multiseed_stats.py --verify-reproduction  # 16 seeds -> multiseed_results.json
 ./qenv/bin/python storage_rounds.py --validate              # 40 rounds -> storage_rounds.json
 ./qenv/bin/python hw_verify_analysis.py# hardware feasibility fig + numbers
+./qenv/bin/python hw_error_budget.py   # effective error budget (offline, no QPU
+                                       #   time) -> hw_error_budget.json; add
+                                       #   --try-calibration to re-attempt the free
+                                       #   vendor metadata query
 ./qenv/bin/python make_schematic.py    # Fig. 1
 cd paper && ./qenv/bin/python fill_numbers.py && ./qenv/bin/python make_ed.py
 ./qenv/bin/python audit_numbers.py     # consistency gate: numbers <-> figures <-> LaTeX
@@ -111,7 +115,7 @@ Verification is deliberately two-layered, because the two layers fail differentl
   stationary point, the SDP ceiling bounds it, and the refinement is monotone.
   It runs each test in its own subprocess with retries (see the host note
   below), so one native fault cannot abort the rest of the suite.
-- `audit_numbers.py` (864 checks, <1 s, exit 0 iff clean) checks that the
+- `audit_numbers.py` (973 checks, <1 s, exit 0 iff clean) checks that the
   **artifacts** are mutually consistent and physical: every reported fidelity
   lies in [0,1], `F_warm >= F_decoder` at *every* p on *every* channel, no
   Fig. 4(b) gap-to-ceiling bar is negative or above its own bound, the SDP
@@ -120,7 +124,10 @@ Verification is deliberately two-layered, because the two layers fail differentl
   exists, and (§15) every hardware shot count, yield and precision cost in
   `main.tex` and ED Tables 3b/3c is re-derived from
   `hw_feasibility_numbers.json` — the one artifact nothing in the repository
-  can regenerate. It recomputes nothing else — it reads the JSON artifacts and
+  can regenerate — and (§16) every rate in the effective error budget is
+  re-derived a *second* time from those same counts, so `hw_error_budget.json`
+  is checked rather than trusted. It recomputes nothing else — it reads the
+  JSON artifacts and
   the `.tex` files — so it is a cheap pre-submission gate. Run it after any
   regeneration.
 
@@ -212,6 +219,35 @@ full benchmark as a revision/strengthener.
   earlier draft of both the Results text and the Fig. 4 caption said "peak at
   $s=12$", which the artifact contradicts by $1.75\times$; `audit_numbers.py`
   §15 now locks the ordering and asserts the negation of that wording.
+- **The hardware error budget is *effective*, not calibrated, and says so.**
+  The OriginQ cloud does expose per-qubit readout fidelity, single-gate fidelity,
+  T1/T2 and per-edge two-qubit fidelity through `ChipInfo`, but only behind the
+  job-submission authorisation — and that query returns `401 Unauthorized` for
+  this account (re-attempted 2026-09-21, spending no QPU time; the refusal is
+  recorded verbatim in `hw_error_budget.json` rather than omitted).
+  `hw_error_budget.py` therefore derives what the run itself supports, offline:
+  exact gate counts (204 instructions for the injected late-measure circuit —
+  113 single-qubit, 82 CNOT, 9 measurements; the manuscript's "~160-gate circuit"
+  was a placeholder and is now the real count), per-ancilla effective error rates
+  as model-free marginals against a deterministic ideal syndrome
+  (0.253 / 0.558 / 0.305 / 0.288 on that circuit, with a1 worse than a coin
+  flip), the independence ratio of those rates (0.908, i.e. mildly correlated,
+  which is what a decoder prior would need), the exact factorisation
+  P(expected key) = P(correct syndrome) × F_s, and the attribution: the method's
+  own end-to-end loss is 4.3e-6 against the exact statevector reference of the
+  identical circuit, so 99.9995% of the observed loss is device. Each rate lumps
+  pre-measurement physical error together with readout assignment error and
+  cannot be split further without vendor numbers — that limit is stated in the
+  paper, not left to the reader.
+- **The a1 relaxation attribution is measured, not asserted.** The identity
+  circuits give each ancilla's effective 0→1 rate and the injected circuits its
+  1→0 rate; a1 is the only ancilla whose 1→0 rate exceeds its 0→1 rate
+  (0.558 against 0.389), and deferring its readout — which lengthens its idle
+  wait by the 126 instructions of the recovery+decode sections — flips that
+  asymmetry from −0.301 to +0.169 while a0's stays at −0.363. Caveat kept in the
+  ED text: the two directions come from different circuits, so this is an
+  asymmetry of the effective end-to-end channel, not a calibrated assignment
+  matrix.
 - Same-family ablations (`vscr_paper_abl.py`, ED Tables 5–7): the per-syndrome
   independent parameter table (VQR-ind) now receives the **same** separable
   refinement as the warm hypernetwork, so the comparison isolates the

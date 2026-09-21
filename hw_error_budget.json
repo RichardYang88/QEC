@@ -1,0 +1,531 @@
+{
+ "meta": {
+  "task": "effective hardware error budget, WK_C180 feasibility run",
+  "generated_utc": "2026-09-21T15:28:05Z",
+  "host": "5070t",
+  "python": "3.11.15",
+  "numpy": "2.4.6",
+  "inputs": {
+   "counts": "hw_feasibility_numbers.json",
+   "angles": "vscr_angles_dep.npz",
+   "angles_mtime_utc": "2026-09-07T16:29:23Z",
+   "circuits": "rebuilt offline by qcloud_vscr_new"
+  },
+  "qpu_time_spent": 0,
+  "estimator": "model-free marginals against a deterministic ideal syndrome; no independence assumption enters the per-bit rates, and where one is used it is reported as a ratio against the measurement",
+  "wall_s": 1.02
+ },
+ "vendor_calibration": {
+  "attempted_utc": "2026-09-21T15:12:04Z",
+  "chip_id": "WK_C180",
+  "block": [
+   147,
+   155,
+   157,
+   164,
+   165,
+   166,
+   174,
+   175,
+   176
+  ],
+  "available": false,
+  "spends_qpu_time": false,
+  "error": "RuntimeError('query chip_info failed: Unauthorized')",
+  "note": "vendor figures of merit are behind the same authorisation as a job submission; the effective rates in this artifact are what the run itself supports"
+ },
+ "gate_inventory": {
+  "A": {
+   "kind": "mid",
+   "frame": "IIIII",
+   "s": 0,
+   "instructions": 203,
+   "single_qubit_gates": 112,
+   "two_qubit_gates": 82,
+   "measurements": 9,
+   "by_type": {
+    "RZ": 61,
+    "H": 28,
+    "CNOT": 82,
+    "Y": 2,
+    "Z": 4,
+    "X": 2,
+    "MEAS": 9,
+    "RX": 15
+   },
+   "by_section": {
+    "encoder": 36,
+    "frame": 0,
+    "extraction": 32,
+    "recovery": 90,
+    "decoder": 36,
+    "measure_ancilla": 4,
+    "measure_data": 5
+   },
+   "unitary_gates": 194
+  },
+  "B": {
+   "kind": "mid",
+   "frame": "IIXII",
+   "s": 12,
+   "instructions": 204,
+   "single_qubit_gates": 113,
+   "two_qubit_gates": 82,
+   "measurements": 9,
+   "by_type": {
+    "RZ": 61,
+    "H": 28,
+    "CNOT": 82,
+    "Y": 2,
+    "Z": 4,
+    "X": 3,
+    "MEAS": 9,
+    "RX": 15
+   },
+   "by_section": {
+    "encoder": 36,
+    "frame": 1,
+    "extraction": 32,
+    "recovery": 90,
+    "decoder": 36,
+    "measure_ancilla": 4,
+    "measure_data": 5
+   },
+   "unitary_gates": 195
+  },
+  "C": {
+   "kind": "late",
+   "frame": "IIIII",
+   "s": 0,
+   "instructions": 203,
+   "single_qubit_gates": 112,
+   "two_qubit_gates": 82,
+   "measurements": 9,
+   "by_type": {
+    "RZ": 61,
+    "H": 28,
+    "CNOT": 82,
+    "Y": 2,
+    "Z": 4,
+    "X": 2,
+    "RX": 15,
+    "MEAS": 9
+   },
+   "by_section": {
+    "encoder": 36,
+    "frame": 0,
+    "extraction": 32,
+    "recovery": 90,
+    "decoder": 36,
+    "measure_ancilla": 4,
+    "measure_data": 5
+   },
+   "unitary_gates": 194
+  },
+  "D": {
+   "kind": "late",
+   "frame": "IIXII",
+   "s": 12,
+   "instructions": 204,
+   "single_qubit_gates": 113,
+   "two_qubit_gates": 82,
+   "measurements": 9,
+   "by_type": {
+    "RZ": 61,
+    "H": 28,
+    "CNOT": 82,
+    "Y": 2,
+    "Z": 4,
+    "X": 3,
+    "RX": 15,
+    "MEAS": 9
+   },
+   "by_section": {
+    "encoder": 36,
+    "frame": 1,
+    "extraction": 32,
+    "recovery": 90,
+    "decoder": 36,
+    "measure_ancilla": 4,
+    "measure_data": 5
+   },
+   "unitary_gates": 195
+  }
+ },
+ "circuits": {
+  "A": {
+   "kind": "mid",
+   "frame": "IIIII",
+   "s": 0,
+   "shots_used": 369,
+   "syndrome_channel": {
+    "injected_bits": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "per_bit_error": {
+     "a0": 0.5636856368563686,
+     "a1": 0.5772357723577236,
+     "a2": 0.6070460704607046,
+     "a3": 0.48238482384823844
+    },
+    "per_bit_wrong_counts": {
+     "a0": 208,
+     "a1": 213,
+     "a2": 224,
+     "a3": 178
+    },
+    "mean_hamming_weight": 2.230352303523035,
+    "symmetric_rate_ml": 0.5575880758807588,
+    "joint_all_correct": 0.0,
+    "joint_all_correct_counts": 0,
+    "product_of_marginals": 0.0375185788212143,
+    "independence_ratio": 0.0,
+    "weight_distribution": {
+     "0": 0.0,
+     "1": 0.20867208672086723,
+     "2": 0.4173441734417344,
+     "3": 0.3089430894308943,
+     "4": 0.06504065040650407
+    },
+    "weight_tv_vs_symmetric_binomial": 0.06993050588305791,
+    "worst_bit": "a2",
+    "worst_bit_error": 0.6070460704607046,
+    "n_worse_than_random": 3
+   },
+   "data_channel": {
+    "defined": false,
+    "note": "sel=0, so the conditional error is undefined, not 1"
+   },
+   "budget": {
+    "end_to_end_expected_key": 0.0,
+    "ideal_reference_expected_key": 0.9999997714222045,
+    "syndrome_channel_loss": 1.0,
+    "conditional_data_error": null,
+    "conditional_data_error_ci95": null,
+    "factorisation_check": 0.0,
+    "factorisation_residual": 0.0,
+    "method_share_of_loss": 2.2857779546914259e-07,
+    "device_share_of_loss": 0.9999997714222045,
+    "implied_mean_instruction_error": null
+   }
+  },
+  "B": {
+   "kind": "mid",
+   "frame": "IIXII",
+   "s": 12,
+   "shots_used": 366,
+   "syndrome_channel": {
+    "injected_bits": [
+     1,
+     1,
+     0,
+     0
+    ],
+    "per_bit_error": {
+     "a0": 0.44808743169398907,
+     "a1": 0.2759562841530055,
+     "a2": 0.587431693989071,
+     "a3": 0.5027322404371586
+    },
+    "per_bit_wrong_counts": {
+     "a0": 164,
+     "a1": 101,
+     "a2": 215,
+     "a3": 184
+    },
+    "mean_hamming_weight": 1.8142076502732243,
+    "symmetric_rate_ml": 0.45355191256830607,
+    "joint_all_correct": 0.1202185792349727,
+    "joint_all_correct_counts": 44,
+    "product_of_marginals": 0.08198251498655447,
+    "independence_ratio": 1.4663929162784177,
+    "weight_distribution": {
+     "0": 0.1202185792349727,
+     "1": 0.2650273224043716,
+     "2": 0.3415300546448088,
+     "3": 0.22677595628415304,
+     "4": 0.046448087431693985
+    },
+    "weight_tv_vs_symmetric_binomial": 0.05802691184029399,
+    "worst_bit": "a2",
+    "worst_bit_error": 0.587431693989071,
+    "n_worse_than_random": 2
+   },
+   "data_channel": {
+    "defined": true,
+    "n_sel": 44,
+    "n_hit": 0,
+    "F_s": 0.0,
+    "error": 1.0,
+    "error_lo95": 0.919701682217986,
+    "error_hi95": 1.0,
+    "ideal_reference": 0.9999957389414843
+   },
+   "budget": {
+    "end_to_end_expected_key": 0.0,
+    "ideal_reference_expected_key": 0.9999957389414843,
+    "syndrome_channel_loss": 0.8797814207650273,
+    "conditional_data_error": 1.0,
+    "conditional_data_error_ci95": [
+     0.919701682217986,
+     1.0
+    ],
+    "factorisation_check": 0.0,
+    "factorisation_residual": 0.0,
+    "method_share_of_loss": 4.261058515697691e-06,
+    "device_share_of_loss": 0.9999957389414843,
+    "implied_mean_instruction_error": null
+   }
+  },
+  "C": {
+   "kind": "late",
+   "frame": "IIIII",
+   "s": 0,
+   "shots_used": 370,
+   "syndrome_channel": {
+    "injected_bits": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "per_bit_error": {
+     "a0": 0.6162162162162161,
+     "a1": 0.3891891891891892,
+     "a2": 0.40540540540540543,
+     "a3": 0.41891891891891897
+    },
+    "per_bit_wrong_counts": {
+     "a0": 228,
+     "a1": 144,
+     "a2": 150,
+     "a3": 155
+    },
+    "mean_hamming_weight": 1.82972972972973,
+    "symmetric_rate_ml": 0.4574324324324325,
+    "joint_all_correct": 0.06756756756756757,
+    "joint_all_correct_counts": 25,
+    "product_of_marginals": 0.08099366063000991,
+    "independence_ratio": 0.8342327910850386,
+    "weight_distribution": {
+     "0": 0.06756756756756757,
+     "1": 0.2918918918918919,
+     "2": 0.4054054054054054,
+     "3": 0.21351351351351353,
+     "4": 0.021621621621621623
+    },
+    "weight_tv_vs_symmetric_binomial": 0.041607383883625025,
+    "worst_bit": "a0",
+    "worst_bit_error": 0.6162162162162161,
+    "n_worse_than_random": 1
+   },
+   "data_channel": {
+    "defined": true,
+    "n_sel": 25,
+    "n_hit": 9,
+    "F_s": 0.36,
+    "error": 0.64,
+    "error_lo95": 0.44518154601046633,
+    "error_hi95": 0.7975234356826436,
+    "ideal_reference": 0.9999997714222045
+   },
+   "budget": {
+    "end_to_end_expected_key": 0.024324324324324326,
+    "ideal_reference_expected_key": 0.9999997714222045,
+    "syndrome_channel_loss": 0.9324324324324325,
+    "conditional_data_error": 0.64,
+    "conditional_data_error_ci95": [
+     0.44518154601046633,
+     0.7975234356826436
+    ],
+    "factorisation_check": 0.024324324324324326,
+    "factorisation_residual": 0.0,
+    "method_share_of_loss": 2.342764108686503e-07,
+    "device_share_of_loss": 0.9999997657235892,
+    "implied_mean_instruction_error": 0.018140238890985816
+   }
+  },
+  "D": {
+   "kind": "late",
+   "frame": "IIXII",
+   "s": 12,
+   "shots_used": 371,
+   "syndrome_channel": {
+    "injected_bits": [
+     1,
+     1,
+     0,
+     0
+    ],
+    "per_bit_error": {
+     "a0": 0.25336927223719674,
+     "a1": 0.5579514824797843,
+     "a2": 0.3045822102425876,
+     "a3": 0.28840970350404316
+    },
+    "per_bit_wrong_counts": {
+     "a0": 94,
+     "a1": 207,
+     "a2": 113,
+     "a3": 107
+    },
+    "mean_hamming_weight": 1.4043126684636118,
+    "symmetric_rate_ml": 0.35107816711590295,
+    "joint_all_correct": 0.14824797843665768,
+    "joint_all_correct_counts": 55,
+    "product_of_marginals": 0.16332460310522504,
+    "independence_ratio": 0.9076892006352898,
+    "weight_distribution": {
+     "0": 0.14824797843665768,
+     "1": 0.41509433962264153,
+     "2": 0.33153638814016173,
+     "3": 0.09433962264150944,
+     "4": 0.01078167115902965
+    },
+    "weight_tv_vs_symmetric_binomial": 0.05146931222607466,
+    "worst_bit": "a1",
+    "worst_bit_error": 0.5579514824797843,
+    "n_worse_than_random": 1
+   },
+   "data_channel": {
+    "defined": true,
+    "n_sel": 55,
+    "n_hit": 44,
+    "F_s": 0.8,
+    "error": 0.19999999999999996,
+    "error_lo95": 0.11552097120459737,
+    "error_hi95": 0.3236513150690593,
+    "ideal_reference": 0.9999957389414843
+   },
+   "budget": {
+    "end_to_end_expected_key": 0.11859838274932614,
+    "ideal_reference_expected_key": 0.9999957389414843,
+    "syndrome_channel_loss": 0.8517520215633423,
+    "conditional_data_error": 0.19999999999999996,
+    "conditional_data_error_ci95": [
+     0.11552097120459737,
+     0.3236513150690593
+    ],
+    "factorisation_check": 0.11859838274932616,
+    "factorisation_residual": 1.3877787807814457e-17,
+    "method_share_of_loss": 4.834411955118787e-06,
+    "device_share_of_loss": 0.9999951655880449,
+    "implied_mean_instruction_error": 0.010396618939971347
+   }
+  }
+ },
+ "deferred_readout_contrast": {
+  "per_bit": {
+   "a0": {
+    "ideal_bit": 1,
+    "mid_error": 0.44808743169398907,
+    "late_error": 0.25336927223719674,
+    "delta_late_minus_mid": -0.19471815945679233
+   },
+   "a1": {
+    "ideal_bit": 1,
+    "mid_error": 0.2759562841530055,
+    "late_error": 0.5579514824797843,
+    "delta_late_minus_mid": 0.28199519832677883
+   },
+   "a2": {
+    "ideal_bit": 0,
+    "mid_error": 0.587431693989071,
+    "late_error": 0.3045822102425876,
+    "delta_late_minus_mid": -0.28284948374648344
+   },
+   "a3": {
+    "ideal_bit": 0,
+    "mid_error": 0.5027322404371586,
+    "late_error": 0.28840970350404316,
+    "delta_late_minus_mid": -0.21432253693311543
+   }
+  },
+  "bits_that_get_worse_when_deferred": [
+   "a1"
+  ],
+  "mean_hamming_weight_mid": 1.8142076502732243,
+  "mean_hamming_weight_late": 1.4043126684636118,
+  "note": "confounded by the fact that mid-circuit measurement is itself dysfunctional on this device, so the three bits that improve are not evidence that deferring helps them"
+ },
+ "readout_asymmetry": {
+  "note": "0->1 rates from the identity circuits (ideal bits all 0) and 1->0 rates from the injected circuits (ideal a0=a1=1); the two directions come from different circuits, so this is an effective-channel asymmetry, not an assignment matrix",
+  "per_bit": {
+   "a0": {
+    "ideal_bit_in_injected_circuit": 1,
+    "zero_to_one_late": 0.6162162162162161,
+    "one_to_zero_late": 0.25336927223719674,
+    "zero_to_one_mid": 0.5636856368563686,
+    "one_to_zero_mid": 0.44808743169398907,
+    "bias_late": -0.3628469439790194,
+    "bias_mid": -0.11559820516237956,
+    "bias_swing_on_deferral": -0.24724873881663983
+   },
+   "a1": {
+    "ideal_bit_in_injected_circuit": 1,
+    "zero_to_one_late": 0.3891891891891892,
+    "one_to_zero_late": 0.5579514824797843,
+    "zero_to_one_mid": 0.5772357723577236,
+    "one_to_zero_mid": 0.2759562841530055,
+    "bias_late": 0.1687622932905951,
+    "bias_mid": -0.3012794882047181,
+    "bias_swing_on_deferral": 0.4700417814953132
+   },
+   "a2": {
+    "ideal_bit_in_injected_circuit": 0,
+    "zero_to_one_late": 0.40540540540540543,
+    "one_to_zero_late": null,
+    "zero_to_one_mid": 0.6070460704607046,
+    "one_to_zero_mid": null
+   },
+   "a3": {
+    "ideal_bit_in_injected_circuit": 0,
+    "zero_to_one_late": 0.41891891891891897,
+    "one_to_zero_late": null,
+    "zero_to_one_mid": 0.48238482384823844,
+    "one_to_zero_mid": null
+   }
+  },
+  "bits_scored": [
+   "a0",
+   "a1"
+  ],
+  "relaxation_biased_bits_late": [
+   "a1"
+  ]
+ },
+ "headline": {
+  "instructions_D": 204,
+  "unitary_gates_D": 195,
+  "single_qubit_gates_D": 113,
+  "two_qubit_gates_D": 82,
+  "worst_bit_D": "a1",
+  "worst_bit_error_D": 0.5579514824797843,
+  "n_bits_worse_than_random_D": 1,
+  "syndrome_channel_loss_D": 0.8517520215633423,
+  "conditional_data_error_D": 0.19999999999999996,
+  "conditional_data_error_ci95_D": [
+   0.11552097120459737,
+   0.3236513150690593
+  ],
+  "independence_ratio_D": 0.9076892006352898,
+  "weight_tv_D": 0.05146931222607466,
+  "method_share_of_loss_D": 4.834411955118787e-06,
+  "device_share_of_loss_D": 0.9999951655880449,
+  "method_loss_D": 4.261058515697691e-06,
+  "implied_mean_instruction_error_D": 0.010396618939971347,
+  "implied_mean_instruction_error_C": 0.018140238890985816,
+  "a1_error_mid_injected": 0.2759562841530055,
+  "a1_error_late_injected": 0.5579514824797843,
+  "a1_delta_deferred": 0.28199519832677883,
+  "a1_zero_to_one_late": 0.3891891891891892,
+  "a1_one_to_zero_late": 0.5579514824797843,
+  "a1_bias_late": 0.1687622932905951,
+  "a1_bias_mid": -0.3012794882047181,
+  "a0_bias_late": -0.3628469439790194,
+  "ideal_branch_weight_D": 0.9999957389414843
+ }
+}

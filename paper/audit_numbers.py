@@ -58,7 +58,12 @@ It asserts, over `paper_numbers.json`, `paper/main.tex`,
       the prose says it is, and every shot-count, yield and precision-cost mantissa
       in main.tex and ED Tables 3b/3c is re-derived from the artifact -- these being
       the only numbers in the paper that no script in the repository can regenerate.
-
+  16. the effective hardware error budget: no QPU time was spent deriving it, the
+      vendor-calibration record states what was refused and when, the gate
+      inventory adds up three ways and matches the architecture the paper
+      describes, and every per-ancilla error rate, independence ratio, asymmetry
+      and loss share is re-derived a second time from the raw counts rather than
+      trusted from the script that first computed it.
 
 Exit status is 0 iff all checks pass, so it composes with `&&` in CI.
 """
@@ -86,12 +91,14 @@ for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.p
           'vscr_general.py', 'scaling_analysis.py', 'stationarity_boundary.py',
           'run_selftests.py', 'diag_check.py', 'diag_optunit.py',
           'ancilla_recovery.py', 'multiseed_stats.py', 'storage_rounds.py',
+          'hw_verify_analysis.py', 'hw_error_budget.py',
           'paper/make_ed.py', 'paper/fill_numbers.py',
           'paper/main.tex', 'paper/extended_data.tex', 'paper/refs.bib',
           'paper/README.md',
           'scaling_results.json', 'stationarity_boundary.json',
           'ancilla_recovery.json', 'multiseed_results.json',
-          'storage_rounds.json', 'hw_feasibility_numbers.json'):
+          'storage_rounds.json', 'hw_feasibility_numbers.json',
+          'hw_error_budget.json'):
     chk(os.path.getsize(f) > 0, f + ' present')
 
 P = json.load(open('paper_numbers.json'))
@@ -1580,6 +1587,297 @@ for _q, _why in (
         ('$0$ of $%d$ shots, a $%.1f\\sigma$ deficit'
          % (_A['shots_used'], abs(_zed['A'])), 'the circuit-A zero')):
     chk(_q in _efn15, 'ED Tables 3b/3c quote %s as %s' % (_why, _q))
+
+
+# ---- 16. the effective hardware error budget --------------------------------
+# hw_error_budget.json is derived, not measured: it re-expresses the counts of
+# hw_feasibility_numbers.json as per-ancilla error rates plus an exact gate
+# inventory rebuilt offline.  So the audit re-derives every rate a second time,
+# from the counts, and requires the two derivations to agree bit for bit -- a
+# derived artifact that nothing checks is how the "~160-gate circuit" in main.tex
+# survived next to a 204-instruction circuit for as long as it did.
+_eb = json.load(open('hw_error_budget.json'))
+_ebc, _ebi, _ebh = _eb['circuits'], _eb['gate_inventory'], _eb['headline']
+_asy = _eb['readout_asymmetry']
+chk(_eb['meta']['qpu_time_spent'] == 0,
+    'the error budget spent no QPU time: it is derived from counts already on file')
+chk(_eb['meta']['inputs']['counts'] == 'hw_feasibility_numbers.json'
+    and _eb['meta']['inputs']['angles'].endswith('vscr_angles_dep.npz'),
+    'the error budget names its inputs: the feasibility counts and the v1 angle '
+    'snapshot the run actually used (%s)' % _eb['meta']['inputs']['angles'])
+_cal = _eb['vendor_calibration']
+chk((_cal['available'] and len(_cal.get('block_qubits', {})) == 9)
+    or (not _cal['available'] and _cal.get('error')),
+    'the vendor-calibration record states either all 9 block qubits or why it is '
+    'empty (%s)' % ('available' if _cal['available'] else _cal.get('error')))
+chk('Unauthorized' in str(_cal.get('error', '')) or _cal['available'],
+    'the paper may only say the calibration query was refused if the artifact '
+    'records that refusal')
+for _n in 'ABCD':
+    _g = _ebi[_n]
+    chk(_g['single_qubit_gates'] + _g['two_qubit_gates'] + _g['measurements']
+        == _g['instructions'] == sum(_g['by_section'].values()),
+        'HW gate inventory %s adds up three ways: %d instructions = %d 1Q + %d 2Q '
+        '+ %d meas = sum of its sections'
+        % (_n, _g['instructions'], _g['single_qubit_gates'],
+           _g['two_qubit_gates'], _g['measurements']))
+    chk(_g['by_section']['encoder'] == _g['by_section']['decoder'] == 36
+        and _g['by_section']['extraction'] == 32
+        and _g['by_section']['recovery'] == 90
+        and _g['by_section']['measure_ancilla'] == 4
+        and _g['by_section']['measure_data'] == 5,
+        'HW circuit %s has the architecture the paper describes: 36-gate encoder '
+        'and decoder, 32-gate extraction, 90-gate recovery, 4+5 measurements' % _n)
+chk(_ebi['D']['instructions'] - _ebi['C']['instructions'] == 1
+    and _ebi['B']['instructions'] - _ebi['A']['instructions'] == 1,
+    'HW the injected circuits are one frame gate longer than the identity ones, '
+    'so the two pairs are compared at equal cost')
+chk('160' not in t.split('Feasibility demonstration')[1].split('Discussion')[0]
+    and '$204$-instruction circuit' in _tfn15,
+    'main.tex quotes the exact instruction count (204) and no longer the '
+    'placeholder "~160-gate circuit"')
+
+
+# 16b. every rate re-derived from the counts, independently of the script ------
+def _bits(s):
+    """Syndrome integer -> (a0, a1, a2, a3), the layout the run established."""
+    return [(s >> 3) & 1, (s >> 2) & 1, (s >> 1) & 1, s & 1]
+
+
+_e = {}
+for _n in 'ABCD':
+    _d = _syn[_n]
+    _ref = _hwc[_n]['s']
+    _marg = [sum(v for s, v in _d.items() if _bits(s)[i] != _bits(_ref)[i])
+             for i in range(4)]
+    _e[_n] = _marg
+    _sc = _ebc[_n]['syndrome_channel']
+    _joint, _prod = _d[_ref], math.prod(1.0 - x for x in _marg)
+    _w = {}
+    for _s, _v in _d.items():
+        _k = sum(1 for i in range(4) if _bits(_s)[i] != _bits(_ref)[i])
+        _w[_k] = _w.get(_k, 0.0) + _v
+    _p = sum(_marg) / 4.0
+    _tv = 0.5 * sum(abs(_w.get(_k, 0.0)
+                       - math.comb(4, _k) * _p ** _k * (1 - _p) ** (4 - _k))
+                    for _k in range(5))
+    for _i, _bn in enumerate(('a0', 'a1', 'a2', 'a3')):
+        chk(abs(_sc['per_bit_error'][_bn] - _marg[_i]) < 1e-15,
+            'HW circuit %s: the effective %s error rate %.6f is the marginal of '
+            'the measured syndrome distribution against a deterministic ideal'
+            % (_n, _bn, _marg[_i]))
+    chk(abs(_sc['joint_all_correct'] - _joint) < 1e-15
+        and abs(_sc['product_of_marginals'] - _prod) < 1e-15
+        and abs(_sc['independence_ratio'] - _joint / _prod) < 1e-12,
+        'HW circuit %s: joint %.6f = product %.6f x ratio %.4f, all re-derived '
+        'from the counts' % (_n, _joint, _prod, _joint / _prod))
+    chk(abs(_sc['mean_hamming_weight'] - sum(_marg)) < 1e-15
+        and abs(_sc['symmetric_rate_ml'] - _p) < 1e-15
+        and abs(_sc['weight_tv_vs_symmetric_binomial'] - _tv) < 1e-15,
+        'HW circuit %s: mean weight %.4f, symmetric rate %.4f and the %.4f TV '
+        'distance to Bin(4,p) all re-derived' % (_n, sum(_marg), _p, _tv))
+    chk(abs(_sc['joint_all_correct']
+            - _hwc[_n]['branch_stats']['n_sel'] / _hwc[_n]['shots_used']) < 1e-15,
+        'HW circuit %s: the all-four-correct rate is n_sel/n_total from the run'
+        % _n)
+    _b = _ebc[_n]['budget']
+    _lm = 1.0 - _hwc[_n]['P_expected_key_ideal']
+    _lt = 1.0 - _hwc[_n]['P_expected_key_hw']
+    chk(abs(_b['end_to_end_expected_key'] - _hwc[_n]['P_expected_key_hw']) < 1e-15
+        and abs(_b['method_share_of_loss'] - _lm / _lt) < 1e-12
+        and abs(_b['method_share_of_loss'] + _b['device_share_of_loss']
+                - 1.0) < 1e-12,
+        'HW circuit %s: the method and device shares of the loss are %.2e and '
+        '%.6f and sum to 1' % (_n, _lm / _lt, _b['device_share_of_loss']))
+    if _hwc[_n]['branch_stats']['n_sel']:
+        chk(_b['factorisation_residual'] < 1e-12,
+            'HW circuit %s: P(expected key) = P(correct syndrome) x F_s to %.1e, '
+            'an identity of the post-selection rather than a fit'
+            % (_n, _b['factorisation_residual']))
+    if _hwc[_n]['P_expected_key_hw'] > 0:
+        chk(abs(_b['implied_mean_instruction_error']
+                - (1.0 - _hwc[_n]['P_expected_key_hw']
+                   ** (1.0 / _ebi[_n]['instructions']))) < 1e-15,
+            'HW circuit %s: implied mean per-instruction error %.5f over %d '
+            'instructions' % (_n, _b['implied_mean_instruction_error'],
+                              _ebi[_n]['instructions']))
+for _bn, _i in (('a0', 0), ('a1', 1)):
+    _r = _asy['per_bit'][_bn]
+    chk(abs(_r['zero_to_one_late'] - _e['C'][_i]) < 1e-15
+        and abs(_r['one_to_zero_late'] - _e['D'][_i]) < 1e-15
+        and abs(_r['zero_to_one_mid'] - _e['A'][_i]) < 1e-15
+        and abs(_r['one_to_zero_mid'] - _e['B'][_i]) < 1e-15,
+        'HW asymmetry %s: both directions are the marginals of the identity and '
+        'injected circuits, in both measurement schemes' % _bn)
+    chk(abs(_r['bias_late'] - (_e['D'][_i] - _e['C'][_i])) < 1e-15
+        and abs(_r['bias_mid'] - (_e['B'][_i] - _e['A'][_i])) < 1e-15
+        and abs(_r['bias_swing_on_deferral']
+                - (_r['bias_late'] - _r['bias_mid'])) < 1e-15,
+        'HW asymmetry %s: bias late %+.4f, mid %+.4f, swing %+.4f'
+        % (_bn, _r['bias_late'], _r['bias_mid'], _r['bias_swing_on_deferral']))
+chk(_asy['bits_scored'] == ['a0', 'a1']
+    and _asy['relaxation_biased_bits_late'] == ['a1'],
+    'HW a1 is the ONLY ancilla whose effective 1->0 rate exceeds its 0->1 rate '
+    'under late measurement, which is what licenses the relaxation attribution')
+chk(sum(1 for x in _e['D'] if x > 0.5) == 1 and _e['D'][1] > 0.5,
+    'HW circuit D: exactly one ancilla (%s, %.3f) is worse than a coin flip'
+    % (_ebc['D']['syndrome_channel']['worst_bit'], _e['D'][1]))
+chk(abs(_ebh['worst_bit_error_D'] - max(_e['D'])) < 1e-15
+    and _ebc['D']['syndrome_channel']['worst_bit'] == 'a1',
+    'HW headline: the worst bit on circuit D is a1 at %.6f' % max(_e['D']))
+
+
+# 16c. main.tex quotes the budget, including the limitation that makes it honest
+_dD = _ebc['D']
+for _q, _why in (
+        ('over the $%d$-instruction circuit' % _ebi['D']['instructions'],
+         'the exact instruction count of the branch circuit'),
+        ('the four per-ancilla rates are $%.3f$, $%.3f$, $%.3f$ and $%.3f$'
+         % tuple(_e['D']), 'the four effective per-ancilla error rates'),
+        ('a mean of $%.2f$ wrong bits out' % _dD['syndrome_channel'][
+            'mean_hamming_weight'], 'the mean Hamming weight per shot'),
+        ('all-four-correct rate is $%.3f\\times$ the product'
+         % _dD['syndrome_channel']['independence_ratio'],
+         'the independence ratio of the syndrome bits'),
+        ('$%.1f\\%%$ of the shots never read the syndrome correctly'
+         % (100.0 * _dD['budget']['syndrome_channel_loss']),
+         'the syndrome-channel share of the loss'),
+        ('a further $%.1f\\%%$ of the logical information'
+         % (100.0 * _dD['budget']['conditional_data_error']),
+         'the conditional data-register error'),
+        ('loses $%s$ end to end; that is $%s$ of the loss observed on hardware, '
+         'one part in $%s$'
+         % (_tex_sci(1.0 - _hwc['D']['P_expected_key_ideal'], 1),
+            _tex_sci(_ebh['method_share_of_loss_D'], 1),
+            _tex_sci(1.0 / _ebh['method_share_of_loss_D'], 2)),
+         'the method\'s own end-to-end loss, its share of the observed loss, and '
+         'the reciprocal of that share'),
+        ("the circuit's $%d$ instructions ($%d$ single-qubit, $%d$ CNOT, $%d$ "
+         'measurements)' % (_ebi['D']['instructions'],
+                            _ebi['D']['single_qubit_gates'],
+                            _ebi['D']['two_qubit_gates'],
+                            _ebi['D']['measurements']),
+         'the gate inventory of the circuit the headline comes from'),
+        ('per-instruction error of $%.1f\\%%$ under an independent-error model'
+         % (100.0 * _ebh['implied_mean_instruction_error_D']),
+         'the implied mean per-instruction error'),
+        ('whose effective $1\\to0$ rate exceeds its $0\\to1$ rate ($%.3f$ '
+         'against $%.3f$)' % (_asy['per_bit']['a1']['one_to_zero_late'],
+                              _asy['per_bit']['a1']['zero_to_one_late']),
+         'the a1 asymmetry that identifies the relaxing ancilla'),
+        ('lengthens its idle wait by the $%d$'
+         % (_ebi['D']['by_section']['recovery']
+            + _ebi['D']['by_section']['decoder']),
+         'the idle wait the deferred readout adds'),
+        ('flips that asymmetry from $%+.3f$ to $%+.3f$ while $a_0$\'s stays at '
+         '$%+.3f$' % (_asy['per_bit']['a1']['bias_mid'],
+                      _asy['per_bit']['a1']['bias_late'],
+                      _asy['per_bit']['a0']['bias_late']),
+         'the asymmetry swing that only a1 shows'),
+        ('No vendor calibration accompanies the run',
+         'the limitation that makes the budget effective rather than calibrated'),
+        ('ED Table~3d', 'the pointer at the error-budget table')):
+    chk(_q in _tfn15, 'main.tex quotes %s as %s' % (_why, _q))
+chk('ED Tables~3d--3e' in _tfn15 and 'ED Table~3e' not in _tfn15.replace(
+    'ED Tables~3d--3e', ''),
+    'Methods points at both budget tables and at nothing else')
+chk('ED Table 3d:' in e and 'ED Table 3e:' in e,
+    'ED Tables 3d and 3e present')
+chk(_cal['available'] or 'refused' in _tfn15,
+    'main.tex says the calibration query was refused only because it was')
+
+
+# 16d. ED Tables 3d/3e render the artifact, in make_ed.py's own format strings --
+def _ed_sci(x, digits=2):
+    """make_ed.py's `sci` renderer: ED cells carry their own $ and a thin space."""
+    mnt, ex = ('%.*e' % (digits, abs(float(x)))).split('e')
+    return '$' + mnt + BS + 'times 10^{' + str(int(ex)) + '}$'
+
+
+_tb3d, _spec3d = _body('ED Table 3d:')
+_tb3e, _spec3e = _body('ED Table 3e:')
+_ta3e, _spece = _body('ED Table 3e:', 'tabular')
+for _n in 'ABCD':
+    _g, _c = _ebi[_n], _ebc[_n]
+    _s = _c['syndrome_channel']
+    _fs = ('%.2f' % _c['data_channel']['F_s']) if _c['data_channel']['defined'] \
+        else 'undef.'
+    _row = ('%s & %s & %d & %d & %d & %d & %.4f & %s & %.5f & %s '
+            % (_n, _g['kind'], _g['instructions'], _g['single_qubit_gates'],
+               _g['two_qubit_gates'], _g['measurements'],
+               _s['joint_all_correct'], _fs,
+               _c['budget']['end_to_end_expected_key'],
+               _ed_sci(_c['budget']['method_share_of_loss']))) + BS * 2
+    chk(_row in _tb3d, 'ED Table 3d renders circuit %s (%s)' % (_n, _row))
+    _row = ('%s & %s & %.3f & %.3f & %.3f & %.3f & %.3f & %.4f & %.4f & %.3f & '
+            '%.4f ' % (_n, ''.join(str(b) for b in _s['injected_bits']),
+                       _e[_n][0], _e[_n][1], _e[_n][2], _e[_n][3],
+                       _s['mean_hamming_weight'], _s['joint_all_correct'],
+                       _s['product_of_marginals'], _s['independence_ratio'],
+                       _s['weight_tv_vs_symmetric_binomial'])) + BS * 2
+    chk(_row in _tb3e, 'ED Table 3e renders circuit %s (%s)' % (_n, _row))
+for _bn in _asy['bits_scored']:
+    _r = _asy['per_bit'][_bn]
+    _row = ('$a_%s$ & %.3f & %.3f & %+.3f & %.3f & %.3f & %+.3f & %+.3f '
+            % (_bn[1], _r['zero_to_one_mid'], _r['one_to_zero_mid'],
+               _r['bias_mid'], _r['zero_to_one_late'], _r['one_to_zero_late'],
+               _r['bias_late'], _r['bias_swing_on_deferral'])) + BS * 2
+    chk(_row in _ta3e, 'ED Table 3e renders the %s asymmetry row (%s)'
+        % (_bn, _row))
+for _tab, _spec, _nm, _nrow in ((_tb3d, _spec3d, '3d', 4),
+                                (_tb3e, _spec3e, '3e', 4),
+                                (_ta3e, _spece, '3e asymmetry', 2)):
+    _rows = [r for r in _tab.split(BS * 2) if '&' in r and 'toprule' not in r]
+    chk(len(_rows) == _nrow,
+        'ED Table %s renders exactly its %d rows (found %d)'
+        % (_nm, _nrow, len(_rows)))
+    chk(all(r.count('&') == len(_spec) - 1 for r in _rows),
+        'ED Table %s: every body row has the %d columns its preamble declares'
+        % (_nm, len(_spec)))
+_secD = _ebi['D']['by_section']
+for _q, _why in (
+        ('share of the observed loss is %s'
+         % _ed_sci(_ebh['method_share_of_loss_D'], 1),
+         'the method share of the loss'),
+        ('%d instructions for the injected late-measure'
+         % _ebi['D']['instructions'], 'the instruction count'),
+        ('split $%d$ single-qubit, $%d$ CNOT and $%d$ measurements'
+         % (_ebi['D']['single_qubit_gates'], _ebi['D']['two_qubit_gates'],
+            _ebi['D']['measurements']), 'the gate-type split'),
+        ('by section ' + ', '.join('%s $%d$' % (k.replace('_', ' '), v)
+                                   for k, v in _secD.items()),
+         'the per-section gate inventory'),
+        ('$%.1f\\%%$ of the shots are lost before the'
+         % (100.0 * _dD['budget']['syndrome_channel_loss']),
+         'the syndrome-channel loss'),
+        ('further $%.1f\\%%$ of the logical information'
+         % (100.0 * _dD['budget']['conditional_data_error']),
+         'the conditional data-register loss'),
+        ("method's own contribution to the same end-to-end quantity is %s"
+         % _ed_sci(_ebh['method_loss_D'], 1), 'the method loss'),
+        ('implied mean per-instruction error of $%.2f\\%%$'
+         % (100.0 * _ebh['implied_mean_instruction_error_D']),
+         'the implied per-instruction error'),
+        ('($%.2f\\%%$ on the identity circuit)'
+         % (100.0 * _ebh['implied_mean_instruction_error_C']),
+         'the same on the identity circuit'),
+        ('($%.3f$) but the only one worse than a coin flip'
+         % _ebh['worst_bit_error_D'], 'the worst ancilla rate'),
+        ('$%.3f\\times$ the independent prediction'
+         % _dD['syndrome_channel']['independence_ratio'],
+         'the independence ratio'),
+        ('rate ($%.3f$ against $%.3f$)'
+         % (_asy['per_bit']['a1']['one_to_zero_late'],
+            _asy['per_bit']['a1']['zero_to_one_late']),
+         'the a1 directional asymmetry'),
+        ('sections, $%d$ instructions'
+         % (_secD['recovery'] + _secD['decoder']), 'the added idle wait'),
+        ('flips its asymmetry from $%+.3f$ to $%+.3f$'
+         % (_asy['per_bit']['a1']['bias_mid'], _asy['per_bit']['a1']['bias_late']),
+         'the a1 asymmetry flip'),
+        ("$a_0$'s stays at $%+.3f$" % _asy['per_bit']['a0']['bias_late'],
+         'the a0 contrast')):
+    chk(_q in _efn15, 'ED Tables 3d/3e quote %s as %s' % (_why, _q))
 
 
 print('=== OVERALL:', 'ALL CHECKS PASSED' if ok else 'FAILURES PRESENT', '===')

@@ -721,7 +721,7 @@ that read the syndrome correctly, which is why the interval is $\pm0.104$ wide:
 at the same measured yield, $\pm0.01$ on this single branch would cost
 $44\,691$ executed shots, $112\times$ what was run. Third, the
 identity branch ($s=0$, no injected error) is dominated by accumulated
-gate and readout errors over the $\sim\!160$-gate circuit: the expected
+gate and readout errors over the $204$-instruction circuit: the expected
 bitstring appears in only $2.4\%$ of shots, and the syndrome distribution
 carries no excess weight at the correct syndrome ($p(s{=}0)=0.068$, a factor
 $1.08$ over uniform and $0.4\sigma$---indistinguishable from code-blind,
@@ -741,6 +741,38 @@ identity-like branch needs for $\pm0.01$ ($141\,568$ shots): the design is a
 survey of $16$ branches at few-percent-to-ten-percent precision, not a
 precision measurement of any one of them, and on this device the shot budget,
 not the gate count, is what bounds it.
+
+The same data support an \emph{effective} error budget (ED Table~3d), which is
+what separates a device limit from a method limit. No vendor calibration
+accompanies the run: the cloud interface exposes per-qubit readout fidelity,
+single-qubit gate fidelity, $T_1$ and $T_2$ only behind the authorisation used
+to submit jobs, which this account no longer holds, and the refusal is recorded
+with a timestamp in the artifact rather than passed over in silence. The rates
+that follow are therefore marginals of the measured distributions against a
+deterministic ideal syndrome---no error model and no fit---and each lumps every
+physical error incurred before the readout together with the assignment error of
+the readout itself. On the injected late-measure circuit the four per-ancilla
+rates are $0.253$, $0.558$, $0.305$ and $0.288$: a mean of $1.40$ wrong bits out
+of $4$ per shot, with $a_1$ worse than a coin flip, and the measured
+all-four-correct rate is $0.908\times$ the product of those marginals, i.e. the
+bit errors are mildly correlated rather than independent. The loss then splits
+\emph{exactly}, because the identity
+$P(\mathrm{expected\ key})=P(\mathrm{correct\ syndrome})\times F_s$
+follows from how the post-selection is defined rather than from a model:
+$85.2\%$ of the shots never read the syndrome correctly, and of
+those that do, a further $20.0\%$ of the logical information is lost in the data
+register. The identical circuit, in the exact statevector reference, loses
+$4.3\times10^{-6}$ end to end; that is $4.8\times10^{-6}$ of the loss observed on
+hardware, one part in $2.07\times10^{5}$, so the shortfall is the device's and
+not the method's. Spread over the circuit's $204$ instructions ($113$
+single-qubit, $82$ CNOT, $9$ measurements) it corresponds to a mean
+per-instruction error of $1.0\%$ under an independent-error model, quoted as an
+order of magnitude and not as a calibration. The relaxation attribution is
+likewise a measurement rather than an interpretation: $a_1$ is the only ancilla
+whose effective $1\to0$ rate exceeds its $0\to1$ rate ($0.558$ against $0.389$),
+and deferring its readout---which lengthens its idle wait by the $126$
+instructions of the recovery and decode sections---flips that asymmetry from
+$-0.301$ to $+0.169$ while $a_0$'s stays at $-0.363$.
 
 \section*{Discussion}
 
@@ -1360,13 +1392,21 @@ references are exact statevector branch amplitudes of the identical circuits.
 Feasibility data: $4$ circuits $\times$ $400$ shots ($366$--$371$ usable;
 $1\,476$ of $1\,600$ executed, $124$ post-selected on a correctly read
 syndrome, $53$ data hits, an end-to-end yield of $3.31\%$). The per-circuit
-budget and the shot cost of each quoted precision are in ED Table~3b.
+budget and the shot cost of each quoted precision are in ED Table~3b. The
+effective error budget (\texttt{hw\_error\_budget.py} $\to$
+\texttt{hw\_error\_budget.json}; ED Tables~3d--3e) rebuilds the four circuits
+offline from the v1 angle snapshot to count their instructions exactly, then
+takes each ancilla's error rate as the marginal of the measured syndrome
+distribution against the deterministic ideal syndrome, so no error model enters
+it; it also records that the vendor calibration query was refused, with the
+timestamp and the error string, rather than omitting the gap.
 
 \paragraph{Data and code availability.}
 Training/evaluation code (\texttt{ssvr\_qec.py}, \texttt{vscr\_paper.py},
 \texttt{vscr\_paper\_coh.py}, \texttt{vscr\_paper\_abl.py}), the hardware
 pipeline (\texttt{qcloud\_vscr\_new.py}), the feasibility analysis
-(\texttt{hw\_verify\_analysis.py}), trained angle sets, raw cloud returns and
+(\texttt{hw\_verify\_analysis.py}), the effective error budget
+(\texttt{hw\_error\_budget.py}), trained angle sets, raw cloud returns and
 all figure source data are available in the accompanying repository; ideal
 reference tables and per-branch fidelities are provided as JSON/NumPy
 artifacts.
