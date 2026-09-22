@@ -33,7 +33,10 @@ It asserts, over `paper_numbers.json`, `paper/main.tex`,
   9. the ED tables through 11b are present with balanced tabulars, and
      `extended_data.tex` is environment-balanced (Table 12 is locked in 9c/9d and
      Tables 13-14 in section 14b);
- 10. the key literature is in the bibliography;
+ 10. the key literature is in the bibliography, and the five competing-work
+     entries added for the revision match their CrossRef/arXiv verification record
+     field by field (authors, year, venue, volume, article number, DOI), with the
+     one unpublished entry required to carry an eprint and no DOI;
  11. every \\includegraphics target exists on disk.
 
   12. no math-mode symbol survives outside a $...$ span in the generated ED
@@ -98,7 +101,7 @@ for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.p
           'scaling_results.json', 'stationarity_boundary.json',
           'ancilla_recovery.json', 'multiseed_results.json',
           'storage_rounds.json', 'hw_feasibility_numbers.json',
-          'hw_error_budget.json'):
+          'hw_error_budget.json', 'refs_verification5.json'):
     chk(os.path.getsize(f) > 0, f + ' present')
 
 P = json.load(open('paper_numbers.json'))
@@ -723,6 +726,87 @@ for k in ('petz_map', 'biswas_petz', 'beny_optimal', 'huggins_vd', 'vikstal_vd',
           'torlai_nn', 'meinerz_nn', 'tian_transformer', 'laflamme_5q',
           'shor_code', 'steane_code', 'gottesman_hamming'):
     chk(k in bib, 'refs.bib has ' + k)
+
+# ---- 10b. competing work: cited, used, and verified against CrossRef --------
+# A bibliography is the one part of a manuscript every numerical check is blind
+# to: a plausible DOI attached to a paper that says something else passes all of
+# them, and a reviewer who spots it stops trusting the rest.  So each of the five
+# competing-work entries added for this revision is locked field by field against
+# refs_verification5.json -- the CrossRef/arXiv record fetched when it was added --
+# and each is required to be cited somewhere in the text.  The one entry with no
+# journal version must carry an eprint and NO doi field, because inventing one is
+# exactly the failure mode this section exists to prevent.
+_rv5 = json.load(open('refs_verification5.json'))
+_tfn10 = ' '.join(t.split())
+
+
+def _bib_entry(key):
+    m = re.search(r'(?m)^@[A-Za-z]+\{' + re.escape(key) + r',(.*?)\n\}', r, re.S)
+    return m.group(1) if m else ''
+
+
+def _bib_field(ent, name):
+    m = re.search(name + r'\s*=\s*\{(.*?)\}', ent, re.S)
+    return ' '.join(m.group(1).split()) if m else None
+
+
+for _k in sorted(_rv5):
+    _v = _rv5[_k][0]
+    _ent = _bib_entry(_k)
+    chk(bool(_ent), 'refs.bib contains the competing-work entry ' + _k)
+    if not _ent:
+        continue
+    _au = _bib_field(_ent, 'author') or ''
+    chk(all(_a.split()[-1] in _au for _a in _v['authors']),
+        '%s names all %d verified authors' % (_k, len(_v['authors'])))
+    _n_au = len([a for a in re.split(r'\s+and\s+', _au) if a.strip()])
+    chk(_n_au == len(_v['authors']),
+        '%s lists exactly the %d authors of the record, no more and no fewer '
+        '(found %d)' % (_k, len(_v['authors']), _n_au))
+    chk(_bib_field(_ent, 'year') == str(_v['y']),
+        '%s is dated %s, the year the record reports' % (_k, _v['y']))
+    if _v['doi']:
+        chk(_bib_field(_ent, 'doi') == _v['doi'],
+            '%s carries the verified DOI %s' % (_k, _v['doi']))
+        chk(_bib_field(_ent, 'journal') == _v['j'],
+            '%s is attributed to %s' % (_k, _v['j']))
+        chk(_bib_field(_ent, 'volume') == _v['v']
+            and _bib_field(_ent, 'pages') == _v['p'],
+            '%s carries volume %s, article %s' % (_k, _v['v'], _v['p']))
+    else:
+        chk(_bib_field(_ent, 'doi') is None
+            and _bib_field(_ent, 'eprint') == _v['arxiv'],
+            '%s has no journal version, so it is cited as arXiv:%s and carries no '
+            'invented DOI' % (_k, _v['arxiv']))
+    chk(_k in cites, 'main.tex actually cites ' + _k)
+# The comparison has to report what the competing experiment achieved AND what
+# ours did not, or it is marketing rather than a comparison.
+for _q, _why in (
+        ('removes $98.4\\%$ of leakage at $99.2\\%$ assignment fidelity',
+         'the leakage-reduction figures the competing experiment reports'),
+        ('without post-selection}~' + BS + 'cite{xin_lru}',
+         'that the competing experiment needs no post-selection'),
+        ('Our hardware section does not meet that bar',
+         'the admission that our feasibility run does not meet it'),
+        ('VarQEC', 'the variational code-discovery family by name'),
+        ('optimises the \\emph{encoding} circuit',
+         'that VarQEC learns the ENCODING -- flipping this to "recovery" would '
+         'erase the distinction'),
+        ('VSCR fixes the code and learns the \\emph{recovery}',
+         'that VSCR learns the RECOVERY for a fixed code'),
+        ('an adaptive schedule changes \\emph{which} syndromes are read, VSCR '
+         'changes \\emph{what is done} with the syndrome that was read',
+         'the orthogonality of adaptive extraction and syndrome-conditioned '
+         'recovery'),
+        ('syndrome-based variant of the Petz map',
+         'the syndrome-conditional Petz competitor by description'),
+        ('Adaptive syndrome extraction', 'the adaptive-extraction competitor'),
+        ('so a syndrome-resolved, closed-form competitor now exists',
+         'that the syndrome-based Petz successor narrows the distinction the '
+         'baseline paragraph draws'),
+        ('ED Tables~3b--3e', 'the pointer at what our post-selection costs')):
+    chk(_q in _tfn10, 'main.tex states %s' % _why)
+
 
 # ---- 11. every graphic the LaTeX includes exists on disk -------------------
 incs = sorted(set(re.findall(r'includegraphics\[[^\]]*\]\{([^}]*)\}', t)))

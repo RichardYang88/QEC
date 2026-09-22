@@ -1,0 +1,80 @@
+{
+ "varqec_cao": [
+  {
+   "t": "Quantum variational learning for quantum error-correcting codes",
+   "a": "Cao",
+   "authors": ["Chenfeng Cao", "Chao Zhang", "Zipeng Wu", "Markus Grassl", "Bei Zeng"],
+   "y": 2022,
+   "j": "Quantum",
+   "v": "6",
+   "p": "828",
+   "doi": "10.22331/q-2022-10-06-828",
+   "arxiv": "2204.03560",
+   "source": "crossref filter=doi (2026-09-22)",
+   "note": "the paper that introduces the name VarQEC; learns the ENCODING (code discovery) from Knill-Laflamme-inspired cost functions, not the recovery"
+  }
+ ],
+ "varqec_meyer": [
+  {
+   "t": "Learning encodings by maximizing state distinguishability: Variational quantum error correction",
+   "a": "Meyer",
+   "authors": ["Nico Meyer", "Christopher Mutschler", "Andreas Maier", "Daniel D. Scherer"],
+   "y": 2026,
+   "j": "Quantum Science and Technology",
+   "v": "11",
+   "issue": "4",
+   "p": "045036",
+   "doi": "10.1088/2058-9565/ae98b1",
+   "arxiv": "2506.11552",
+   "source": "crossref work record + arXiv journal_ref (2026-09-22)",
+   "note": "second paper using the VarQEC name; distinguishability loss for encoding circuits, IBM and IQM proof-of-concept runs"
+  }
+ ],
+ "berthusen_ase": [
+  {
+   "t": "Adaptive Syndrome Extraction",
+   "a": "Berthusen",
+   "authors": ["Noah Berthusen", "Shi Jie Samuel Tan", "Eric Huang", "Daniel Gottesman"],
+   "y": 2025,
+   "j": "PRX Quantum",
+   "v": "6",
+   "issue": "3",
+   "p": "030307",
+   "doi": "10.1103/ps3r-wf84",
+   "arxiv": "2502.14835",
+   "source": "crossref work record (2026-09-22)",
+   "note": "measures only the stabilizer generators likely to carry syndrome information; [[4,2,2]] concatenated with a hypergraph product code; >order of magnitude lower logical error with fewer gates and qubits"
+  }
+ ],
+ "xin_lru": [
+  {
+   "t": "Improved Error Correction with Leakage Reduction Units Built into Qubit Measurement in a Superconducting Quantum Processor",
+   "a": "Xin",
+   "authors": ["Yuejie Xin", "Sean L. M. van der Meer", "Marc Serra-Peralta", "Tim H. F. Vroomans", "Matvey Finkel", "Hendrik M. Veen", "Marc W. Beekman", "Leonardo DiCarlo"],
+   "y": 2026,
+   "j": "PRX Quantum",
+   "v": "7",
+   "issue": "3",
+   "p": "033062",
+   "doi": "10.1103/y66v-988s",
+   "arxiv": "2511.17460",
+   "source": "crossref work record + arXiv (2026-09-22)",
+   "note": "DDROP-derived LRU concurrent with 2-level readout: 98.4% leakage removal at 99.2% assignment fidelity; LRU-enhanced measurement + leakage-informed NN decoding suppress logical error in memory and stability experiments with NO post-selection"
+  }
+ ],
+ "biswas_syndrome_petz": [
+  {
+   "t": "Universal syndrome-based recovery for noise-adapted quantum error correction",
+   "a": "Biswas",
+   "authors": ["Debjyoti Biswas", "Prabha Mandayam"],
+   "y": 2025,
+   "j": "arXiv preprint (no CrossRef journal record as of 2026-09-22)",
+   "v": "",
+   "p": "",
+   "doi": "",
+   "arxiv": "2510.08719",
+   "source": "arXiv API (v1 2025-10-09, v2 2026-09-09); crossref search returns no journal version",
+   "note": "algorithmic construction of syndromes for arbitrary codes and noise, then a syndrome-based variant of the Petz map implementable by syndrome measurement; amplitude damping on the 4-qubit code, IBM hardware break-even with up to 3x T1 improvement"
+  }
+ ]
+}

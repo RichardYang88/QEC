@@ -471,3 +471,97 @@
   url     = {https://doi.org/10.1103/PhysRevLett.133.150603}
 }
 
+% --- Direct competitor family 1: variational CODE discovery (the name "VarQEC").
+% --- Learns the encoding circuit from a Knill-Laflamme-inspired cost; VSCR fixes
+% --- the code and learns the recovery, i.e. the complementary half.  Cited so the
+% --- two are never conflated.  Metadata verified against CrossRef 2026-09-22
+% --- (refs_verification5.json).
+@article{varqec_cao,
+  author  = {Cao, Chenfeng and Zhang, Chao and Wu, Zipeng and Grassl, Markus
+             and Zeng, Bei},
+  title   = {Quantum variational learning for quantum error-correcting codes},
+  journal = {Quantum},
+  volume  = {6},
+  pages   = {828},
+  year    = {2022},
+  doi     = {10.22331/q-2022-10-06-828},
+  url     = {https://doi.org/10.22331/q-2022-10-06-828}
+}
+
+% --- The second paper using the VarQEC name: a distinguishability loss for
+% --- encoding circuits, with proof-of-concept runs on IBM and IQM hardware.  Cited
+% --- alongside varqec_cao so that "VarQEC" in the text cannot be read as one
+% --- specific method.  Metadata from the CrossRef work record and the arXiv
+% --- journal reference (refs_verification5.json).
+@article{varqec_meyer,
+  author  = {Meyer, Nico and Mutschler, Christopher and Maier, Andreas and
+             Scherer, Daniel D.},
+  title   = {Learning encodings by maximizing state distinguishability:
+             Variational quantum error correction},
+  journal = {Quantum Science and Technology},
+  volume  = {11},
+  number  = {4},
+  pages   = {045036},
+  year    = {2026},
+  doi     = {10.1088/2058-9565/ae98b1},
+  url     = {https://doi.org/10.1088/2058-9565/ae98b1}
+}
+
+% --- Direct competitor family 2: syndrome-conditional noise-adapted recovery,
+% --- i.e. the closest published relative of VSCR's own object.  Constructs a
+% --- syndrome-based variant of the Petz map algorithmically for arbitrary codes
+% --- and channels and implements it by syndrome measurement, with break-even
+% --- amplitude-damping correction on the four-qubit code on IBM hardware.  No
+% --- journal version exists in CrossRef as of 2026-09-22, so it is cited as the
+% --- preprint it is (refs_verification5.json).
+@misc{biswas_syndrome_petz,
+  author        = {Biswas, Debjyoti and Mandayam, Prabha},
+  title         = {Universal syndrome-based recovery for noise-adapted quantum
+                   error correction},
+  year          = {2025},
+  eprint        = {2510.08719},
+  archivePrefix = {arXiv},
+  primaryClass  = {quant-ph},
+  url           = {https://arxiv.org/abs/2510.08719}
+}
+
+% --- Direct competitor family 3: adaptive syndrome extraction.  Reduces cycle
+% --- cost by measuring only the generators likely to carry syndrome information,
+% --- with real-time adaptation between rounds; VSCR is branch-fixed and
+% --- feedback-free by construction, which is the trade-off the text states.
+% --- Metadata from the CrossRef work record (refs_verification5.json).
+@article{berthusen_ase,
+  author  = {Berthusen, Noah and Tan, Shi Jie Samuel and Huang, Eric and
+             Gottesman, Daniel},
+  title   = {Adaptive Syndrome Extraction},
+  journal = {PRX Quantum},
+  volume  = {6},
+  number  = {3},
+  pages   = {030307},
+  year    = {2025},
+  doi     = {10.1103/ps3r-wf84},
+  url     = {https://doi.org/10.1103/ps3r-wf84}
+}
+
+% --- Direct competitor family 4, and the current experimental bar this paper's
+% --- hardware section is measured against: a leakage reduction unit built into
+% --- transmon measurement (98.4% leakage removal at 99.2% assignment fidelity),
+% --- combined with leakage-informed neural-network decoding to suppress logical
+% --- error in memory and stability experiments with NO post-selection.  Cited
+% --- because our headline fidelity IS post-selected, and the text says so.
+% --- Metadata from the CrossRef work record and arXiv:2511.17460.
+@article{xin_lru,
+  author  = {Xin, Yuejie and van der Meer, Sean L. M. and Serra-Peralta, Marc and
+             Vroomans, Tim H. F. and Finkel, Matvey and Veen, Hendrik M. and
+             Beekman, Marc W. and DiCarlo, Leonardo},
+  title   = {Improved Error Correction with Leakage Reduction Units Built into
+             Qubit Measurement in a Superconducting Quantum Processor},
+  journal = {PRX Quantum},
+  volume  = {7},
+  number  = {3},
+  pages   = {033062},
+  year    = {2026},
+  doi     = {10.1103/y66v-988s},
+  url     = {https://doi.org/10.1103/y66v-988s}
+}
+

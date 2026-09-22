@@ -140,6 +140,41 @@ regression~\cite{czarnik_cdr,cai_em_review} recover ideal expectation values
 but require noise-scaling or multi-copy resources and provide no protected
 logical subspace.
 
+Four recent directions are close enough to VSCR that the distinction has to be
+stated precisely rather than left to a citation list. \emph{Variational code
+discovery}---VarQEC and its successors~\cite{varqec_cao,varqec_meyer}---optimises
+the \emph{encoding} circuit against a Knill--Laflamme-inspired or
+state-distinguishability cost, and so searches over codes for a given noise
+model; VSCR fixes the code and learns the \emph{recovery}, the complementary half
+of the same problem, and the two compose. \emph{Noise-adapted syndrome-conditional
+recovery} is the closest published relative of our object: a syndrome-based
+variant of the Petz map, constructed algorithmically for arbitrary codes and
+channels and implemented by syndrome measurement, has been used to demonstrate
+break-even amplitude-damping correction on the four-qubit code on IBM
+hardware~\cite{biswas_syndrome_petz}. It is closed-form rather than trained, and
+like every Petz construction it needs a reference state $\sigma$ alongside the
+channel; VSCR needs neither $\sigma$ nor labels, and pays for that with a training
+loop. What it buys with the loop is a guarantee structure a closed-form map does
+not carry---the warm start \emph{is} the decoder, the refinement provably cannot
+fall below it, and the non-Pauli headroom it captures is certified against a
+per-branch CPTP ceiling that bounds that map too, since it is one.
+\emph{Adaptive syndrome extraction}~\cite{berthusen_ase} cuts the cycle cost by
+measuring only the stabilizer generators likely to carry syndrome information,
+adapting in real time between rounds; VSCR runs the other way on purpose---all
+generators measured, branch-fixed, feedback-free---which costs extraction depth
+but keeps the recovery a static compiled circuit with no classical latency in the
+loop. The two are orthogonal: an adaptive schedule changes \emph{which} syndromes
+are read, VSCR changes \emph{what is done} with the syndrome that was read.
+\emph{Hardware-integrated QEC} sets the experimental bar this paper is measured
+against: a leakage reduction unit built into transmon measurement removes
+$98.4\%$ of leakage at $99.2\%$ assignment fidelity and, with leakage-informed
+neural-network decoding, suppresses logical error in memory and stability
+experiments \emph{without post-selection}~\cite{xin_lru}. Our hardware section
+does not meet that bar and is not presented as if it did: it is a four-circuit
+feasibility run whose headline fidelity is post-selected on a correctly read
+syndrome, and Extended Data states what that post-selection costs, in shots and
+in effective error rate (ED Tables~3b--3e).
+
 Here we close this gap with \emph{variational syndrome-conditioned recovery}
 (VSCR): a variational quantum instrument in which a projective stabilizer
 measurement is followed by a \emph{learned unitary} $R_s$, one per syndrome
@@ -1155,7 +1190,18 @@ case for our method: Petz is handed the exact channel and the exact code-space
 reference, and is permitted to be non-unitary and \emph{not} syndrome-resolved
 (it may leak outside the code space, which a measurement-based decoder never
 does). Where VSCR nonetheless leads, the lead is attributable to the projective
-syndrome readout rather than to a weaker opponent. The comparison also has a
+syndrome readout rather than to a weaker opponent. That distinction is narrowing,
+and the paper should say so: the same group has since given an algorithmic
+construction of \emph{syndrome-based} Petz recovery for arbitrary codes and
+channels, implementable by syndrome measurement and demonstrated at break-even on
+the four-qubit amplitude-damping code on IBM
+hardware~\cite{biswas_syndrome_petz}, so a syndrome-resolved, closed-form
+competitor now exists. What remains different is the guarantee rather than the
+conditioning: that map is closed-form given $(\mathrm{code},\mathcal N,\sigma)$,
+whereas VSCR's warm start \emph{is} the decoder, its refinement provably cannot
+fall below it, and the headroom it captures is certified against a per-branch
+CPTP ceiling that bounds every recovery in that class, including this one. The
+comparison also has a
 clean applicability boundary, which widens with code size (ED Table~11): on Pauli
 noise the decoder beats Petz at every size we test ($0.9470$, $0.9231$, $0.9355$
 against $0.9074$, $0.8976$, $0.9035$ for $n=5,7,9$ at $p=0.10$), because one

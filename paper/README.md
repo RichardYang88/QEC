@@ -4,7 +4,16 @@
 *"Variational syndrome-conditioned recovery for quantum error correction:
 from unsupervised learning to a superconducting quantum processor"*.
 All bibliography entries were verified against Crossref (DOIs in `refs.bib`;
-verification dumps: `../refs_verification*.json`).
+verification dumps: `../refs_verification*.json`). The five competing-work entries
+added for the revision — VarQEC (`varqec_cao`, `varqec_meyer`), syndrome-based Petz
+recovery (`biswas_syndrome_petz`), adaptive syndrome extraction (`berthusen_ase`)
+and measurement-integrated leakage reduction (`xin_lru`) — are locked field by
+field against `../refs_verification5.json` by `audit_numbers.py` §10b: authors
+(exactly, by count and by name), year, venue, volume, article number and DOI, and
+each must actually be cited in `main.tex`. The one entry with no journal version
+(`biswas_syndrome_petz`, arXiv:2510.08719) is required to carry an eprint and
+**no** DOI, because an invented DOI is the failure mode a bibliography check
+exists to catch.
 
 ## Build
 
@@ -115,7 +124,7 @@ Verification is deliberately two-layered, because the two layers fail differentl
   stationary point, the SDP ceiling bounds it, and the refinement is monotone.
   It runs each test in its own subprocess with retries (see the host note
   below), so one native fault cannot abort the rest of the suite.
-- `audit_numbers.py` (973 checks, <1 s, exit 0 iff clean) checks that the
+- `audit_numbers.py` (1023 checks, <1 s, exit 0 iff clean) checks that the
   **artifacts** are mutually consistent and physical: every reported fidelity
   lies in [0,1], `F_warm >= F_decoder` at *every* p on *every* channel, no
   Fig. 4(b) gap-to-ceiling bar is negative or above its own bound, the SDP
