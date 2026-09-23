@@ -35,6 +35,10 @@ cd ..                                  # repo root
 ./qenv/bin/python vscr_paper_abl.py    # same-family baselines + SDP ceiling + ablations
 ./qenv/bin/python scaling_analysis.py  # exact n=5/7/9 ceilings + readout law
 ./qenv/bin/python ancilla_recovery.py  # Kraus-rank ladder -> ancilla_recovery.json
+./qenv/bin/python stationarity_boundary.py  # nine-sector certificate + 90-pair sweep
+                                       #   -> stationarity_boundary.json (ED 10a/10b)
+./qenv/bin/python mixed_input_boundary.py   # mixed-input boundary of that certificate
+                                       #   -> mixed_input_boundary.json (ED 10c-10e)
 ./qenv/bin/python multiseed_stats.py --verify-reproduction  # 16 seeds -> multiseed_results.json
 ./qenv/bin/python storage_rounds.py --validate              # 40 rounds -> storage_rounds.json
 ./qenv/bin/python hw_verify_analysis.py# hardware feasibility fig + numbers
@@ -116,15 +120,41 @@ chosen per code size by `device_for()`. Use `--selftest` for the 126 assertions,
 not plots: if any one fails, a specific claim or figure in the manuscript is
 unsupported.
 
+`mixed_input_boundary.py` answers "the certificate assumes pure logical inputs —
+what does a device deliver?". `stationarity_boundary.py` proves `phi^dec`
+stationary for every ensemble of **pure** logical states, because the orthogonality
+step uses `|n| = 1`; noisy preparation, idle decay and leakage shrink the Bloch
+vector to `r < 1`, so the object a device scores sits outside the theorem as
+stated. Nothing in the derivation used purity, so the same quadratic holds for
+every `r <= 1` and the mixed-input gradient is the nine sector gradients **plus one
+extra coefficient gradient** `grad c0` that the pure-state argument never had to
+control separately; all ten are measured over 9 channels × 7 radii × (4 directions
++ the isotropic average) = 315 scores on all 960 angles, with a central-difference
+cross-check and the usual random-angle control. It then separates the two things
+mixedness can do: a **linear** score (the post-selected branch population,
+`<Z_L>`) decomposes exactly over any pure ensemble, so hardware benchmarks need no
+extension, while the **quadratic** training loss over-reads a mixed input by
+exactly `delta^T C delta >= 0`, i.e. by `(1-r^2)(F_haar - c0)` after averaging over
+directions. That over-read is priced at the mixedness the run itself implies — the
+implied mean per-instruction error of `hw_error_budget.json` propagated through the
+compiled 36-gate encoder, giving `r = 0.9375` with 39% of the encoded weight
+outside the codespace — rather than at a chosen radius, and the second-order
+question is answered by multi-start Adam on the isotropic mixed score (which at
+`r=1` is exactly the audited Haar objective). Every object is anchored before use:
+the isotropic score at `r=1` reproduces the audited exact decoder fidelities, and
+the expansion is checked against a graph-free density-matrix trace at 60 random
+`r<1` states. Use `--quick` for a 24-angle FD subset and 3 descent starts,
+`--no-descent` to skip the second-order sweep.
+
 Verification is deliberately two-layered, because the two layers fail differently:
 
-- `run_selftests.py` (13 tests) checks that the **code** computes what the
+- `run_selftests.py` (14 tests) checks that the **code** computes what the
   manuscript claims — the warm start is phase-exactly the Pauli decoder, the
   Haar×p quadrature equals the full 32×32 reference, the decoder is an exact
   stationary point, the SDP ceiling bounds it, and the refinement is monotone.
   It runs each test in its own subprocess with retries (see the host note
   below), so one native fault cannot abort the rest of the suite.
-- `audit_numbers.py` (1023 checks, <1 s, exit 0 iff clean) checks that the
+- `audit_numbers.py` (1213 checks, <1 s, exit 0 iff clean) checks that the
   **artifacts** are mutually consistent and physical: every reported fidelity
   lies in [0,1], `F_warm >= F_decoder` at *every* p on *every* channel, no
   Fig. 4(b) gap-to-ceiling bar is negative or above its own bound, the SDP
@@ -135,7 +165,14 @@ Verification is deliberately two-layered, because the two layers fail differentl
   `hw_feasibility_numbers.json` — the one artifact nothing in the repository
   can regenerate — and (§16) every rate in the effective error budget is
   re-derived a *second* time from those same counts, so `hw_error_budget.json`
-  is checked rather than trusted. It recomputes nothing else — it reads the
+  is checked rather than trusted, and (§17) the mixed-input boundary of that
+  certificate: the nine sector gradients **plus** the one extra coefficient
+  gradient a mixed logical input needs all vanish against O(1) controls, the
+  gradient identity is validated where it is nonzero, the device radius is read
+  from the audited per-instruction error rather than chosen, every over-read is
+  re-derived from the coefficients, and each mantissa quoted in Results,
+  Discussion, Methods and ED Tables 10c-10e is re-derived here. It recomputes
+  nothing else — it reads the
   JSON artifacts and
   the `.tex` files — so it is a cheap pre-submission gate. Run it after any
   regeneration.
@@ -143,7 +180,10 @@ Verification is deliberately two-layered, because the two layers fail differentl
 Artifacts consumed by the manuscript:
 `vscr_paper_results.npz`, `vscr_angles_paper_{dep,ad,mixed,coh}.npz`,
 `vscr_paper_abl_results.npz`, `vscr_angles_abl_ind_{dep,ad,mixed,coh}.npz`,
-`paper_numbers.json`, `hw_feasibility_numbers.json`,
+`paper_numbers.json`, `hw_feasibility_numbers.json`, `hw_error_budget.json`,
+`scaling_results.json`, `stationarity_boundary.json`,
+`mixed_input_boundary.json`, `ancilla_recovery.json`, `multiseed_results.json`,
+`storage_rounds.json`,
 `paper/figures/fig_{schematic,training,branch_cf,sim_benchmark,sim_ler,coherent,ablation,hw_feasibility}.pdf`.
 
 **Never overwrite `vscr_angles_dep.npz`** — it is the v1 snapshot whose

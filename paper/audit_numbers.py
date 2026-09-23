@@ -67,6 +67,17 @@ It asserts, over `paper_numbers.json`, `paper/main.tex`,
       describes, and every per-ancilla error rate, independence ratio, asymmetry
       and loss share is re-derived a second time from the raw counts rather than
       trusted from the script that first computed it.
+  17. the mixed-input boundary of the stationarity certificate: the nine sector
+      gradients PLUS the one extra coefficient gradient a mixed logical input needs
+      all vanish against O(1) controls, the gradient identity is validated where it
+      is nonzero, the mixed expansion equals a graph-free density-matrix trace, a
+      LINEAR score decomposes exactly over a pure ensemble while the QUADRATIC one
+      over-reads by exactly delta^T C delta, the device radius is read from the
+      audited per-instruction error rather than chosen, every over-read is
+      re-derived from the coefficients, the second-order descent gains exactly
+      nothing on the channel where the decoder is the certified optimum, and each
+      mantissa quoted in Results, Discussion, Methods and ED Tables 10c-10e is
+      re-derived here.
 
 Exit status is 0 iff all checks pass, so it composes with `&&` in CI.
 """
@@ -92,6 +103,7 @@ def chk(cond, msg):
 print('=== FINAL CONSISTENCY AUDIT ===')
 for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.py',
           'vscr_general.py', 'scaling_analysis.py', 'stationarity_boundary.py',
+          'mixed_input_boundary.py',
           'run_selftests.py', 'diag_check.py', 'diag_optunit.py',
           'ancilla_recovery.py', 'multiseed_stats.py', 'storage_rounds.py',
           'hw_verify_analysis.py', 'hw_error_budget.py',
@@ -99,6 +111,7 @@ for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.p
           'paper/main.tex', 'paper/extended_data.tex', 'paper/refs.bib',
           'paper/README.md',
           'scaling_results.json', 'stationarity_boundary.json',
+          'mixed_input_boundary.json',
           'ancilla_recovery.json', 'multiseed_results.json',
           'storage_rounds.json', 'hw_feasibility_numbers.json',
           'hw_error_budget.json', 'refs_verification5.json'):
@@ -328,10 +341,13 @@ for _nm, _src in (('extended_data.tex', e), ('main.tex', t)):
             % (_nm, _beg, len(_out)))
 for n in range(1, 12):
     if n == 10:
-        # Table 10 was split: 10a is the analytic nine-sector certificate and 10b
-        # the direct 90-pair sweep that 10a subsumes.
-        chk('ED Table 10a:' in e and 'ED Table 10b:' in e,
-            'ED Tables 10a and 10b present (subsection headers)')
+        # Table 10 was split: 10a is the analytic nine-sector certificate, 10b the
+        # direct 90-pair sweep that 10a subsumes, and 10c-10e the mixed-input
+        # boundary of that certificate (gradient, device-priced over-read, and the
+        # second-order descent) from mixed_input_boundary.json.
+        for _sub in ('a', 'b', 'c', 'd', 'e'):
+            chk(('ED Table 10%s:' % _sub) in e,
+                'ED Table 10%s present (subsection header)' % _sub)
         continue
     chk(('ED Table %d:' % n) in e, 'ED Table %d present (subsection header)' % n)
 chk('ED Table 11b:' in e, 'ED Table 11b present (readout-law verification)')
@@ -1963,6 +1979,333 @@ for _q, _why in (
          'the a0 contrast')):
     chk(_q in _efn15, 'ED Tables 3d/3e quote %s as %s' % (_why, _q))
 
+
+# ---- 17. the mixed-input boundary of the stationarity certificate -------------
+# ED Tables 10a/10b prove phi^dec stationary for every ensemble of PURE logical
+# states, because the orthogonality step uses |n| = 1.  A device delivers a MIXED
+# logical input, which drops that constraint and adds ONE coefficient gradient,
+# grad c0, to the nine sectors.  mixed_input_boundary.json measures all ten, prices
+# the value shift a mixed input carries at the radius the run's own error budget
+# implies, and asks the second-order question by multi-start descent.  The prose in
+# Results ("Mixed logical inputs"), Discussion and Methods quotes these numbers, so
+# every one of them is re-derived here rather than trusted.
+_mb = json.load(open('mixed_input_boundary.json'))
+_msum, _mst = _mb['summary'], _mb['selftests']
+_mrows, _mov, _mds = _mb['rows'], _mb['overread'], _mb['descent']
+_mdv = _mb['device_prep']
+_tfn17 = ' '.join(t.split())
+_rdev = _msum['device_radius_min']
+_ad_hr = sd['ad_0.1']['F_cptp'] - sd['ad_0.1']['F_dec_exact']
+
+chk(_mb['stationary_for_mixed_inputs'] is True,
+    'mixed logical inputs are stationary at phi^dec (algebra + ten measured zeros)')
+chk(len(_mrows) == _msum['n_channels'] == len(_cert),
+    'the mixed scan covers the same %d channels as the nine-sector certificate'
+    % len(_mrows))
+chk(_msum['n_scores'] == _msum['n_channels'] * _msum['n_radii']
+    * (_msum['n_dirs'] + 1),
+    'n_scores %d = %d channels x %d radii x (%d directions + the isotropic average)'
+    % (_msum['n_scores'], _msum['n_channels'], _msum['n_radii'], _msum['n_dirs']))
+chk(_msum['n_angles'] == _sbs['cert_n_angles'],
+    'the mixed scan differentiates the same %d angles as the certificate'
+    % _msum['n_angles'])
+# the anchor: the isotropic mixed score at r = 1 IS the audited Haar objective
+_ANCH = {'depolarizing': 'dep_0.1', 'amplitude damping': 'ad_0.1',
+         'mixed': 'mixed_0.1', 'coherent Rx': 'coh_0.15'}
+for _c, _ref in _ANCH.items():
+    _r = [x for x in _mrows if x['channel'] == _c][0]
+    chk(abs(_r['F_haar'] - sd[_ref]['F_dec_exact']) < 1e-9,
+        'mixed-input F_haar[%s] %.9f == the audited F_dec_exact' % (_c, _r['F_haar']))
+for _r in _mrows:
+    chk(abs(_r['F_haar'] - (_r['c0'] + _r['tr_C_over_3'])) < 1e-15,
+        '%s: F_haar == c0 + Tr C / 3' % _r['channel'])
+    chk(_r['max_grad_mixed'] < 1e-14 and _r['max_grad_c0'] < 1e-15
+        and _r['max_grad_Z_mixed'] < 1e-14,
+        '%s: mixed-input gradients vanish (F %.2e, grad c0 %.2e, <Z_L> %.2e)'
+        % (_r['channel'], _r['max_grad_mixed'], _r['max_grad_c0'],
+           _r['max_grad_Z_mixed']))
+    chk(_r['max_grad_mixed_fd'] == 0.0,
+        '%s: the central difference of the mixed score is bitwise zero'
+        % _r['channel'])
+    chk(_r['control_grad_mixed'] > 1e-4,
+        '%s: control %.3e, so the zeros are measurable'
+        % (_r['channel'], _r['control_grad_mixed']))
+    chk(_r['control_grad_mixed'] / _r['max_grad_mixed'] > 1e10,
+        '%s: control exceeds the mixed gradient by >10 orders of magnitude'
+        % _r['channel'])
+chk(_msum['max_grad_mixed'] == max(_r['max_grad_mixed'] for _r in _mrows)
+    and _msum['max_grad_c0'] == max(_r['max_grad_c0'] for _r in _mrows)
+    and _msum['max_grad_Z_mixed']
+    == max(_r['max_grad_Z_mixed'] for _r in _mrows),
+    'the summary totals are the maxima of the per-channel rows they summarise')
+chk(_msum['min_control_grad_mixed'] == min(_r['control_grad_mixed']
+                                           for _r in _mrows) > 1e-4,
+    'weakest mixed-input control over all channels is %.3e'
+    % _msum['min_control_grad_mixed'])
+chk(_msum['min_control_grad_mixed'] / _msum['max_grad_mixed'] > 1e10,
+    'weakest control exceeds the worst mixed gradient by %.1e'
+    % (_msum['min_control_grad_mixed'] / _msum['max_grad_mixed']))
+# self-tests: every object is anchored before any of them is quoted
+chk(_mst['mixed_density_matrix_residual'] < 1e-12,
+    'the mixed expansion equals a graph-free density-matrix trace to %.2e'
+    % _mst['mixed_density_matrix_residual'])
+chk(_mst['identity_residual'] < 1e-12
+    and _mst['identity_min_magnitude'] > 1e-4,
+    'the mixed-input gradient identity holds to %.2e where BOTH sides are >= %.2e, '
+    'so it is not checked only at a shared zero'
+    % (_mst['identity_residual'], _mst['identity_min_magnitude']))
+chk(_mst['linear_decomp_residual'] < 1e-14,
+    'a LINEAR score decomposes exactly over a pure ensemble (%.2e), so the hardware '
+    'population and <Z_L> benchmarks need no extension'
+    % _mst['linear_decomp_residual'])
+chk(_mst['quadratic_delta_residual'] < 1e-14
+    and _mst['quadratic_max_overread'] > 1e-3,
+    'the QUADRATIC loss over-reads by exactly delta^T C delta (residual %.2e), and '
+    'that over-read reaches %.3e, so it is not a negligible quantity'
+    % (_mst['quadratic_delta_residual'], _mst['quadratic_max_overread']))
+# ---- 17b. device mixedness, the over-read it prices, and the second order ------
+# The mixedness is not a free parameter: it is read from the same effective error
+# budget the hardware section is audited against, so a re-analysis of the raw cloud
+# returns that moves the instruction error moves this radius too, and fails here.
+chk(abs(_mdv['p_instr'] - _ebh['implied_mean_instruction_error_D']) < 1e-15,
+    'the mixedness model uses the implied per-instruction error the hardware budget '
+    'reports (%.6f)' % _mdv['p_instr'])
+chk(_mdv['n_encoder_instructions'] == 36,
+    'the encoder the error is propagated through is the compiled %d-gate Clifford '
+    'encoder' % _mdv['n_encoder_instructions'])
+chk(0.0 < _rdev < 1.0,
+    'the logical input the device delivers is genuinely MIXED: r = %.6f < 1' % _rdev)
+for _lab in ('0_L', '1_L'):
+    _v = _mdv[_lab]
+    chk(abs(_v['purity'] - (1.0 + _v['radius'] ** 2) / 2.0) < 1e-12,
+        'device prep |%s>: purity %.6f == (1+r^2)/2 at r = %.6f'
+        % (_lab, _v['purity'], _v['radius']))
+    chk(0.0 < _v['codespace_weight'] <= 1.0
+        and abs(_v['codespace_weight'] + _v['leakage'] - 1.0) < 1e-15,
+        'device prep |%s>: codespace weight %.6f + leakage %.6f == 1'
+        % (_lab, _v['codespace_weight'], _v['leakage']))
+chk(_msum['device_codespace_weight_min']
+    == min(_mdv[x]['codespace_weight'] for x in ('0_L', '1_L')),
+    'the summary quotes the smaller codespace weight of the two logical inputs')
+# the over-read is re-derived here from the coefficients, per channel
+for _c, _o in _mov.items():
+    chk(abs(_o['r'] - _rdev) < 1e-15,
+        'over-read[%s] is priced at the device radius %.6f' % (_c, _rdev))
+    chk(abs(_o['overread'] - (1.0 - _rdev ** 2) * (_o['F_haar'] - _o['c0']))
+        < 1e-18,
+        'over-read[%s] %.3e == (1-r^2)(F_haar - c0), re-derived'
+        % (_c, _o['overread']))
+    chk(_o['overread'] >= 0.0,
+        'over-read[%s] is non-negative, as C being a Gram matrix requires' % _c)
+chk(abs(_msum['max_overread_at_device_r']
+        - max(_o['overread'] for _o in _mov.values())) < 1e-18,
+    'the largest over-read at the device radius is %.3e'
+    % _msum['max_overread_at_device_r'])
+# the scale that makes the over-read a limitation rather than a curiosity: on the
+# channel whose headroom motivates the method it is a sizeable fraction of that
+# headroom, and the largest of the four exceeds the whole of it.
+_ov_ad = _mov['amplitude damping']['overread']
+_ov4 = max(_mov[_c]['overread'] for _c in _ANCH)
+chk(0.25 < _ov_ad / _ad_hr < 0.75,
+    'the amplitude-damping over-read %.3e is %.2f of the certified non-Pauli '
+    'headroom %.3e on that channel: same order, so it must be matched in r'
+    % (_ov_ad, _ov_ad / _ad_hr, _ad_hr))
+chk(_ov4 > _ad_hr,
+    'the largest over-read on the four headline channels %.3e exceeds the entire '
+    'certified amplitude-damping headroom %.3e by %.2fx'
+    % (_ov4, _ad_hr, _ov4 / _ad_hr))
+chk(_msum['max_overread_at_device_r'] >= _ov4,
+    'over all nine channels the largest over-read at the device radius is %.3e'
+    % _msum['max_overread_at_device_r'])
+# second order: stationarity is not optimality, and the descent says by how much
+chk(len(_mds) == 4 and set(_mds) == set(_ANCH),
+    'the second-order test covers the %d headline channels' % len(_mds))
+for _c, _d in _mds.items():
+    chk(_d['warm_start_grad'] < 1e-14,
+        '%s: the warm start is stationary on the mixed score too (%.2e)'
+        % (_c, _d['warm_start_grad']))
+    chk(abs(_d['haar_cost'] - (_d['F_haar_decoder'] - _d['F_haar_best'])) < 1e-15
+        and abs(_d['gain'] - (_d['F_best'] - _d['F_decoder'])) < 1e-15,
+        '%s: gain and Haar cost are the differences they are labelled as' % _c)
+    chk(_d['gain'] >= -1e-15,
+        '%s: no start does worse than the decoder point on the mixed score (%.3e)'
+        % (_c, _d['gain']))
+    chk(_d['n_starts'] == 8 and _d['steps'] == 400 and _d['lr'] == 0.05,
+        '%s: the descent records its own provenance (%d starts, %d steps, lr %.2f)'
+        % (_c, _d['n_starts'], _d['steps'], _d['lr']))
+chk(_mds['depolarizing']['gain'] == 0.0
+    and _mds['depolarizing']['max_angle_move'] == 0.0,
+    'on depolarizing, where the decoder is the certified optimum, NO start improves '
+    'the mixed score and no angle moves')
+chk(_mds['amplitude damping']['gain'] > 1e-4
+    and _mds['amplitude damping']['haar_cost'] < 0.0,
+    'on amplitude damping the mixed score improves by %.3e and the same point scores '
+    '%.3e BETTER on the audited Haar objective, so at the device radius the two '
+    'objectives do not trade against each other'
+    % (_mds['amplitude damping']['gain'], _mds['amplitude damping']['haar_cost']))
+chk(_msum['descent_max_gain'] == max(_d['gain'] for _d in _mds.values())
+    and _msum['descent_max_warm_grad']
+    == max(_d['warm_start_grad'] for _d in _mds.values()),
+    'the descent totals in the summary are the extrema of the per-channel records')
+# Which start wins is NOT reproducible: this is a non-convex search, and 400 Adam
+# steps amplify the last bits of whatever BLAS kernel the pinned core selects.  Two
+# full runs on different cores agreed bit for bit on amplitude damping (the channel
+# the prose quotes) and differed by three orders of magnitude on the coherent one,
+# so only the invariants below are locked -- plus the amplitude-damping pair, which
+# is the only per-channel number Results quotes.
+_gain_max = max(_d['gain'] for _d in _mds.values())
+chk(_msum['descent_max_warm_grad'] < 1e-17,
+    'the warm start is stationary on the mixed score at every channel (%.2e), which '
+    'unlike the gains IS a first-order quantity and therefore reproducible'
+    % _msum['descent_max_warm_grad'])
+chk(_gain_max < 1e-3,
+    'the largest second-order gain on the mixed score is %.3e: the scale of the '
+    'certified headroom, not of the fidelity itself' % _gain_max)
+chk(all(_d['haar_cost'] <= 1e-6 for _d in _mds.values() if _d['gain'] > 1e-5),
+    'wherever the mixed score improves materially the same angle table does not cost '
+    'the audited pure-ensemble objective')
+
+
+# 17c. prose locks: every mantissa quoted in Results, Discussion and Methods is
+# re-derived here with the renderer the prose uses, so a regenerated artifact that
+# is not followed by an edit fails the audit instead of leaving stale prose behind.
+def _s1(x, d=1):
+    """The absolute-value sci form the prose uses, already in math mode."""
+    return '$' + _tex_sci(x, d) + '$'
+
+
+_ovD = _mov['depolarizing']['overread']
+_ovA = _mov['amplitude damping']['overread']
+_ovM = _mov['mixed']['overread']
+_ovC = _mov['coherent Rx']['overread']
+_ctl_max = max(_r['control_grad_mixed'] for _r in _mrows)
+_ad = _mds['amplitude damping']
+_mx = _mds['mixed']
+_cx = _mds['coherent Rx']
+_leak = 100.0 * _mdv['0_L']['leakage']
+_haarform = '$(1-r^2)(' + BS + 'bar F_{' + BS + 'rm Haar}-c_0)$'
+for _q, _why in (
+        ('mixed-input gradient is $' + BS + 'le'
+         + _tex_sci(_msum['max_grad_mixed'], 1) + '$',
+         'the worst mixed-input gradient over the whole radius grid'),
+        ('the extra coefficient gradient is $' + BS + 'le'
+         + _tex_sci(_msum['max_grad_c0'], 1) + '$',
+         'the one extra l=0 coefficient gradient a mixed input needs'),
+        ('functional are $' + BS + 'le'
+         + _tex_sci(_msum['max_grad_Z_mixed'], 1) + '$',
+         'the mixed-input gradient of the linear <Z_L> functional'),
+        ('controls of %s to %s' % (_s1(_msum['min_control_grad_mixed']),
+                                   _s1(_ctl_max)),
+         'the random-angle control range that makes the zeros measurable'),
+        ('$%d$ scores on $%d$ angles' % (_msum['n_scores'], _msum['n_angles']),
+         'the size of the mixed-input scan'),
+        ('both sides are $' + BS + 'ge'
+         + _tex_sci(_mst['identity_min_magnitude'], 1)
+         + '$ and the residual is ' + _s1(_mst['identity_residual']),
+         'the gradient identity, validated where it is nonzero'),
+        ('$60$ random states with $r' + BS + 'le0.99$ ('
+         + _s1(_mst['mixed_density_matrix_residual']) + ')',
+         'the mixed expansion against a graph-free density-matrix trace'),
+        ('(measured residual ' + _s1(_mst['linear_decomp_residual']) + ')',
+         'the exactness of the linear decomposition'),
+        ('per-instruction error ($%.2f' % (100.0 * _mdv['p_instr']) + BS + '%$)',
+         'the instruction error the device mixedness is propagated from'),
+        ('$%d$-gate encoder' % _mdv['n_encoder_instructions'],
+         'the encoder the error is propagated through'),
+        ('both logical inputs at $r=%.4f$ (purity $%.4f$)'
+         % (_rdev, _mdv['0_L']['purity']),
+         'the device-implied logical-input radius and purity'),
+        ('codespace weight of $%.3f$' % _msum['device_codespace_weight_min'],
+         'the codespace weight of the delivered logical state'),
+        ('$%.0f' % _leak + BS + '%$ of the encoded weight', 'the leaked fraction')):
+    chk(_q in _tfn17, 'main.tex quotes %s as %s' % (_why, _q))
+# ---- 17c-2. the remaining prose locks, the ED pointers and the rendered tables --
+for _q, _why in (
+        ('the over-read is %s on depolarizing, %s on the mixed channel, %s on '
+         'amplitude damping and %s on coherent over-rotation'
+         % (_s1(_ovD), _s1(_ovM), _s1(_ovA), _s1(_ovC)),
+         'the four over-reads at the device radius'),
+        ('(' + _s1(_ovA) + ' against ' + _s1(_ad_hr) + ', ED Table~7)',
+         "the amplitude-damping over-read against that channel's headroom"),
+        ('the largest of the four is $%.1f' % (_ov4 / _ad_hr) + BS + 'times$ it',
+         'how much the largest headline-channel over-read exceeds that headroom'),
+        ('at $r=%.2f$ (eight starts' % _ad['r'],
+         'the radius and start count of the second-order test'),
+        ('whose gradient is $' + BS + 'le10^{-17}$',
+         'the warm-start gradient bound on the mixed score'),
+        ('it gains ' + _s1(_ad['gain']) + ' on the mixed score',
+         'the amplitude-damping second-order gain -- the one channel two '
+         'independent full runs reproduced bit for bit'),
+        ('angle table scores ' + _s1(-_ad['haar_cost']) + ' ' + BS + 'emph{better}',
+         'what that same angle table scores on the audited pure-ensemble objective'),
+        ('the largest gain any of them finds is ' + _s1(_gain_max),
+         'the bound on the second-order gain across the four headline channels'),
+        ('Bloch radius $r=%.4f$, with $%.0f' % (_rdev, _leak) + BS + '%$ of',
+         'the Discussion restatement of the device mixedness'),
+        ('amplitude damping is ' + _s1(_ovA)
+         + '---half the certified non-Pauli headroom',
+         'the Discussion restatement of the over-read against the headroom'),
+        (_haarform, 'the closed form of the over-read'),
+        ('autograd over all $%d$ angles' % _msum['n_angles'],
+         'the Methods statement of what is differentiated'),
+        ('central difference on $%d$ of them ($h=10^{-6}$)' % _msum['n_fd_angles'],
+         'the Methods statement of the finite-difference cross-check'),
+        ('giving $r=%.4f$ for both ' % _rdev,
+         'the Methods restatement of the device radius'),
+        ('eight starts of $%d$ Adam steps at $' % _ad['steps'] + BS
+         + 'eta=%.2f$' % _ad['lr'], 'the Methods statement of the descent protocol'),
+        ('ED Tables~10c--e', 'the Methods pointer at all three mixed-input tables')):
+    chk(_q in _tfn17, 'main.tex quotes %s as %s' % (_why, _q))
+chk(_tfn17.count(_haarform) >= 2,
+    'Results and Discussion quote the SAME closed form for the over-read')
+for _tb in ('10c', '10d', '10e'):
+    chk('ED Table~%s' % _tb in t and ('ED Table %s:' % _tb) in e,
+        'main.tex points the reader at ED Table~%s and extended_data.tex renders it'
+        % _tb)
+chk('Mixed logical inputs' in t,
+    'the mixed-input boundary has its own subsection in Results, not only a caveat '
+    'in Methods')
+
+# 17d. ED Tables 10c/10d/10e render the artifact, in make_ed.py's own format
+# strings -- same discipline as 13c and 15e: the RENDERED table is compared against
+# the artifact it was rendered from, because regenerating mixed_input_boundary.json
+# without re-running make_ed.py would leave the ED file quoting numbers nothing else
+# in the repository still says.
+_tb10c, _spec10c = _body('ED Table 10c:')
+_tb10d, _spec10d = _body('ED Table 10d:')
+_tb10e, _spec10e = _body('ED Table 10e:')
+for _r in _mrows:
+    _cn = _r['channel'].replace('_', ' ')
+    _row = ('%s & %s & %s & %s & %s & %s & %s & %s & %.9f & %.9f & %s ' % (
+        _cn, _r['channel_class'], _ed_sci(_r['max_grad_c0']),
+        _ed_sci(_r['max_grad_trC3']), _ed_sci(_r['max_grad_mixed']),
+        _ed_sci(_r['max_grad_mixed_fd']), _ed_sci(_r['max_grad_Z_mixed']),
+        _ed_sci(_r['control_grad_mixed']), _r['c0'], _r['tr_C_over_3'],
+        _ed_sci(_mov[_r['channel']]['overread']))) + BS * 2
+    chk(_row in _tb10c, 'ED Table 10c renders %s against the artifact' % _cn)
+    _o = _mov[_r['channel']]
+    _row = ('%s & %.9f & %.9f & %s & %.2e ' % (
+        _cn, _o['F_haar'], _o['c0'], _ed_sci(_o['overread']),
+        _o['overread'] / _o['F_haar'])) + BS * 2
+    chk(_row in _tb10d, 'ED Table 10d renders the %s over-read' % _cn)
+for _c, _d in _mds.items():
+    _g = '$0$ (exact)' if _d['gain'] == 0.0 else _ed_sci(_d['gain'])
+    _row = ('%s & %.2f & %s & %s & %s & %+.3e & %.3f ' % (
+        _c.replace('_', ' '), _d['r'], _ed_sci(_d['warm_start_grad']), _g,
+        str(_d['best_start']), _d['haar_cost'], _d['max_angle_move'])) + BS * 2
+    chk(_row in _tb10e, 'ED Table 10e renders the %s descent record' % _c)
+# 10c carries a two-line header, so its body has one more & row than it has channels
+for _tab, _spec, _nm, _nrow in ((_tb10c, _spec10c, '10c', len(_mrows) + 1),
+                                (_tb10d, _spec10d, '10d', len(_mrows)),
+                                (_tb10e, _spec10e, '10e', len(_mds))):
+    _rows = [r for r in _tab.split(BS * 2) if '&' in r and 'toprule' not in r]
+    chk(len(_rows) == _nrow,
+        'ED Table %s renders exactly its %d rows (found %d): a table that quietly '
+        'dropped a channel would show only the ones that look good'
+        % (_nm, _nrow, len(_rows)))
+    chk(all(r.count('&') == len(_spec) - 1 for r in _rows),
+        'ED Table %s: every body row has the %d columns its preamble declares'
+        % (_nm, len(_spec)))
 
 print('=== OVERALL:', 'ALL CHECKS PASSED' if ok else 'FAILURES PRESENT', '===')
 raise SystemExit(0 if ok else 1)

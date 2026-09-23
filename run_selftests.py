@@ -37,6 +37,16 @@ a specific figure or table:
                                       gradients PROVE phi^dec is stationary for
                                       every ensemble, upgrading the 90-pair sweep
                                       from evidence to corollary
+  mixed_input_boundary.selftests       the mixed-input boundary of that certificate:
+                                      the isotropic mixed score at r=1 IS the audited
+                                      Haar objective, C is PSD so the sign of the
+                                      mixed-vs-pure over-read is fixed, the expansion
+                                      equals a graph-free density-matrix trace for
+                                      |n|<1, a LINEAR score decomposes exactly over a
+                                      pure ensemble while the QUADRATIC one over-reads
+                                      by exactly delta^T C delta, and the gradient
+                                      identity holds where it is nonzero
+
   ancilla_recovery (conventions / tp / quadrature /
                       physical dilation / controls)
                                       the Kraus-rank ladder that counts ancillas:
@@ -172,6 +182,33 @@ def _t_storage():
     assert sr.main(['--selftest']) == 0
 
 
+def _t_mixedinput():
+    """The mixed-input boundary of the stationarity certificate.
+
+    `_selftest_certificate` proves phi^dec stationary for every ensemble of PURE
+    logical states; a device delivers a mixed one.  This runs the five anchors that
+    make the r<1 numbers meaningful rather than decorative: the isotropic mixed
+    score at r=1 IS the audited Haar objective (so it reproduces the exact decoder
+    fidelities in paper_numbers.json), C is positive semidefinite (which fixes the
+    SIGN of the mixed-vs-pure over-read), the expansion c0 + c1.n + n^T C n equals a
+    graph-free density-matrix trace sum_sk |Tr[M_sk rho]|^2 for genuinely mixed rho,
+    a LINEAR score decomposes exactly over a two-state pure ensemble while the
+    QUADRATIC one over-reads by exactly delta^T C delta, and the gradient identity
+    (*) relating the mixed gradient to the nine sectors plus grad c0 holds at random
+    angle tables where both sides are O(1e-2) -- so it is not checked only at a
+    shared zero."""
+    import mixed_input_boundary as mb
+    phi_dec = vp.decoder_angles()
+    builds = dict((c, b) for c, _cl, b in sb.CHANNELS)
+    st = mb.selftests(mb.A_of(builds['depolarizing']), phi_dec)
+    assert st['mixed_density_matrix_residual'] < 1e-12, st
+    assert st['linear_decomp_residual'] < 1e-14, st
+    assert st['quadratic_delta_residual'] < 1e-14, st
+    assert st['quadratic_max_overread'] > 1e-3, st
+    assert st['identity_residual'] < 1e-12, st
+    assert st['identity_min_magnitude'] > 1e-4, st
+
+
 # name -> (callable, slow?, description)
 TESTS = [
     ('gates',       m._selftest_gates, False,
@@ -195,6 +232,13 @@ TESTS = [
     ('stationarity', sb._selftest_certificate, True,
      'nine-sector certificate: phi^dec is stationary for EVERY pure-state input '
      'ensemble and for both loss functionals, not just the sampled ones'),
+    ('mixedinput',  _t_mixedinput, True,
+     'the mixed-input boundary of that certificate: the isotropic mixed score at '
+     'r=1 IS the audited Haar objective, C is PSD so the over-read sign is fixed, '
+     'the expansion equals a graph-free density-matrix trace for |n|<1, a LINEAR '
+     'score decomposes exactly over a pure ensemble while the QUADRATIC one '
+     'over-reads by exactly delta^T C delta, and the gradient identity holds where '
+     'it is nonzero'),
     ('ancilla',     _t_ancilla, True,
      'Kraus-rank ladder, five self-tests: rank(C)=1 reproduces the production '
      'unitary ceiling and rank(C)=4 the production CPTP ceiling, the Choi '

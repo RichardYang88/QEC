@@ -431,6 +431,111 @@ collective dephasing & correlated, not a product & $3.18\times 10^{-3}$ & SADDLE
 coherent ZZ ring & correlated two-body coherent & $7.12\times 10^{-2}$ & SADDLE & $4.16\times 10^{-19}$ & $5.51\times 10^{-17}$ & $6.60\times 10^{-17}$ & $2.89\times 10^{-3}$ \\
 \bottomrule\end{longtable}
 
+\subsection*{ED Table 10c: the mixed-input boundary of the stationarity certificate}
+ED Tables~10a and 10b cover ensembles of \emph{pure} logical states, because the
+orthogonality step uses $|\mathbf n|=1$; a device delivers a \emph{mixed} logical
+input, since noisy preparation, idle decay and leakage all shrink the Bloch vector
+to $|\mathbf n|=r<1$. Nothing in the derivation used purity, so
+$\tr[M\rho_{\mathbf n}]=a+\mathbf b\!\cdot\!\mathbf n$ and the quadratic objective
+hold for every $r\le1$, and the mixed-input gradient decomposes \emph{exactly} as
+$\nabla_\phi\bar F_{\rm mix}=S_0+(S_1\!\cdot\!\mathbf n)+\mathbf n^{\mathsf T}S_2\,\mathbf n-(1-r^2)(S_0-\nabla_\phi c_0)$:
+the nine sectors of Table~10a plus one
+extra coefficient gradient $\nabla_\phi c_0$ that the pure-state argument never had
+to control separately, since it needed only their sum $S_0$. That identity is
+validated where it is \emph{nonzero}---at random angle tables, residual $6.25\times 10^{-17}$ with both
+sides at least $1.24\times 10^{-3}$, so it is not checked only at a shared zero---and the expansion itself
+against a graph-free density-matrix trace $\sum_{sk}|\tr[M_{sk}\rho]|^2$ at $60$
+random states with $r\le0.99$ ($1.12\times 10^{-14}$), while the isotropic score at $r=1$ reproduces
+the audited exact decoder fidelities of ED Table~7 to $<10^{-9}$ and $C$ is verified
+positive semidefinite. Columns: the two halves of the $\ell=0$ sector reported
+separately; $\max|\nabla_\phi\bar F_{\rm mix}|$ over 315 scores (7 radii
+$r\in\{1,0.95,0.9,0.8,0.6,0.3,0\}$, 4 directions and the isotropic average, on 960
+angles) and its central-difference cross-check on 96 of those angles ($h=10^{-6}$);
+the linear $\langle Z_L\rangle$ functional at $r=0.8$, which linearity already
+covers; and the same measurement at a random angle table, without which a zero would
+mean nothing. Totals: $\max|\nabla_\phi c_0|=$\,$3.13\times 10^{-18}$,
+$\max|\nabla_\phi\bar F_{\rm mix}|=$\,$7.39\times 10^{-17}$, FD\,=\,bitwise $0$,
+$\max|\nabla z_{\rm mix}|=$\,$5.71\times 10^{-17}$, weakest control $5.53\times 10^{-3}$, so the mixed-input zeros sit
+more than thirteen orders of magnitude below their controls and $\phi^{\rm dec}$ is
+stationary for mixed logical inputs too.
+\begin{longtable}{llccccccccc}
+\toprule channel & class & $\max\lvert\nabla c_0\rvert$ & $\max\lvert\nabla\tr C/3\rvert$ & $\max\lvert\nabla\bar F_{\rm mix}\rvert$ & FD & $\max\lvert\nabla z_{\rm mix}\rvert$ & min control & $c_0$ & $\tr C/3$ & over-read \\
+ & & & & & & ($r{=}0.8$) & & & & (at $r$ of 10d) \\ \midrule
+depolarizing & Pauli mixture, unital & $1.35\times 10^{-18}$ & $1.07\times 10^{-19}$ & $4.49\times 10^{-17}$ & $0.00\times 10^{0}$ & $3.47\times 10^{-17}$ & $2.75\times 10^{-2}$ & 0.920491852 & 0.026502716 & $3.21\times 10^{-3}$ \\
+amplitude damping & non-unital, non-Pauli Kraus & $1.25\times 10^{-18}$ & $3.40\times 10^{-20}$ & $5.86\times 10^{-17}$ & $0.00\times 10^{0}$ & $4.53\times 10^{-17}$ & $3.59\times 10^{-2}$ & 0.977139138 & 0.007620287 & $9.22\times 10^{-4}$ \\
+mixed & Pauli mixture then damping & $1.62\times 10^{-18}$ & $1.50\times 10^{-19}$ & $3.98\times 10^{-17}$ & $0.00\times 10^{0}$ & $3.07\times 10^{-17}$ & $2.43\times 10^{-2}$ & 0.888009452 & 0.037330183 & $4.52\times 10^{-3}$ \\
+coherent Rx & unitary, non-diagonal & $3.36\times 10^{-19}$ & $6.36\times 10^{-22}$ & $7.39\times 10^{-17}$ & $0.00\times 10^{0}$ & $5.71\times 10^{-17}$ & $4.52\times 10^{-2}$ & 0.999688303 & 0.000103899 & $1.26\times 10^{-5}$ \\
+coherent Rz & unitary, diagonal & $3.36\times 10^{-19}$ & $6.36\times 10^{-22}$ & $7.39\times 10^{-17}$ & $0.00\times 10^{0}$ & $5.71\times 10^{-17}$ & $4.52\times 10^{-2}$ & 0.999688303 & 0.000103899 & $1.26\times 10^{-5}$ \\
+damping + dephasing & general single-qubit & $3.13\times 10^{-18}$ & $2.28\times 10^{-19}$ & $3.47\times 10^{-17}$ & $0.00\times 10^{0}$ & $2.67\times 10^{-17}$ & $2.12\times 10^{-2}$ & 0.848436026 & 0.050521325 & $6.12\times 10^{-3}$ \\
+random CPTP & general single-qubit, seeded & $1.10\times 10^{-18}$ & $9.93\times 10^{-19}$ & $3.98\times 10^{-18}$ & $0.00\times 10^{0}$ & $6.18\times 10^{-19}$ & $5.53\times 10^{-3}$ & 0.261227361 & 0.246257546 & $2.98\times 10^{-2}$ \\
+collective dephasing & correlated, not a product & $1.26\times 10^{-18}$ & $9.73\times 10^{-21}$ & $6.79\times 10^{-17}$ & $0.00\times 10^{0}$ & $5.25\times 10^{-17}$ & $4.16\times 10^{-2}$ & 0.995231959 & 0.001589347 & $1.92\times 10^{-4}$ \\
+coherent ZZ ring & correlated two-body coherent & $2.89\times 10^{-33}$ & $4.16\times 10^{-19}$ & $6.79\times 10^{-17}$ & $0.00\times 10^{0}$ & $5.25\times 10^{-17}$ & $4.16\times 10^{-2}$ & 0.893218169 & 0.035593944 & $4.31\times 10^{-3}$ \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 10d: device mixedness and the over-read it prices}
+The over-read is priced at the mixedness the run itself implies rather than at a
+chosen one. The implied mean per-instruction error of the executed circuit (0.010397,
+read from \texttt{hw\_error\_budget.json}) is propagated through the compiled
+36-gate Clifford encoder as a depolarizing channel on every qubit each instruction
+touches, and the logical block is projected onto the codespace and renormalised
+before its Bloch radius is read. Both logical inputs arrive at $r=0.937520$ (purity
+0.939472) with a codespace weight of 0.606681, i.e.\ 39.3 per cent of the encoded weight
+outside the logical subspace. A \emph{linear} score cannot see any of this: for
+every decomposition $\rho=\sum_iw_i|\psi_i\rangle\langle\psi_i|$,
+$F_{\rm lin}(\rho)=\sum_iw_iF_{\rm lin}(\psi_i)$ exactly (measured residual $1.11\times 10^{-16}$), so
+the post-selected branch population and $\langle Z_L\rangle$---the two scores the
+hardware protocol uses---need no extension of the certificate. A \emph{quadratic}
+one can, and by an exactly computable amount: for
+$\mathbf n_\pm=\mathbf n\pm\boldsymbol\delta$ with
+$|\boldsymbol\delta|^2=1-r^2$,
+$\tfrac12[\bar F(\mathbf n_+)+\bar F(\mathbf n_-)]-\bar F(\mathbf n)=\boldsymbol\delta^{\mathsf T}C\,\boldsymbol\delta\ge0$
+(identity residual $1.28\times 10^{-16}$, and
+the largest over-read in that test is $2.65\times 10^{-2}$, so the quantity is not negligible), which
+averages over directions to $(1-r^2)(\bar F_{\rm Haar}-c_0)$---the fourth column
+below, at $r=0.9375$. These are benchmark-comparability errors, not gradient errors:
+mixedness moves the value a quadratic estimator reports while ED Table~10c says it
+cannot move the argmin at first order. For scale, the amplitude-damping over-read is
+about half the certified non-Pauli headroom on that channel (ED Table~7).
+\begin{longtable}{lcccc}
+\toprule channel & $\bar F_{\rm Haar}$ & $c_0$ & over-read at $r=0.9375$ & over-read / $\bar F_{\rm Haar}$ \\ \midrule
+depolarizing & 0.946994568 & 0.920491852 & $3.21\times 10^{-3}$ & 3.39e-03 \\
+amplitude damping & 0.984759425 & 0.977139138 & $9.22\times 10^{-4}$ & 9.37e-04 \\
+mixed & 0.925339635 & 0.888009452 & $4.52\times 10^{-3}$ & 4.88e-03 \\
+coherent Rx & 0.999792202 & 0.999688303 & $1.26\times 10^{-5}$ & 1.26e-05 \\
+coherent Rz & 0.999792202 & 0.999688303 & $1.26\times 10^{-5}$ & 1.26e-05 \\
+damping + dephasing & 0.898957351 & 0.848436026 & $6.12\times 10^{-3}$ & 6.80e-03 \\
+random CPTP & 0.507484907 & 0.261227361 & $2.98\times 10^{-2}$ & 5.87e-02 \\
+collective dephasing & 0.996821306 & 0.995231959 & $1.92\times 10^{-4}$ & 1.93e-04 \\
+coherent ZZ ring & 0.928812113 & 0.893218169 & $4.31\times 10^{-3}$ & 4.64e-03 \\
+\bottomrule\end{longtable}
+
+\subsection*{ED Table 10e: the second-order test at the device radius}
+Stationarity is not optimality, so the isotropic mixed score $c_0+(r^2/3)\tr C$---which
+at $r=1$ is exactly the audited Haar objective, so this code path reproduces the warm
+start there---is descended from 8 starts of 400 Adam steps at $\eta=0.05$: start $0$
+is $\phi^{\rm dec}$ itself, the rest symmetry-broken by Gaussian perturbations of the
+angle table. ``Gain'' is the best improvement over the decoder point on the mixed
+score; ``Haar cost'' is $\bar F_{\rm Haar}(\phi^{\rm dec})-\bar F_{\rm Haar}(\phi^{\rm best})$,
+so a \emph{negative} cost means the
+mixed-optimal point also scores \emph{better} on the audited pure-ensemble
+objective. On depolarizing, where
+the decoder is the certified optimum, no start improves the mixed score at all and no
+angle moves. Where non-Pauli headroom exists the mixed score can be improved, and at
+the radius this device implies the two objectives point the same way rather than
+trading against each other. Which start wins is \emph{not} reproducible across
+hosts---$400$ Adam steps on a non-convex objective amplify the last bits of
+whichever BLAS kernel the pinned core selects---so the load-bearing entries are the
+warm-start gradient (a first-order quantity, zero to round-off), the exact zero on
+depolarizing, and the amplitude-damping pair, which two independent full runs
+reproduced bit for bit.
+\begin{longtable}{lcccccc}
+\toprule channel & $r$ & warm-start grad & gain (mixed) & best start & Haar cost & max angle move \\ \midrule
+depolarizing & 0.94 & $1.44\times 10^{-18}$ & $0$ (exact) & decoder & +0.000e+00 & 0.000 \\
+amplitude damping & 0.94 & $1.28\times 10^{-18}$ & $7.38\times 10^{-4}$ & 3 & -6.827e-04 & 6.059 \\
+mixed & 0.94 & $1.75\times 10^{-18}$ & $0$ (exact) & decoder & +0.000e+00 & 0.000 \\
+coherent Rx & 0.94 & $3.36\times 10^{-19}$ & $2.08\times 10^{-4}$ & 1 & -1.963e-04 & 6.283 \\
+\bottomrule\end{longtable}
+
 \subsection*{ED Table 11: exact code-size scaling, the Petz comparator, and the
 readout law}
 Every entry is exact rather than extrapolated: the reduced-branch formalism

@@ -774,6 +774,148 @@ all stationary; max gradient %s, min control %s.""" % (
           f"{sci(_by['observable_Z'])} & {sci(_ctl)} \\\\")
     A(r'\bottomrule\end{longtable}')
 
+# --------- ED Table 10c: the mixed-input boundary of the certificate -----------
+# ED Tables 10a/10b cover ensembles of PURE logical states, because the
+# orthogonality step uses |n| = 1.  A device delivers a mixed one, which drops that
+# constraint and adds ONE coefficient gradient to the nine sectors.
+# mixed_input_boundary.json measures all ten, prices the value shift a mixed input
+# carries at the radius the run's own error budget implies (Table 10d), and asks the
+# second-order question by multi-start descent (Table 10e).
+MB = os.path.join(ROOT, '..', 'mixed_input_boundary.json')
+_mb = json.load(open(MB)) if os.path.exists(MB) else {}
+_mrows = _mb.get('rows') or []
+if _mrows:
+    _msum = _mb['summary']
+    _mst = _mb['selftests']
+    _mov = _mb['overread']
+    _mdv = _mb['device_prep']
+    _mds = _mb['descent']
+    _rdev = _msum['device_radius_min']
+    _fdtxt = ('bitwise $0$' if _msum['max_grad_mixed_fd'] == 0.0
+              else sci(_msum['max_grad_mixed_fd']))
+    A(r"""
+\subsection*{ED Table 10c: the mixed-input boundary of the stationarity certificate}
+ED Tables~10a and 10b cover ensembles of \emph{pure} logical states, because the
+orthogonality step uses $|\mathbf n|=1$; a device delivers a \emph{mixed} logical
+input, since noisy preparation, idle decay and leakage all shrink the Bloch vector
+to $|\mathbf n|=r<1$. Nothing in the derivation used purity, so
+$\tr[M\rho_{\mathbf n}]=a+\mathbf b\!\cdot\!\mathbf n$ and the quadratic objective
+hold for every $r\le1$, and the mixed-input gradient decomposes \emph{exactly} as
+$\nabla_\phi\bar F_{\rm mix}=S_0+(S_1\!\cdot\!\mathbf n)+\mathbf n^{\mathsf T}S_2\,\mathbf n-(1-r^2)(S_0-\nabla_\phi c_0)$:
+the nine sectors of Table~10a plus one
+extra coefficient gradient $\nabla_\phi c_0$ that the pure-state argument never had
+to control separately, since it needed only their sum $S_0$. That identity is
+validated where it is \emph{nonzero}---at random angle tables, residual %s with both
+sides at least %s, so it is not checked only at a shared zero---and the expansion itself
+against a graph-free density-matrix trace $\sum_{sk}|\tr[M_{sk}\rho]|^2$ at $60$
+random states with $r\le0.99$ (%s), while the isotropic score at $r=1$ reproduces
+the audited exact decoder fidelities of ED Table~7 to $<10^{-9}$ and $C$ is verified
+positive semidefinite. Columns: the two halves of the $\ell=0$ sector reported
+separately; $\max|\nabla_\phi\bar F_{\rm mix}|$ over %d scores (%d radii
+$r\in\{1,0.95,0.9,0.8,0.6,0.3,0\}$, %d directions and the isotropic average, on %d
+angles) and its central-difference cross-check on %d of those angles ($h=10^{-6}$);
+the linear $\langle Z_L\rangle$ functional at $r=0.8$, which linearity already
+covers; and the same measurement at a random angle table, without which a zero would
+mean nothing. Totals: $\max|\nabla_\phi c_0|=$\,%s,
+$\max|\nabla_\phi\bar F_{\rm mix}|=$\,%s, FD\,=\,%s,
+$\max|\nabla z_{\rm mix}|=$\,%s, weakest control %s, so the mixed-input zeros sit
+more than thirteen orders of magnitude below their controls and $\phi^{\rm dec}$ is
+stationary for mixed logical inputs too.""" % (
+        sci(_mst['identity_residual']), sci(_mst['identity_min_magnitude']),
+        sci(_mst['mixed_density_matrix_residual']), _msum['n_scores'],
+        _msum['n_radii'], _msum['n_dirs'], _msum['n_angles'],
+        _msum['n_fd_angles'], sci(_msum['max_grad_c0']),
+        sci(_msum['max_grad_mixed']), _fdtxt, sci(_msum['max_grad_Z_mixed']),
+        sci(_msum['min_control_grad_mixed'])))
+    A(r'\begin{longtable}{llccccccccc}')
+    A(r'\toprule channel & class & $\max\lvert\nabla c_0\rvert$ & '
+      r'$\max\lvert\nabla\tr C/3\rvert$ & $\max\lvert\nabla\bar F_{\rm mix}\rvert$ '
+      r'& FD & $\max\lvert\nabla z_{\rm mix}\rvert$ & min control & $c_0$ & '
+      r'$\tr C/3$ & over-read \\')
+    A(r' & & & & & & ($r{=}0.8$) & & & & (at $r$ of 10d) \\ \midrule')
+    for _r in _mrows:
+        A(f"{_r['channel'].replace('_', ' ')} & {_r['channel_class']} & "
+          f"{sci(_r['max_grad_c0'])} & {sci(_r['max_grad_trC3'])} & "
+          f"{sci(_r['max_grad_mixed'])} & {sci(_r['max_grad_mixed_fd'])} & "
+          f"{sci(_r['max_grad_Z_mixed'])} & {sci(_r['control_grad_mixed'])} & "
+          f"{_r['c0']:.9f} & {_r['tr_C_over_3']:.9f} & "
+          f"{sci(_mov[_r['channel']]['overread'])} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+    _d0 = _mdv['0_L']
+    A(r"""
+\subsection*{ED Table 10d: device mixedness and the over-read it prices}
+The over-read is priced at the mixedness the run itself implies rather than at a
+chosen one. The implied mean per-instruction error of the executed circuit (%.6f,
+read from \texttt{hw\_error\_budget.json}) is propagated through the compiled
+%d-gate Clifford encoder as a depolarizing channel on every qubit each instruction
+touches, and the logical block is projected onto the codespace and renormalised
+before its Bloch radius is read. Both logical inputs arrive at $r=%.6f$ (purity
+%.6f) with a codespace weight of %.6f, i.e.\ %.1f per cent of the encoded weight
+outside the logical subspace. A \emph{linear} score cannot see any of this: for
+every decomposition $\rho=\sum_iw_i|\psi_i\rangle\langle\psi_i|$,
+$F_{\rm lin}(\rho)=\sum_iw_iF_{\rm lin}(\psi_i)$ exactly (measured residual %s), so
+the post-selected branch population and $\langle Z_L\rangle$---the two scores the
+hardware protocol uses---need no extension of the certificate. A \emph{quadratic}
+one can, and by an exactly computable amount: for
+$\mathbf n_\pm=\mathbf n\pm\boldsymbol\delta$ with
+$|\boldsymbol\delta|^2=1-r^2$,
+$\tfrac12[\bar F(\mathbf n_+)+\bar F(\mathbf n_-)]-\bar F(\mathbf n)=\boldsymbol\delta^{\mathsf T}C\,\boldsymbol\delta\ge0$
+(identity residual %s, and
+the largest over-read in that test is %s, so the quantity is not negligible), which
+averages over directions to $(1-r^2)(\bar F_{\rm Haar}-c_0)$---the fourth column
+below, at $r=%.4f$. These are benchmark-comparability errors, not gradient errors:
+mixedness moves the value a quadratic estimator reports while ED Table~10c says it
+cannot move the argmin at first order. For scale, the amplitude-damping over-read is
+about half the certified non-Pauli headroom on that channel (ED Table~7).""" % (
+        _mdv['p_instr'], _mdv['n_encoder_instructions'], _rdev, _d0['purity'],
+        _msum['device_codespace_weight_min'],
+        100.0 * (1.0 - _d0['codespace_weight']),
+        sci(_mst['linear_decomp_residual']),
+        sci(_mst['quadratic_delta_residual']),
+        sci(_mst['quadratic_max_overread']), _rdev))
+    A(r'\begin{longtable}{lcccc}')
+    A(r'\toprule channel & $\bar F_{\rm Haar}$ & $c_0$ & over-read at $r=%.4f$ & '
+      r'over-read / $\bar F_{\rm Haar}$ \\ \midrule' % _rdev)
+    for _r in _mrows:
+        _o = _mov[_r['channel']]
+        A(f"{_r['channel'].replace('_', ' ')} & {_o['F_haar']:.9f} & "
+          f"{_o['c0']:.9f} & {sci(_o['overread'])} & "
+          f"{_o['overread'] / _o['F_haar']:.2e} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
+    _d1 = list(_mds.values())[0]
+    A(r"""
+\subsection*{ED Table 10e: the second-order test at the device radius}
+Stationarity is not optimality, so the isotropic mixed score $c_0+(r^2/3)\tr C$---which
+at $r=1$ is exactly the audited Haar objective, so this code path reproduces the warm
+start there---is descended from %d starts of %d Adam steps at $\eta=%.2f$: start $0$
+is $\phi^{\rm dec}$ itself, the rest symmetry-broken by Gaussian perturbations of the
+angle table. ``Gain'' is the best improvement over the decoder point on the mixed
+score; ``Haar cost'' is $\bar F_{\rm Haar}(\phi^{\rm dec})-\bar F_{\rm Haar}(\phi^{\rm best})$,
+so a \emph{negative} cost means the
+mixed-optimal point also scores \emph{better} on the audited pure-ensemble
+objective. On depolarizing, where
+the decoder is the certified optimum, no start improves the mixed score at all and no
+angle moves. Where non-Pauli headroom exists the mixed score can be improved, and at
+the radius this device implies the two objectives point the same way rather than
+trading against each other. Which start wins is \emph{not} reproducible across
+hosts---$400$ Adam steps on a non-convex objective amplify the last bits of
+whichever BLAS kernel the pinned core selects---so the load-bearing entries are the
+warm-start gradient (a first-order quantity, zero to round-off), the exact zero on
+depolarizing, and the amplitude-damping pair, which two independent full runs
+reproduced bit for bit.""" % (_d1['n_starts'], _d1['steps'], _d1['lr']))
+    A(r'\begin{longtable}{lcccccc}')
+    A(r'\toprule channel & $r$ & warm-start grad & gain (mixed) & best start & '
+      r'Haar cost & max angle move \\ \midrule')
+    for _c, _d in _mds.items():
+        _g = '$0$ (exact)' if _d['gain'] == 0.0 else sci(_d['gain'])
+        A(f"{_c.replace('_', ' ')} & {_d['r']:.2f} & "
+          f"{sci(_d['warm_start_grad'])} & {_g} & "
+          f"{_d['best_start']} & {_d['haar_cost']:+.3e} & "
+          f"{_d['max_angle_move']:.3f} \\\\")
+    A(r'\bottomrule\end{longtable}')
+
 # --------- ED Table 11: exact code-size scaling and the readout law -----------
 SC = os.path.join(ROOT, '..', 'scaling_results.json')
 if os.path.exists(SC):
