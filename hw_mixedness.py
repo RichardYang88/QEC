@@ -73,35 +73,45 @@ prices the over-read, and the linear exactness; the over-read number itself stay
 with the analytic result that is audited to 1e-14.  This is the same shot-budget
 bound ED Table 3's note already states.
 
-Stages (4 cloud jobs, priority order, submitted ONE AT A TIME, each dumped
-incrementally; the run plan and the abort rules are QCLOUD_SETUP.md 8)
+Stages (four are implemented; under the confirmed ~300 s allocation only ONE is
+affordable and it is `tomo`.  The run plan, the confirmed cost model and the
+salvage ladder are QCLOUD_SETUP.md 8 and `--mode plan`.)
 ----------------------------------------------------------------
+    tomo   : 19 circuits x 1000 shots, 5 qubits -- M1 M2 M3 M5, plus its OWN three
+              calibration circuits, so it needs no canary and never assumes that an
+              earlier job's block is still its own;  19 000 shots = ~266 s, i.e. the
+              WHOLE remaining allocation
     probe  :  8 circuits x  300 shots, 5 qubits -- 2+1 readout calibration (the
               repeat brackets the drift) and 5 single-X fingerprints that determine
-              the returned bit order uniquely;  2 400 shots
-    tomo   : 19 circuits x 8000 shots, 5 qubits -- M1 M2 M3 M5, plus its OWN three
-              calibration circuits so it never assumes the canary's block is still
-              its own;  152 000 shots
+              the returned bit order uniquely;  2 400 shots = ~34 s.  DEFERRED as
+              redundant: tomo carries the calibration and recovers the bit order
+              from its own circuits, which selftest (f) proves is sufficient
     bench  : 34 circuits x 2000 shots, 9 qubits -- mid/late A-B, then the full
               16-branch sum at p=0 for psi in {0,+} (2 x 16), late-measure, on the
-              paper's warm-start angles;  68 000 shots
+              paper's warm-start angles;  68 000 shots = ~952 s.  Does not fit
     ladder :  4 circuits x 4000 shots, 5 qubits -- the DEPTH_SCAN grid at rounds=4
               (293 instructions / 144 CNOT), analysed together with tomo as one
-              depth curve;  16 000 shots
-Total 65 circuits, 238 400 shots.
+              depth curve;  16 000 shots = ~224 s.  Does not fit alongside tomo
+All four together would be 65 circuits, 105 400 shots, ~1476 s -- 4.9x the budget.
 
-The metering unit is NOT documented by the vendor and the two candidate models
-differ ~50x in what a 300 s allocation buys: metered per shot, 300 s is ~21 000
-shots and this plan is 11x over budget; metered per job wall-clock (queue included),
-shots are nearly free and the FOUR-JOB structure is the budget.  Nothing in the
-artifacts decides between them -- the 2026-09 run executed ~162 000 shots and then
-ran out, but the size of that budget in seconds was never recorded.  So `probe` is
-a canary sized to cost ~34 s even under the pessimistic model, its wall clock picks
-the shot count for every later job (QCLOUD_SETUP.md 8.4), and a QPU-time refusal
-halves --shots and retries down to SHOTS_FLOOR rather than losing the run, with
-every attempt recorded.  A refusal is free, so the halving ladder is itself a
-measurement of the cost model.  `--mode cloud --stage all` is therefore rejected:
-the abort rules are a human decision, not something to run unattended.
+The metering unit IS now known.  The account holder confirmed (2026-10) that QPU
+time is billed in real time, that exhausting it immediately disables the account,
+and that a job cannot overrun its allocation.  So the old ~50x two-model hedge is
+closed in favour of the per-shot branch -- 14 ms/shot from the 2026-09 timeline --
+and ~300 s buys ~21 400 shots in total.  Two consequences shape the code:
+
+  * A MID-JOB CUT-OFF is the expected failure mode rather than a rare one, and a
+    cut-off job returns nothing.  So tomo is submitted in chunks of
+    STAGE_CHUNK['tomo'] circuits, submit_cloud writes the raw counts to disk after
+    every chunk, and stage_circuits orders the stage calibration-first, then
+    depth-1 grouped by input state, then depth-2.  Every chunk boundary is
+    therefore an analysable prefix, and each adds a complete increment: 3 circuits
+    buy the assignment matrix, 6 buy M1 for |0>_L and M3 at depth 1, 15 buy M1 and
+    M2 in full, 19 add M5.  selftest (j) asserts that ordering, --mode analyze
+    accepts the truncated dump, reports exactly which inputs and depths are
+    missing, and refuses to present a subset as though it were the whole claim.
+  * `--mode cloud --stage all` is rejected: with one allocation and four stages,
+    running them unattended would bill the first and lose the other three.
 
 Shot sizing is not a guess: `--mode simulate` runs the whole chain on synthetic
 counts from a device built out of quoted vendor fidelities, through the SAME
@@ -116,23 +126,34 @@ The same study on 0.9988/0.9790/0.9260 gives a CI half-width of 0.0489 and needs
 choice.  Halving the shots widens the CI on r by sqrt(2); that is the whole
 trade-off, it is a CLI flag, and `--mode plan` prints the table.
 
-Run:
+At the 1000 shots the confirmed budget actually allows, that scaling gives a CI
+half-width of 0.079 on r, so "r < 1" is a ~1.8 sigma statement rather than the ~5
+sigma that 8000 shots would give, and M3's predicted -3.4 sigma refutation of the
+isotropic surrogate weakens to roughly -1.2 sigma -- a trend, not a refutation.
+Those are the honest error bars of a ~300 s allocation, the analysis reports them
+as measured, and nothing is rescued by choosing a more favourable shot count after
+the fact.  What the run still buys is the upgrade from the paper's 4-circuit x
+400-shot feasibility set to a genuine 19-circuit tomography on WK_C180_2.
+
+Run -- everything through preflight costs zero QPU time:
     ./qenv/bin/python hw_mixedness.py --mode plan         # the budget, no account
     ./qenv/bin/python hw_mixedness.py --mode verify       # exact, no account
-    ./qenv/bin/python hw_mixedness.py --mode selftest     # the 9 anchors, no account
+    ./qenv/bin/python hw_mixedness.py --mode selftest     # the 10 anchors, no account
     ./qenv/bin/python hw_mixedness.py --mode sample       # CPUQVM dry run of the
                                                           # whole analysis chain
     ./qenv/bin/python hw_mixedness.py --mode simulate \
-        --vendor 0.9993,0.9831,0.9612 --shots 8000 --seeds 6   # power study
+        --vendor 0.9993,0.9831,0.9612 --shots 1000 --seeds 6  # at the real budget
     ./qenv/bin/python hw_mixedness.py --mode preflight \
-        --chip-ids WK_C180_2,WK_C180                    # FREE cloud queries
-    bash launch_mixedness.sh probe    # then read wall_s and apply the abort rules
-    bash launch_mixedness.sh tomo
-    bash launch_mixedness.sh bench
-    bash launch_mixedness.sh ladder
+        --chip-ids WK_C180_2 --vendor 0.9993,0.9831,0.9612   # FREE cloud queries
+    bash launch_mixedness.sh tomo    # THE ONLY AFFORDABLE JOB: ~266 s of the ~300 s
     ./qenv/bin/python hw_mixedness.py --mode analyze --stage all   # offline, no token
+Deferred until the allocation is topped up; each is a separate job and none of them
+fits in what is left after tomo:
+    bash launch_mixedness.sh probe   # redundant anyway, tomo self-calibrates
+    bash launch_mixedness.sh bench   # ~952 s
+    bash launch_mixedness.sh ladder  # ~224 s
 Outputs:
-    hw_mixedness.json, qcloud_raw_{probe,mixedness,bench}.json,
+    hw_mixedness.json, qcloud_raw_{probe,mixedness,bench,ladder}.json,
     figures/fig_hw_mixedness_<tag>.png
 """
 import argparse
@@ -170,20 +191,34 @@ IDEAL_BLOCH = {'0': (0.0, 0.0, 1.0), '1': (0.0, 0.0, -1.0),
                '+i': (0.0, 1.0, 0.0), '-i': (0.0, -1.0, 0.0)}
 BASIS_AXIS = {'X': 0, 'Y': 1, 'Z': 2}   # which Bloch component basis B reads
 
-STAGE_SHOTS = {'probe': 300, 'tomo': 8000, 'bench': 2000, 'ladder': 4000}
-# QPU time on this platform is metered in a unit the vendor does not document, and
-# the 2026-09 run ran out mid-sweep (see QCLOUD_SETUP.md 6.2).  So a refusal is
-# treated as information rather than as failure: the stage is retried at half the
-# shots, down to SHOTS_FLOOR, and every attempt is recorded in the artifact.
+STAGE_SHOTS = {'probe': 300, 'tomo': 1000, 'bench': 2000, 'ladder': 4000}
+# THE COST MODEL IS NOW MEASURED, NOT HYPOTHESISED.  The account holder confirmed
+# (2026-10) that QPU time is billed in real time, that exhausting it immediately
+# disables the account, and that a job CANNOT overrun its allocation.  So the
+# pessimistic branch of the old two-model hedge is the operative one:
+#     14 ms/shot  (1800 s / 128 000 shots, the 2026-09 timeline)
+#     ~300 s left  =>  ~21 400 shots for the WHOLE experiment.
+# That number is flat in circuit length on purpose: 14 ms/shot over a 204-
+# instruction circuit is ~68 us per instruction, ~2000x a superconducting gate
+# time, so the bill is dominated by per-shot overhead (readout, reset, control
+# dead time) and not by how many gates a circuit has.  Shortening the circuits
+# would therefore not buy shots, and only the shot count is worth optimising.
 #
-# The probe default is deliberately 300, not 1500: it is the CANARY whose only job
-# is to measure the cost model (QCLOUD_SETUP.md 8.1), and the two candidate models
-# differ by ~50x in what 300 s buys.  At the pessimistic 14 ms/shot implied by the
-# 2026-09 timeline, 8 circuits x 300 shots = 2400 shots costs ~34 s, i.e. ~11% of
-# the budget, while still returning an assignment matrix whose e_ij are good to
-# +-0.011 (at e~0.04), a unique bit order, and the platform's shots shortfall.  The
-# tomo stage then repeats the three calibration circuits at its own (much higher)
-# shot count, so the published assignment matrix is not the canary's.
+# Consequence for the stage budgets: tomo at 1000 shots is 19 000 shots = 266 s,
+# i.e. the ENTIRE remaining allocation.  probe (+34 s) would leave no margin, and
+# bench (952 s) and ladder (224 s) are simply unaffordable.  probe is also nearly
+# redundant now that tomo carries its own calibration and can recover the bit
+# order from its own circuits (analyze_stage, selftest (f)), so the budget goes
+# to the headline measurement alone.  The other stages stay implemented and stay
+# correct -- they are what to run if the allocation is ever topped up.
+#
+# "Cannot overrun" makes a MID-JOB KILL the expected failure mode rather than a
+# rare one, and a killed job returns nothing, so the whole stage would be lost
+# along with the time it had already billed.  Two things defend against that:
+# chunking (submit_cloud dumps the raw counts after every chunk, so a kill costs
+# only the chunk in flight) and ordering (below).  A refusal is still handled by
+# halving --shots down to SHOTS_FLOOR with every attempt recorded, but under a
+# hard real-time budget the chunked prefix is the mechanism that matters.
 #
 # The probe stays on FIVE qubits and therefore cannot carry the mid/late A/B pair:
 # a submission has one block, and on a 9-qubit block the returned bitstrings are
@@ -193,6 +228,28 @@ STAGE_SHOTS = {'probe': 300, 'tomo': 8000, 'bench': 2000, 'ladder': 4000}
 # depends on it.  The A/B pair is circuits 1-2 of the bench stage instead.
 SHOTS_FLOOR = 1000
 QPU_REFUSAL_MARKERS = ('qpu time', 'insufficient', 'not enough', 'quota')
+# Circuits per submission.  For tomo this is chosen so that EVERY chunk boundary
+# lands on a scientifically complete prefix, because with a hard budget the
+# truncated dump is the likely outcome and it has to be analysable:
+#     chunk 1 ( 1- 3) the 3 calibration circuits -> assignment matrix
+#     chunk 2 ( 4- 6) the |0>_L triple           -> M1 for |0>_L and M3 at depth 1
+#     chunk 3 ( 7- 9) the |1>_L triple           -> M1 for two inputs
+#     chunk 4 (10-12) the |+>_L triple           -> M1 for three, L_Z ensemble
+#     chunk 5 (13-15) the |->_L triple           -> M1 and M2 COMPLETE (4 states)
+#     chunk 6 (16-18) depth-2 (0,Z),(+,X),(0,X)  -> M3 at depth 2, M5 signals
+#     chunk 7 (19   ) depth-2 (+,Z)              -> M5 with both null controls
+# analyze_tomo requires all three bases of a state to report that state's radius,
+# and all four states for M2, so a state-grouped order means no chunk boundary can
+# leave a half-measured state behind.  3 is the finest chunking with that property.
+STAGE_CHUNK = {'probe': 8, 'tomo': 3, 'bench': 4, 'ladder': 4}
+# Order the depth-1 tomography by input state so |0>_L -- the state the paper's
+# headline mixedness number is about, and the one whose Z circuit M3 needs -- is
+# measured first and survives a kill that happens later.
+TOMO_STATE_PRIORITY = ('0', '1', '+', '-')
+# The remaining QPU allocation, in seconds, as confirmed by the account holder.
+# Every cost statement in --mode plan is derived from this one number rather than
+# restating it, so the plan cannot drift away from the budget it is sized for.
+BUDGET_S = 300.0
 # seeds for the power study's repeat draws; the first is the one every other
 # function defaults to, so a single-seed run and a scan share their first draw
 SEED_BANK = (20260921, 11, 202, 3003, 40004, 777777, 5, 606, 8080, 91,
@@ -317,22 +374,40 @@ def stage_circuits(stage, phi=None):
             meta.append(dict(kind='fingerprint', qubit=b))
         return out, meta
     if stage == 'tomo':
-        out, meta = [], []
-        for r in (1, 2):
-            pairs = ([(p, b) for p in TOMO_STATES for b in BASES] if r == 1
-                     else list(DEPTH_SCAN))
-            for psi, basis in pairs:
-                out.append(build_tomo(psi, basis, rounds=r))
-                meta.append(dict(kind='tomo', psi=psi, basis=basis, rounds=r))
+        assert sorted(TOMO_STATE_PRIORITY) == sorted(TOMO_STATES), \
+            'TOMO_STATE_PRIORITY must be a reordering of TOMO_STATES, not a subset'
+        # ORDER IS A BUDGET ARTEFACT, not cosmetics.  Under a hard real-time
+        # allocation the job can be killed mid-run; submit_cloud dumps the raw
+        # counts after every chunk and STAGE_CHUNK['tomo'] = 3 puts the chunk
+        # boundaries at 3/6/9/12/15/18/19, so each completed chunk is a
+        # scientifically complete prefix (see the STAGE_CHUNK comment).  The
+        # calibration therefore comes FIRST -- a truncated dump holding data but no
+        # calibration is the worst possible outcome, because then even the circuits
+        # that did return cannot be readout-mitigated -- then the depth-1 grid
+        # grouped by input state, then the depth-2 scan last as a pure bonus.  The
+        # grouping is per STATE rather than per basis because analyze_tomo needs all
+        # three bases of a state for that state's radius, and all four states for
+        # M2: a basis-major order would leave a half-measured state at every
+        # boundary and make every truncation unanalysable.
+        out = [build_cal('zero'), build_cal('one'), build_cal('zero')]
+        meta = [dict(kind='cal', cal='zero', rep=0),
+                dict(kind='cal', cal='one', rep=0),
+                dict(kind='cal', cal='zero', rep=1)]
+        for psi in TOMO_STATE_PRIORITY:
+            for basis in BASES:
+                out.append(build_tomo(psi, basis, rounds=1))
+                meta.append(dict(kind='tomo', psi=psi, basis=basis, rounds=1))
+        for psi, basis in DEPTH_SCAN:
+            out.append(build_tomo(psi, basis, rounds=2))
+            meta.append(dict(kind='tomo', psi=psi, basis=basis, rounds=2))
         # The tomography job carries its OWN three calibration circuits.  A
         # submission has one block, and the block is whatever the platform ranks
         # best at submission time, so a job that depends on a calibration measured
         # in an earlier job silently assumes the two landed on the same physical
         # qubits.  Carrying them costs three 5-10 instruction circuits and makes
-        # the headline M1/M2/M3 numbers self-contained on whichever chip ran them.
-        out += [build_cal('zero'), build_cal('one'), build_cal('zero')]
-        meta += [dict(kind='cal', cal='zero', rep=0), dict(kind='cal', cal='one', rep=0),
-                 dict(kind='cal', cal='zero', rep=1)]
+        # the headline M1/M2/M3 numbers self-contained on whichever chip ran them
+        # -- which is also what lets the whole ~300 s budget go to this one stage
+        # instead of first spending 34 s on the probe canary.
         return out, meta
     if stage == 'ladder':
         # The DEPTH_SCAN grid at deeper rounds: for psi=|0> the Bloch vector lies
@@ -1139,6 +1214,51 @@ def selftests(verbose=True):
         'rounds %s over the %s grid, so the merged depth curve is %s and (|0>,Z) '
         'is present at every depth' % (list(LADDER_ROUNDS),
                                        [list(p) for p in DEPTH_SCAN], merged))
+    # (j) the tomo ORDER is load-bearing, not cosmetic.  Under the confirmed hard
+    #     real-time budget the job can be cut off mid-run; submit_cloud dumps after
+    #     every chunk, so what survives is a prefix, and STAGE_CHUNK['tomo'] has to
+    #     put every chunk boundary on a prefix that is analysable on its own.  A
+    #     future reordering could silently destroy that salvage path, so assert it.
+    ck = STAGE_CHUNK['tomo']
+    bounds = list(range(ck, len(tm), ck)) + [len(tm)]
+    assert kinds[:3] == ['cal'] * 3, 'the calibration must be the first chunk'
+    salv = []
+    for b in bounds:
+        pre = tm[:b]
+        cal_ok = ([m['cal'] for m in pre if m['kind'] == 'cal']
+                  == ['zero', 'one', 'zero'])
+        assert cal_ok, 'calibration split across a chunk boundary at %d' % b
+        have = {(m['psi'], m['basis']) for m in pre
+                if m['kind'] == 'tomo' and m['rounds'] == 1}
+        d1 = sorted(p for p in TOMO_STATES
+                    if all((p, B) in have for B in BASES))
+        # a radius is the norm of THREE Bloch components, so a state missing even
+        # one basis has no radius at all: a boundary must never leave a half-
+        # measured input behind, or the shots spent on it are worth nothing
+        partial = [p for p in TOMO_STATES
+                   if 0 < len([B for B in BASES if (p, B) in have]) < len(BASES)]
+        assert not partial, ('chunk boundary %d leaves a half-measured input %s'
+                             % (b, partial))
+        salv.append((b, d1))
+    assert salv[-1][1] == sorted(TOMO_STATES), salv
+    # and depth 1 must be COMPLETE before any depth-2 circuit is submitted, because
+    # M3 and M5 anchor every deeper point on the depth-1 measurement
+    first_d2 = min(i for i, m in enumerate(tm)
+                   if m['kind'] == 'tomo' and m['rounds'] == 2)
+    last_d1 = max(i for i, m in enumerate(tm)
+                  if m['kind'] == 'tomo' and m['rounds'] == 1)
+    assert last_d1 < first_d2, (last_d1, first_d2)
+    res['tomo_chunk'] = ck
+    res['tomo_chunk_boundaries'] = bounds
+    res['tomo_salvage_ladder'] = [dict(circuits=b, inputs_complete=i)
+                                  for b, i in salv]
+    say('(j) tomo is cal-first, then depth-1 grouped by input, then depth-2; '
+        'chunk=%d puts all %d submission boundaries on an analysable prefix and no '
+        'boundary leaves a half-measured input: %s'
+        % (ck, len(bounds),
+           ' -> '.join('%dc/%dinp' % (b, len(i)) for b, i in salv)))
+    return res
+
     return res
 
 
@@ -1218,8 +1338,16 @@ def query_best_block(chip_id, nq, token):
 def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
               job_timeout=21600, use_options=True, dump_raw=None, phi=None,
               verbose=True):
-    """Submit one stage as ONE job (chunk defaults to the whole stage) and dump the
-    raw counts incrementally, so a mid-run quota refusal loses nothing."""
+    """Submit one stage, chunked, dumping the raw counts after every chunk.
+
+    The chunking is not a convenience: the account is billed in real time and a job
+    CANNOT overrun its allocation (confirmed by the account holder, 2026-10), so a
+    job that runs past the remaining budget is killed and returns nothing.  With
+    chunk = len(gates) -- the old default -- that loses the entire stage AND the
+    time it had already billed.  With STAGE_CHUNK[stage] the boundaries land on
+    scientifically complete prefixes, so a kill costs only the chunk in flight.
+    A chunk is still one submission and therefore one queue wait; STAGE_CHUNK is
+    the trade-off between those two."""
     shots = shots or STAGE_SHOTS[stage]
     dump_raw = dump_raw or os.path.join(ROOT, STAGE_RAW[stage])
     gates, meta = stage_circuits(stage, phi)
@@ -1238,9 +1366,15 @@ def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
               'instruction counts %s' % (stage, len(gates), nq, shots, block, inv),
               flush=True)
     t0 = time.time()
+    n_chunk = chunk or STAGE_CHUNK.get(stage) or len(gates)
+    if verbose:
+        print('[stage %s] %d circuits in %d submission(s) of <=%d, dumping to %s '
+              'after each so a mid-run kill keeps every completed chunk'
+              % (stage, len(gates), -(-len(gates) // n_chunk), n_chunk,
+                 os.path.basename(dump_raw)), flush=True)
     results = q.submit_cloud(gates, token, chip_id=chip_id, shots=shots,
                              batch=True, dump_raw=dump_raw,
-                             chunk=chunk or len(gates), job_timeout=job_timeout,
+                             chunk=n_chunk, job_timeout=job_timeout,
                              use_options=use_options, block=block)
     wall = time.time() - t0
     assert len(results) == len(gates), (len(results), len(gates))
@@ -1322,8 +1456,25 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
         'analysed together with the depth-1/2 tomography, not on its own '
         '(rounds present = %s)' % (rounds_present,))
 
+    # WHICH INPUTS ARE ACTUALLY MEASURABLE.  Under the confirmed hard real-time
+    # budget the job can be cut off mid-run, so the dump can be a strict prefix of
+    # the stage and whole input states can be missing.  A radius is the norm of a
+    # THREE-component Bloch vector, so a state with fewer than three bases has no
+    # radius at all -- reporting one would be a different quantity wearing the same
+    # name.  Compute over the complete states and record the rest explicitly.
+    states_ok = [p for p in TOMO_STATES
+                 if all((p, B, 1) in by_key for B in BASES)]
+    states_incomplete = [p for p in TOMO_STATES if p not in states_ok]
+    if states_incomplete:
+        print('[tomo] INCOMPLETE inputs (no radius reported for these): %s'
+              % {p: [B for B in BASES if (p, B, 1) in by_key]
+                 for p in states_incomplete}, flush=True)
+    assert states_ok, ('not one input state has all three bases at rounds=1, so '
+                       'there is no radius to report at all; circuits present = %s'
+                       % (sorted(by_key),))
+
     per_input = {}
-    for psi in TOMO_STATES:
+    for psi in states_ok:
         counts_by_basis = {B: by_key[(psi, B, 1)][0] for B in BASES}
         comps = {}
         for var in ('raw', 'mitigated'):
@@ -1343,33 +1494,53 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
             rec['radius_' + v] = float(np.linalg.norm(comps[v]))
         per_input[psi] = rec
 
-    # M2: the two pure ensembles of rho_in = I/2 must give the same LINEAR score
-    terms, ses = {}, {}
-    for psi in TOMO_STATES:
-        zc = by_key[(psi, 'Z', 1)][1]
-        terms[psi] = dict(raw=zc['raw']['sigma_uncond'],
-                          mitigated=zc['mitigated']['sigma_uncond'])
-        ses[psi] = dict(raw=zc['raw']['sigma_uncond_stderr'],
-                        mitigated=zc['mitigated']['sigma_uncond_stderr'])
+    # M2: the two pure ensembles of rho_in = I/2 must give the same LINEAR score.
+    # This needs the Z circuit of ALL FOUR inputs, because the statement is that
+    # two ensembles are equal; a one-sided version over a subset would still print
+    # a small "diff" and read as a pass, which is worse than no number.
+    m2_have = [p for p in TOMO_STATES if (p, 'Z', 1) in by_key]
     lin = {}
-    for var in ('raw', 'mitigated'):
-        Lz = 0.5 * (terms['0'][var] + terms['1'][var])
-        Lx = 0.5 * (terms['+'][var] + terms['-'][var])
-        se = 0.5 * math.sqrt(sum(ses[p][var] ** 2 for p in TOMO_STATES))
-        vals = [terms[p][var] for p in TOMO_STATES]
-        lin[var] = dict(terms={p: terms[p][var] for p in TOMO_STATES},
-                        L_Z=Lz, L_X=Lx, diff=Lz - Lx, stderr=se,
-                        ci95=[Lz - Lx - 1.96 * se, Lz - Lx + 1.96 * se],
-                        term_span=max(vals) - min(vals),
-                        ci_over_span=(3.92 * se) / max(max(vals) - min(vals), 1e-12),
-                        non_vacuous=bool(max(vals) - min(vals) > 0.5))
+    if len(m2_have) == len(TOMO_STATES):
+        terms, ses = {}, {}
+        for psi in TOMO_STATES:
+            zc = by_key[(psi, 'Z', 1)][1]
+            terms[psi] = dict(raw=zc['raw']['sigma_uncond'],
+                              mitigated=zc['mitigated']['sigma_uncond'])
+            ses[psi] = dict(raw=zc['raw']['sigma_uncond_stderr'],
+                            mitigated=zc['mitigated']['sigma_uncond_stderr'])
+        for var in ('raw', 'mitigated'):
+            Lz = 0.5 * (terms['0'][var] + terms['1'][var])
+            Lx = 0.5 * (terms['+'][var] + terms['-'][var])
+            se = 0.5 * math.sqrt(sum(ses[p][var] ** 2 for p in TOMO_STATES))
+            vals = [terms[p][var] for p in TOMO_STATES]
+            lin[var] = dict(terms={p: terms[p][var] for p in TOMO_STATES},
+                            L_Z=Lz, L_X=Lx, diff=Lz - Lx, stderr=se,
+                            ci95=[Lz - Lx - 1.96 * se, Lz - Lx + 1.96 * se],
+                            term_span=max(vals) - min(vals),
+                            ci_over_span=(3.92 * se) / max(max(vals) - min(vals),
+                                                           1e-12),
+                            non_vacuous=bool(max(vals) - min(vals) > 0.5))
+        lin['available'] = True
+    else:
+        lin['available'] = False
+        lin['inputs_present'] = m2_have
+        lin['inputs_missing'] = [p for p in TOMO_STATES if p not in m2_have]
+        lin['note'] = ('M2 compares the two pure ensembles of I/2 and needs the Z '
+                       'circuit of all four inputs; %d of 4 returned.  Deliberately '
+                       'NOT reported over the subset: a one-sided L_Z would print a '
+                       'number that looks like the test passed.' % len(m2_have))
 
-    # M1: the headline device mixedness, as the range over the four inputs
-    radii = {v: [per_input[p]['radius_' + v] for p in TOMO_STATES]
+    # M1: the headline device mixedness, as the range over the inputs that
+    #     completed.  The list of inputs is recorded next to the numbers, because
+    #     "radius_min/max over 2 inputs" and "over 4 inputs" are not the same claim
+    #     and a truncated run must not inherit the wording of a complete one.
+    radii = {v: [per_input[p]['radius_' + v] for p in states_ok]
              for v in ('raw', 'mitigated')}
-    ws = {v: [per_input[p]['w'][v] for p in TOMO_STATES] for v in ('raw', 'mitigated')}
-    boot_mit = [per_input[p]['bootstrap']['mitigated'] for p in TOMO_STATES]
+    ws = {v: [per_input[p]['w'][v] for p in states_ok] for v in ('raw', 'mitigated')}
+    boot_mit = [per_input[p]['bootstrap']['mitigated'] for p in states_ok]
     mixedness = dict(
+        inputs=list(states_ok), inputs_missing=list(states_incomplete),
+        n_inputs=len(states_ok),
         radius_raw=radii['raw'], radius_mitigated=radii['mitigated'],
         radius_min=min(radii['mitigated']), radius_max=max(radii['mitigated']),
         radius_ci95_widest=[min(b['radius_ci95'][0] for b in boot_mit),
@@ -1379,11 +1550,11 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
         w_mean_mitigated=float(np.mean(ws['mitigated'])),
         leakage_mean_mitigated=1.0 - float(np.mean(ws['mitigated'])),
         purity_mitigated=[per_input[p]['purity']['mitigated']
-                          for p in TOMO_STATES],
+                          for p in states_ok],
         purity_consistency_max=float(np.max(np.abs(
             [per_input[p]['purity']['mitigated']
              - (1 + per_input[p]['radius_mitigated'] ** 2) / 2
-             for p in TOMO_STATES]))),
+             for p in states_ok]))),
         r_below_one=bool(max(radii['mitigated']) < 1.0),
         ci_upper_below_one=bool(max(b['radius_ci95'][1] for b in boot_mit) < 1.0))
 
@@ -1400,6 +1571,15 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
         gates = enc_dec_gates(rounds)
         w_meas = float(by_key[('0', 'Z', rounds)][1]['mitigated']['w'])
         if rounds == 1:
+            if '0' not in per_input:
+                # (|0>, Z) returned but not all three bases of |0>, so there is a
+                # code-space weight to fit and no radius to compare it against.
+                model['rounds1'] = dict(
+                    w_measured=w_meas, r_measured=None, fit=None,
+                    note='the |0>_L input is missing one or both of its X/Y circuits, '
+                         'so its radius is not defined and the surrogate cannot be '
+                         'tested at depth 1')
+                continue
             r_meas = per_input['0']['radius_mitigated']
             se = per_input['0']['bootstrap']['mitigated']['radius_std']
         else:
@@ -1448,7 +1628,30 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
     scan = {}
     for psi, B in DEPTH_SCAN:
         depths = [r for r in rounds_present if (psi, B, r) in by_key]
-        if not depths:
+        if 1 not in depths:
+            # every ratio and every "did it move with depth" statement is anchored
+            # on depth 1, so a deeper-only pair is recorded as unavailable rather
+            # than printed as a curve with one end missing
+            if depths:
+                # same key shape as a complete entry, with None where a quantity is
+                # undefined, so that every consumer (the report, the figure,
+                # selftest (g)) can read the keys without special-casing truncation
+                scan['%s|%s' % (psi, B)] = dict(
+                    null_control=IDEAL_BLOCH[psi][BASIS_AXIS[B]] == 0.0,
+                    depths=depths, by_rounds={
+                        r: dict(sigma_cs_mitigated=by_key[(psi, B, r)][1]
+                                ['mitigated']['sigma_cs'],
+                                sigma_cs_raw=by_key[(psi, B, r)][1]['raw']['sigma_cs'],
+                                stderr=by_key[(psi, B, r)][1]['raw']
+                                ['sigma_cs_stderr'],
+                                w=by_key[(psi, B, r)][1]['mitigated']['w'],
+                                null_sigma=None) for r in depths},
+                    sigma_cs_r1_mitigated=None, sigma_cs_r2_mitigated=None,
+                    ratio_r2_over_r1=None, sigma_cs_r1_raw=None,
+                    sigma_cs_r2_raw=None, stderr_r1=None, stderr_r2=None,
+                    null_sigma_r1=None, null_sigma_r2=None, w_r1=None, w_r2=None,
+                    note='depth 1 did not return for this pair, so nothing is '
+                         'anchored and no ratio to depth 1 is defined')
             continue
         d1 = by_key[(psi, B, 1)][1]
         null = IDEAL_BLOCH[psi][BASIS_AXIS[B]] == 0.0
@@ -1494,7 +1697,13 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
                linear_ensemble=lin, model=model, depth_scan=scan,
                depth_scan_summary=scan_summary,
                layout_sigma=list(sigma), assignment=cal,
-               shots_requested=shots_requested)
+               shots_requested=shots_requested,
+               # what the truncated run could and could not support, at the top
+               # level so a reader of the artifact sees it before any number
+               inputs_complete=list(states_ok),
+               inputs_incomplete=list(states_incomplete),
+               n_tomo_circuits=len(by_key),
+               depths_analysed=list(rounds_present))
     return out, _tomo_report(out)
 
 
@@ -1503,20 +1712,29 @@ def _tomo_report(out):
     offline audit both print exactly what the artifact claims."""
     lines = []
     per_input, lin, model = out['per_input'], out['linear_ensemble'], out['model']
-    lines.append('[tomo] M1 device mixedness (readout-mitigated):')
-    for p_ in TOMO_STATES:
+    done = out.get('inputs_complete') or list(TOMO_STATES)
+    missing = out.get('inputs_incomplete') or []
+    lines.append('[tomo] M1 device mixedness (readout-mitigated), over %d of %d '
+                 'inputs%s:' % (len(done), len(TOMO_STATES),
+                                '' if not missing else ' (MISSING: %s)'
+                                % ','.join('|%s>_L' % m for m in missing)))
+    for p_ in done:
         b = per_input[p_]['bootstrap']['mitigated']
         lines.append('   |%s>_L  r = %.4f [%.4f, %.4f]  purity = %.4f  w = %.4f'
                      % (p_, per_input[p_]['radius_mitigated'], b['radius_ci95'][0],
-                        b['radius_ci95'][1], per_input[p_]['purity']['mitigated'],
-                        per_input[p_]['w']['mitigated']))
-    for var in ('raw', 'mitigated'):
-        L = lin[var]
-        lines.append('[tomo] M2 (%s): L_Z = %+.5f  L_X = %+.5f  diff = %+.5f '
-                     '+-%.5f  CI95 [%+.4f, %+.4f]  term span %.3f  non-vacuous=%s'
-                     % (var, L['L_Z'], L['L_X'], L['diff'], L['stderr'],
-                        L['ci95'][0], L['ci95'][1], L['term_span'],
-                        L['non_vacuous']))
+                         b['radius_ci95'][1], per_input[p_]['purity']['mitigated'],
+                         per_input[p_]['w']['mitigated']))
+    if not lin.get('available', True):
+        lines.append('[tomo] M2 UNAVAILABLE: %s' % lin['note'])
+    else:
+        for var in ('raw', 'mitigated'):
+            L = lin[var]
+            lines.append('[tomo] M2 (%s): L_Z = %+.5f  L_X = %+.5f  diff = %+.5f '
+                         '+-%.5f  CI95 [%+.4f, %+.4f]  term span %.3f  '
+                         'non-vacuous=%s'
+                         % (var, L['L_Z'], L['L_X'], L['diff'], L['stderr'],
+                            L['ci95'][0], L['ci95'][1], L['term_span'],
+                            L['non_vacuous']))
     for k in ('rounds1', 'rounds2'):
         M = model.get(k, {})
         if M.get('p_instr_fitted') is None:
@@ -1539,9 +1757,17 @@ def _tomo_report(out):
                         t['consistent_with_per_gate']))
     s = out['depth_scan_summary']
     mns = s['max_null_sigma']
-    lines.append('[tomo] M5 null controls: max %s sigma, all within 3 sigma = %s'
+    # which depths actually returned, because "the radius does not move with depth"
+    # is a claim about a curve and a truncated run may only have one point on it
+    lines.append('[tomo] M5 null controls: max %s sigma, all within 3 sigma = %s '
+                 '(depths measured: %s, %d null pair(s))'
                  % (('%0.1f' % mns) if mns == mns else 'n/a',
-                    s['nulls_within_3sigma']))
+                    s['nulls_within_3sigma'], s['depths'], s['n_null_controls']))
+    if len(s['depths']) < 2:
+        lines.append('[tomo] M5 DEPTH CURVE UNAVAILABLE: only depth %s returned, so '
+                     'there is no trend to report -- the depth-2 scan is the last '
+                     'chunk of the stage and is what a budget cut-off removes first'
+                     % (s['depths'],))
     return lines
 
 
@@ -1897,15 +2123,30 @@ def make_figure(art, tag):
     os.makedirs(os.path.join(ROOT, 'figures'), exist_ok=True)
     fig, ax = plt.subplots(2, 2, figsize=(11, 7.5))
     tomo = art.get('tomo')
-    if tomo:
+    # a job cut off inside its first chunk records calibration only and has no
+    # per_input at all (analyze_stage); there is then nothing to draw in three of
+    # the four panels, which is not the same as the stage being absent
+    if tomo and tomo.get('per_input'):
         pi = tomo['per_input']
-        xs = np.arange(len(TOMO_STATES))
+        # A truncated run returns fewer inputs than the grid defines.  Draw what was
+        # actually measured and say so in the title; never draw four bars where two
+        # exist, and never crash -- the figure is produced from the same partial
+        # artifact the numbers come from.
+        states = tomo.get('inputs_complete') or [p for p in TOMO_STATES if p in pi]
+        n_miss = len(TOMO_STATES) - len(states)
+        suffix = ('' if not n_miss else ' (%d of %d inputs missing)'
+                  % (n_miss, len(TOMO_STATES)))
+        xs = np.arange(len(states))
         a = ax[0][0]
         for i, var in enumerate(('raw', 'mitigated')):
-            vals = [pi[p]['radius_' + var] for p in TOMO_STATES]
-            ci = [pi[p]['bootstrap'][var]['radius_ci95'] for p in TOMO_STATES]
-            err = np.array([[v - lo for v, (lo, _h) in zip(vals, ci)],
-                            [hi - v for v, (_lo, hi) in zip(vals, ci)]])
+            vals = [pi[p]['radius_' + var] for p in states]
+            ci = [pi[p]['bootstrap'][var]['radius_ci95'] for p in states]
+            # clamp: a bootstrap CI endpoint can land a few ulps on the wrong side
+            # of the point estimate when the CI is degenerate (a noiseless dry run,
+            # or a circuit whose counts are deterministic), and matplotlib rejects a
+            # negative yerr.  A negative error bar is float noise, not information.
+            err = np.array([[max(0.0, v - lo) for v, (lo, _h) in zip(vals, ci)],
+                            [max(0.0, hi - v) for v, (_lo, hi) in zip(vals, ci)]])
             a.errorbar(xs + 0.18 * (i * 2 - 1), vals, yerr=err, fmt='os'[i],
                        capsize=3, label='r %s' % var)
         try:
@@ -1918,38 +2159,53 @@ def make_figure(art, tag):
             a.axhline(tomo['model']['rounds1']['r_predicted'], ls=':', color='crimson',
                       label='model at the fitted rate, matched depth')
         a.set_xticks(xs)
-        a.set_xticklabels(['|%s>L' % p for p in TOMO_STATES])
+        a.set_xticklabels(['|%s>L' % p for p in states])
         a.set_ylim(0, 1.05)
         a.set_ylabel('Bloch radius r')
         a.legend(fontsize=7)
         a.grid(alpha=0.3)
-        a.set_title('M1 measured device mixedness')
+        a.set_title('M1 measured device mixedness' + suffix)
         b = ax[0][1]
-        b.bar(xs - 0.18, [pi[p]['w']['mitigated'] for p in TOMO_STATES], 0.34,
+        b.bar(xs - 0.18, [pi[p]['w']['mitigated'] for p in states], 0.34,
               label='w, depth 1 (78 instr)')
         ds = tomo['depth_scan']
-        b.bar(xs[:2] + 0.18, [ds['0|Z']['w_r2'], ds['+|X']['w_r2']], 0.34,
-              label='w, depth 2 (150 instr)')
+        # the depth-2 circuits are the LAST chunk of the stage, so they are exactly
+        # what a budget cut-off removes; draw depth 1 alone instead of crashing
+        w2 = [(k.split('|')[0], ds[k].get('w_r2')) for k in ('0|Z', '+|X')
+              if k in ds and ds[k].get('w_r2') is not None]
+        w2 = [(p, v) for p, v in w2 if p in states]
+        if w2:
+            b.bar(xs[[states.index(p) for p, _ in w2]] + 0.18,
+                  [v for _, v in w2], 0.34, label='w, depth 2 (150 instr)')
         b.set_xticks(xs)
-        b.set_xticklabels(['|%s>L' % p for p in TOMO_STATES])
+        b.set_xticklabels(['|%s>L' % p for p in states])
         b.set_ylabel('code-space weight w')
         b.legend(fontsize=7)
         b.grid(alpha=0.3, axis='y')
-        b.set_title('M5 code-space weight vs depth')
+        b.set_title('M5 code-space weight vs depth' + suffix)
         c = ax[1][0]
-        for i, var in enumerate(('raw', 'mitigated')):
-            L = tomo['linear_ensemble'][var]
-            c.bar(np.arange(4) + 0.18 * (i * 2 - 1),
-                  [L['terms'][p] for p in TOMO_STATES], 0.34, label='terms %s' % var)
-        L = tomo['linear_ensemble']['mitigated']
-        c.axhline(L['L_Z'], color='navy', ls='-', label='L_Z = %.4f' % L['L_Z'])
-        c.axhline(L['L_X'], color='crimson', ls='--', label='L_X = %.4f' % L['L_X'])
-        c.set_xticks(np.arange(4))
-        c.set_xticklabels(['<Z_L> |%s>' % p for p in TOMO_STATES])
-        c.set_ylabel('unconditional <Z_L>')
-        c.legend(fontsize=7)
-        c.grid(alpha=0.3, axis='y')
-        c.set_title('M2 two pure ensembles of I/2: L_Z must equal L_X')
+        lin = tomo['linear_ensemble']
+        if lin.get('available', True):
+            for i, var in enumerate(('raw', 'mitigated')):
+                L = lin[var]
+                c.bar(np.arange(4) + 0.18 * (i * 2 - 1),
+                      [L['terms'][p] for p in TOMO_STATES], 0.34,
+                      label='terms %s' % var)
+            L = lin['mitigated']
+            c.axhline(L['L_Z'], color='navy', ls='-', label='L_Z = %.4f' % L['L_Z'])
+            c.axhline(L['L_X'], color='crimson', ls='--',
+                      label='L_X = %.4f' % L['L_X'])
+            c.set_xticks(np.arange(4))
+            c.set_xticklabels(['<Z_L> |%s>' % p for p in TOMO_STATES])
+            c.set_ylabel('unconditional <Z_L>')
+            c.legend(fontsize=7)
+            c.grid(alpha=0.3, axis='y')
+            c.set_title('M2 two pure ensembles of I/2: L_Z must equal L_X')
+        else:
+            c.text(0.5, 0.5, 'M2 UNAVAILABLE\n\n%s' % lin.get('note', ''),
+                   ha='center', va='center', transform=c.transAxes, fontsize=8)
+            c.set_title('M2 linear exactness')
+            c.set_axis_off()
     d = ax[1][1]
     bench = (art.get('bench') or {}).get('per_state')
     if bench:
@@ -2010,6 +2266,31 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
             os_ = [r for r, m in zip(results, meta)
                    if m.get('kind') == 'cal' and m.get('cal') == 'one']
             own_cal = assignment_from_cal(zs[0], os_[0], NQ5)
+        if not any(m.get('kind') == 'tomo' for m in meta):
+            # The allocation ran out inside the FIRST chunk, so what came back is
+            # calibration and nothing else.  That is still a real measurement --
+            # the readout assignment matrix of the block the platform chose, which
+            # the vendor's own ChipInfo endpoint does not expose (HTTP 401, see
+            # QCLOUD_SETUP.md 4) -- so record it and stop with a message that says
+            # what is missing.  Going on would ask detect_layout_ml to infer a bit
+            # order from ZERO tomography circuits and surface its "120 tied
+            # hypotheses" error, which reads like a builder bug rather than what it
+            # is: an empty measurement.
+            msg = ('this job returned only its %d calibration circuit(s) and no '
+                   'tomography, so there is no radius, no M2 and no depth curve to '
+                   'report -- the allocation ran out inside the first chunk'
+                   % len(results))
+            print('[%s] NOT ANALYSABLE: %s' % (stage, msg), flush=True)
+            art['tomo'] = dict(assignment=own_cal, n_circuits=len(results),
+                               n_tomo_circuits=0, inputs_complete=[],
+                               inputs_incomplete=list(TOMO_STATES),
+                               not_analysable=msg)
+            if own_cal is not None:
+                print('[%s] readout assignment matrix recovered anyway: e01=%s '
+                      'e10=%s' % (stage, [round(x, 4) for x in own_cal['e01']],
+                                  [round(x, 4) for x in own_cal['e10']]), flush=True)
+            return art['tomo']
+
         if pr:
             sigma = tuple(pr['layout_sigma'])
             lay_src = 'probe stage'
@@ -2059,21 +2340,29 @@ def _load_dump(stage):
     return [{str(k): int(v) for k, v in d.items()} for d in raw]
 
 
-def print_plan(phi, budget_s=300.0, vendor=None):
+def print_plan(phi, budget_s=BUDGET_S, vendor=None):
     """Print the executable run plan of QCLOUD_SETUP.md 8, with the circuit counts
     and instruction totals computed from the builders rather than typed in, so the
     table cannot drift away from the code it describes.  Touches nothing."""
-    ms_per_shot = 14.0        # the pessimistic model: 1800 s / 128 000 shots
+    ms_per_shot = 14.0        # CONFIRMED: 1800 s / 128 000 shots, the 2026-09 run
     rows, tot_shots, tot_cost = [], 0, 0.0
+    shots_budget = int(budget_s * 1000 / ms_per_shot)
     print('=' * 78)
-    print('RUN PLAN -- %s, one submission per job, one physical block per job'
-          % 'OriginQ Wukong')
-    print('Cost model is UNKNOWN and the two candidates differ ~50x (8.1):')
-    print('  pessimistic  metered per shot   -> 300 s buys ~%d shots'
-          % int(budget_s * 1000 / ms_per_shot))
-    print('  optimistic   metered per job wall clock (queue included)')
-    print('               -> shots are nearly free, the JOB COUNT is the budget')
-    print('  evidence for neither is in the artifacts; Job 1 exists to decide.')
+    print('RUN PLAN -- OriginQ Wukong WK_C180_2, one physical block per job')
+    print('COST MODEL CONFIRMED by the account holder (2026-10), so the old ~50x')
+    print('two-model hedge is closed and no canary job is needed to settle it:')
+    print('  * QPU time is billed in REAL TIME, while the job runs')
+    print('  * exhausting it immediately disables the account')
+    print('  * a job CANNOT overrun its allocation -- it is cut off')
+    print('  => metered per shot: %.0f ms/shot x %.0f s = ~%d shots for EVERYTHING'
+          % (ms_per_shot, budget_s, shots_budget))
+    print('  %.0f ms/shot over a 204-instruction circuit is ~68 us per instruction,'
+          % ms_per_shot)
+    print('  ~2000x a superconducting gate time, so the bill is per-shot overhead')
+    print('  (readout, reset, control dead time) and FLAT in circuit length:')
+    print('  shortening the circuits would not buy shots.  Only shots is a knob.')
+    print('  "Cannot overrun" makes a MID-JOB CUT-OFF the expected outcome rather')
+    print('  than a rare one, so the stage is chunked and ordered to be salvaged.')
     print('=' * 78)
     for stage in ('probe', 'tomo', 'bench', 'ladder'):
         gates, meta = stage_circuits(stage, phi if stage == 'bench' else None)
@@ -2089,7 +2378,7 @@ def print_plan(phi, budget_s=300.0, vendor=None):
                      min(instr), max(instr), sum(cnot), shots, n_shots, cost,
                      depths))
     hdr = ('job stage   nq  circ  instr/circuit   CNOT   shots/circ  total shots  '
-           'pessimistic cost  depths')
+           'billed cost     depths')
     print(hdr)
     print('-' * len(hdr))
     for (job, stage, nq, nc, imin, imax, ct, sh, tot, cost, depths) in rows:
@@ -2100,57 +2389,117 @@ def print_plan(phi, budget_s=300.0, vendor=None):
     print('    %-7s      %4d                            %12d %11.0f s'
           % ('TOTAL', sum(r[3] for r in rows), tot_shots, tot_cost))
     print()
-    print('THE SHOTS / COST / PRECISION TRADE-OFF FOR JOB 2 (19 circuits).')
-    print('This is the decision the abort rules actually turn on, so it is printed')
+    print('THE SHOTS / COST / PRECISION TRADE-OFF FOR THE tomo STAGE (19 circuits).')
+    print('This is now the ONLY knob the confirmed budget leaves, so it is printed')
     print('rather than left in a document.  "sigma(r<1)" assumes the vendor-')
     print('predicted r~0.86 and CI = 0.028 x sqrt(8000/S), the scaling measured by')
-    print('the power study; the pessimistic cost is S x 19 x 14 ms.')
-    print('  shots/circ  total shots  pessimistic cost  CI half-width  sigma(r<1)')
-    for s_ in (8000, 4000, 2000, 1000, 500):
+    print('the power study; the cost is S x 19 x %.0f ms.' % ms_per_shot)
+    print('  shots/circ  total shots          cost  CI half-width  sigma(r<1)')
+    for s_ in (8000, 4000, 2000, 1500, 1000, 750, 500):
         n_ = s_ * 19
         ci = 0.028 * math.sqrt(8000.0 / s_)
-        print('  %10d  %11d  %13.0f s  %13.3f  %10.1f%s'
-              % (s_, n_, n_ * ms_per_shot / 1000.0, ci, 0.14 / ci,
-                 '   <- whole remaining budget' if s_ == 1000 else ''))
-    print('  => under the PESSIMISTIC model Job 2 at 1000 shots (266 s) IS the')
-    print('     entire remaining budget: Jobs 3 and 4 are then impossible, and the')
-    print('     right choice is to spend it on Job 2 (new science) rather than on')
-    print('     Job 3 (a better-statistics repeat of the 2026-09 feasibility run).')
-    print('  => the built-in halving ladder 8000->4000->2000->1000 is itself the')
-    print('     MEASUREMENT of the cost model: a refusal is returned at submission')
-    print('     time and costs nothing (2026-09: batch1 ran, batch2 was refused),')
-    print('     so each refusal narrows the affordable shot count for free.')
-    print('     ASSUMPTION BEING RELIED ON: the vendor refuses a job whose cost')
-    print('     exceeds the remaining budget, rather than accepting it and letting')
-    print('     it overrun.  If that is wrong, starting at 8000 could bill ~2100 s')
-    print('     against a 300 s allocation -- so start Job 2 at 1000 unless the')
-    print('     user has confirmed the quota is hard-limited at submission.')
+        c_ = n_ * ms_per_shot / 1000.0
+        if s_ == STAGE_SHOTS['tomo']:
+            mark = '   <- DEFAULT, %.0f s spare' % (budget_s - c_)
+        elif c_ > budget_s:
+            mark = '   (over: cut off)'
+        else:
+            mark = ''
+        print('  %10d  %11d  %10.0f s  %13.3f  %10.1f%s'
+              % (s_, n_, c_, ci, 0.14 / ci, mark))
+    tomo_cost = [r[9] for r in rows if r[1] == 'tomo'][0]
     print()
-    print('ABORT RULES (8.3) -- w1 = Job 1 wall clock, measured, not assumed:')
-    print('  Job 1 refused ("QPU time is insufficient") -> budget already gone, STOP')
-    print('  w1 <= 60 s   -> Job 2 at 8000 shots (halving ladder on refusal),')
-    print('                  then Job 3 at 2000, then Job 4 at 4000')
-    print('  60 < w1 <= 180 s -> Job 2 at 3000 shots; Job 3 at 1000 only if')
-    print('                  w1+w2 <= 240 s; Job 4 dropped')
-    print('  w1 > 180 s   -> Job 2 at 1500 shots, and DROP its depth-2 grid and')
-    print('                  its own calibration circuits (12 d=1 circuits only);')
-    print('                  Jobs 3 and 4 dropped')
-    print('  a refusal costs nothing, so shots start optimistic and walk down')
+    print('WHAT FITS IN THE ~%.0f s THAT IS LEFT -- each line is that stage ALONE'
+          % budget_s)
+    print('measured against the WHOLE allocation.  They are mutually exclusive,')
+    print('not cumulative: tomo by itself consumes %.0f of the ~%.0f s, so'
+          % (tomo_cost, budget_s))
+    print('whichever stage runs, it is the only one.')
+    for (_j, stage, _nq, nc, _im, _ix, _ct, sh, tot, cost, _d) in rows:
+        if cost <= budget_s:
+            v = 'fits ALONE, %.0f s spare' % (budget_s - cost)
+        else:
+            v = 'DOES NOT FIT (%.1fx over)' % (cost / budget_s)
+        print('  %-7s %2d circ x %5d shots = %7d shots = %6.0f s   %s'
+              % (stage, nc, sh, tot, cost, v))
+    print('  => tomo is the choice: it is the only stage that produces a')
+    print('     mixedness claim, and at %d shots it just fits.  Adding probe'
+          % STAGE_SHOTS['tomo'])
+    print('     would spend the entire remaining margin to re-measure what tomo')
+    print('     already carries: its own 3 calibration circuits give the')
+    print('     assignment matrix, and analyze_stage recovers the bit order from')
+    print('     the tomography circuits themselves (selftest (f) proves the')
+    print('     resulting 4-way code-space tie is harmless).')
     print()
-    print('WHAT EACH JOB BUYS ON ITS OWN (8.4):')
-    print('  Job 1  5x5 readout assignment matrix on a second chip (fills the')
-    print('         ChipInfo 401 gap), unique bit order, the platform\'s ~8% shots')
-    print('         shortfall, and the cost model.  No mixedness claim.')
-    print('  Job 2  M1 measured w/r/purity (r CI half-width 0.028 at 8000 shots,')
-    print('         so r<1 is a ~5 sigma statement), M2 the linear-fraction')
-    print('         ensemble equality to +-0.023, M3 the isotropic surrogate at')
-    print('         the hardware depth, M5 two null controls.')
-    print('  Job 3  upgrades the paper\'s "4 circuits x 400 shots feasibility" to a')
-    print('         16-branch protocol benchmark on a second chip, plus the')
-    print('         mid/late A/B that re-tests the documented anomaly.')
-    print('  Job 4  rounds=%s -> a measured radius-vs-depth curve, i.e. a per-round'
+    print('SALVAGE LADDER (8.3) -- the platform enforces the ceiling itself, so')
+    print('there are no wall-clock abort rules left to guess at.  What matters is')
+    print('that a cut-off is not a total loss: tomo is submitted in chunks of')
+    print('%d circuits, submit_cloud writes the raw counts to disk after every'
+          % STAGE_CHUNK['tomo'])
+    print('chunk, and the circuits are ordered cal-first, then depth-1 grouped by')
+    print('input state, then depth-2.  So every boundary below is analysable on')
+    print('its own, and each one adds a complete scientific increment:')
+    ck = STAGE_CHUNK['tomo']
+    _gt, mt = stage_circuits('tomo')
+    sh_t = STAGE_SHOTS['tomo']
+    for b in list(range(ck, len(mt), ck)) + [len(mt)]:
+        pre = mt[:b]
+        have = {(m['psi'], m['basis']) for m in pre
+                if m['kind'] == 'tomo' and m['rounds'] == 1}
+        d1 = [p for p in TOMO_STATES if all((p, B) in have for B in BASES)]
+        got = []
+        if [m['cal'] for m in pre if m['kind'] == 'cal'] == ['zero', 'one', 'zero']:
+            got.append('assignment matrix')
+        if d1:
+            got.append('M1 for |%s>_L' % '>,|'.join(d1))
+        if '0' in d1:
+            got.append('M3 at depth 1')
+        if len(d1) == len(TOMO_STATES):
+            got.append('M2')
+        if any(m['kind'] == 'tomo' and m['rounds'] == 2 for m in pre):
+            got.append('M3 at depth 2 / M5')
+        print('  %2d/%d circuits (%3.0f s billed)  inputs %-16s -> %s'
+              % (b, len(mt), b * sh_t * ms_per_shot / 1000.0,
+                 ('|%s>' % '>,|'.join(d1)) if d1 else '-',
+                 '; '.join(got) or 'nothing analysable yet'))
+    print('  A cut-off therefore costs at most the chunk in flight (%d circuits ='
+          % ck)
+    print('  %.0f s), and the dump already on disk still analyses.'
+          % (ck * sh_t * ms_per_shot / 1000.0))
+    print('  --mode analyze accepts that truncated prefix, reports exactly which')
+    print('  inputs and depths are missing, and refuses to present a subset as')
+    print('  if it were the complete claim.')
+    print()
+    print('WHAT THE ONE AFFORDABLE JOB BUYS (8.4), at %d shots/circuit:'
+          % STAGE_SHOTS['tomo'])
+    print('  M1  the headline: measured w, Bloch radius r and purity for four')
+    print('      logical inputs, with a bootstrap CI.  CI half-width 0.079 at')
+    print('      this shot count, so r<1 is a ~1.8 sigma statement -- weaker than')
+    print('      the 5 sigma that 8000 shots would give, and that is the honest')
+    print('      price of a %.0f s allocation.  It still replaces the paper\'s'
+          % budget_s)
+    print('      4-circuit x 400-shot feasibility set with a real tomography.')
+    print('  M2  the linear-fraction ensemble equality L_Z = L_X, to +-0.060')
+    print('      (0.023 at 8000 shots) against a term span of ~1.43.')
+    print('  M3  the isotropic depolarizing surrogate fitted at the hardware')
+    print('      depth and then asked to predict r with nothing left to choose.')
+    print('      The power study predicts it FAILS here at -3.4 sigma (depth 1)')
+    print('      and -3.9 sigma (depth 2); at 1000 shots that becomes roughly')
+    print('      -1.2 and -1.4 sigma, i.e. a trend, not a refutation.  Recorded')
+    print('      as such rather than overstated.')
+    print('  M5  two null controls plus the depth-1 -> depth-2 radius ratio.')
+    print('  Also, for free inside the same job: the 5x5 readout assignment')
+    print('      matrix of the block the platform chose (which the vendor\'s own')
+    print('      ChipInfo endpoint does not expose, HTTP 401), the platform\'s')
+    print('      shots shortfall, and the bit order recovered from the data.')
+    print()
+    print('DEFERRED, NOT ABANDONED -- these stay implemented for a top-up:')
+    print('  probe   redundant: tomo self-calibrates and self-detects its layout.')
+    print('  bench   952 s, upgrades the feasibility set to a 16-branch protocol')
+    print('          benchmark and re-tests the documented mid/late A/B anomaly.')
+    print('  ladder  224 s, rounds=%s -> a radius-vs-depth curve, i.e. a'
           % (LADDER_ROUNDS,))
-    print('         logical error rate to compare against the threshold behaviour.')
+    print('          per-round logical error rate against the threshold behaviour.')
     print()
     print('NOT PURSUED AT ANY BUDGET: the over-read delta^T C delta (~5e7 shots)')
     print('and any significance claim for "4.4% over identity" (~2 sigma at best).')
@@ -2336,7 +2685,35 @@ def main(argv=None):
                 continue
             results = _load_dump(stage)
             _g, meta = stage_circuits(stage, phi if stage == 'bench' else None)
-            assert len(results) == len(meta), (len(results), len(meta), stage)
+            # A TRUNCATED DUMP IS THE EXPECTED OUTCOME, not an error.  QPU time is
+            # billed in real time and a job cannot overrun its allocation, so the
+            # job is cut off when the budget runs out; submit_cloud has by then
+            # written every chunk that completed, and chunks are submitted in
+            # order, so what is on disk is a PREFIX of the stage.  That is exactly
+            # why stage_circuits orders tomo so that every chunk boundary is a
+            # complete scientific increment.  Accept the prefix, say loudly what is
+            # missing, record it in the artifact, and never pad it.
+            if len(results) > len(meta):
+                raise AssertionError(
+                    '%s: the dump holds %d circuits but this version of the '
+                    'builders defines %d, so the dump cannot have come from these '
+                    'builders -- do not analyse it against the wrong meta'
+                    % (stage, len(results), len(meta)))
+            if len(results) < len(meta):
+                gone = meta[len(results):]
+
+                def _lab(m):
+                    return (m['cal'] if m.get('kind') == 'cal'
+                            else '%s|%s|r%d' % (m['psi'], m['basis'], m['rounds']))
+                art.setdefault('truncated_stages', {})[stage] = dict(
+                    received=len(results), defined=len(meta),
+                    missing=[_lab(m) for m in gone])
+                print('[analyze] %s: TRUNCATED -- %d of %d circuits returned (the '
+                      'job was cut off when the allocation ran out).  Missing, in '
+                      'submission order: %s'
+                      % (stage, len(results), len(meta), [_lab(m) for m in gone]),
+                      flush=True)
+                meta = meta[:len(results)]
             print('[analyze] %s: %d circuits from %s'
                   % (stage, len(results), STAGE_RAW[stage]), flush=True)
             loaded[stage] = (results, meta)
@@ -2361,15 +2738,20 @@ def main(argv=None):
                           phi=phi, vendor=vendor, n_boot=a.n_boot)
     else:
         if a.stage == 'all':
-            print('ERROR: --mode cloud refuses --stage all.  Each job is one queue '
-                  'wait and the abort rules of QCLOUD_SETUP.md 8.3 are a HUMAN '
-                  'decision taken from the measured wall clock of the previous job; '
-                  'running all four stages unattended could spend the entire 300 s '
-                  'budget on the first one.  Submit them one at a time:\n'
-                  '  bash launch_mixedness.sh probe   # then read wall_s\n'
-                  '  bash launch_mixedness.sh tomo\n'
-                  '  bash launch_mixedness.sh bench\n'
-                  '  bash launch_mixedness.sh ladder')
+            print('ERROR: --mode cloud refuses --stage all.  QPU time is billed in '
+                  'real time, the allocation is ~%.0f s, and the tomo stage alone '
+                  'consumes it (QCLOUD_SETUP.md 8).  Submitting all four would bill '
+                  'the first, be cut off part way through, and leave the account '
+                  'disabled with nothing to show for the other three.  Submit ONE '
+                  'stage:\n'
+                  '  bash launch_mixedness.sh tomo    # THE PLAN: 19 circuits at '
+                  '%d shots, chunked so a cut-off is salvageable\n'
+                  'only if the allocation is ever topped up:\n'
+                  '  bash launch_mixedness.sh probe   # redundant -- tomo carries '
+                  'its own calibration and recovers its own bit order\n'
+                  '  bash launch_mixedness.sh bench   # 952 s at its default shots\n'
+                  '  bash launch_mixedness.sh ladder  # 224 s at its default shots'
+                  % (BUDGET_S, STAGE_SHOTS['tomo']))
             return 2
         tok = a.token
         if not tok:
