@@ -46,6 +46,19 @@ cd ..                                  # repo root
                                        #   time) -> hw_error_budget.json; add
                                        #   --try-calibration to re-attempt the free
                                        #   vendor metadata query
+./qenv/bin/python hw_mixedness.py --mode verify    # FREE half of the measured-device
+                                       #   -mixedness run: 8 anchors incl. an exact
+                                       #   reproduction of the audited device_prep
+                                       #   block, plus the ideal reference of all 58
+                                       #   submitted circuits.  --mode sample is a
+                                       #   CPUQVM dry run of the whole analysis
+                                       #   chain and --mode simulate --vendor
+                                       #   f1q,f2q,fread --seeds 6 is the power
+                                       #   study that sized the shot budget; the
+                                       #   three --mode cloud stages DO spend QPU
+                                       #   time (58 circuits, 174k shots) and are
+                                       #   the run book in QCLOUD_SETUP.md §7
+                                       #   -> hw_mixedness.json (ED 10f-10h, pending)
 ./qenv/bin/python make_schematic.py    # Fig. 1
 cd paper && ./qenv/bin/python fill_numbers.py && ./qenv/bin/python make_ed.py
 ./qenv/bin/python audit_numbers.py     # consistency gate: numbers <-> figures <-> LaTeX
@@ -288,6 +301,32 @@ full benchmark as a revision/strengthener.
   pre-measurement physical error together with readout assignment error and
   cannot be split further without vendor numbers — that limit is stated in the
   paper, not left to the reader.
+- **The device mixedness that prices the mixed-input over-read is still *inferred*,
+  and a designed run exists to measure it.** ED Table 10d's $r = 0.9375$ and
+  code-space weight $0.6068$ come from feeding one implied per-instruction rate
+  through the 36-gate encoder as an isotropic depolarizing channel.
+  `hw_mixedness.py` is the experiment that replaces the inference with a
+  measurement: a 5-qubit `prep(psi) -> U_enc -> U_enc^dag -> R_B -> MEAS`
+  tomography in 3 bases x 4 inputs, where "q0..q3 all zero" after decoding *is*
+  the projector $VV^\dagger$ that `device_prep` applies analytically, so the same
+  counts give the measured weight, radius and purity; the unconditional
+  $\langle Z_L\rangle$ of the four inputs tests on hardware that a LINEAR score
+  decomposes exactly over the two pure ensembles of $I/2$; one fitted $p_{instr}$
+  then has to PREDICT the measured radius with nothing left to choose; and the run
+  measures its own 5-bit readout assignment matrix, which is what the `401` above
+  refused to supply. Nothing has been submitted yet. Its power study (`--mode
+  simulate`, zero QPU time) is what sized the budget -- 58 circuits, 174k shots, a
+  95% CI half-width of 0.028 on $r$ at 8000 shots on the best of three backends --
+  and it also predicts the surrogate will FAIL at $-2.8\sigma$ there, because a
+  single isotropic rate cannot match both the leakage and the logical coherence of
+  a device whose single- and two-qubit error rates differ 24-fold. That predicted
+  failure is the quantitative reason to measure $r$ rather than infer it, and if
+  the run reproduces it, it gets reported as a failure. The over-read
+  $\delta^T C\delta$ itself is deliberately NOT measured: at ~0.007 it is seven
+  times below the shot noise of a branch-summed hardware fidelity, and resolving
+  it would need ~$5\times10^7$ shots. Run book, backend comparison, and the six
+  traps found while building it: `QCLOUD_SETUP.md` section 7.
+
 - **The a1 relaxation attribution is measured, not asserted.** The identity
   circuits give each ancilla's effective 0→1 rate and the injected circuits its
   1→0 rate; a1 is the only ancilla whose 1→0 rate exceeds its 0→1 rate

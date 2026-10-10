@@ -209,6 +209,43 @@ def _t_mixedinput():
     assert st['identity_min_magnitude'] > 1e-4, st
 
 
+def _t_hwmixedness():
+    """The measured-device-mixedness pipeline, anchored before it touches a count.
+
+    This is the hardware counterpart of `mixedinput`: it turns ED Table 10d's
+    model-implied device radius into a measurement, so every estimator it uses is
+    pinned to something already audited first.  (a) all 16 tomography circuits
+    ideally read the input Bloch component exactly and have code-space weight
+    exactly 1, at both depths, including the two null controls; (b) the
+    count-based estimator agrees with the exact state vector on the same ideal
+    distribution; (c) the re-implemented noise model reproduces the AUDITED
+    `device_prep` block of mixed_input_boundary.json -- radius, code-space weight,
+    purity and leakage -- so the model being fitted to hardware is the model the
+    manuscript already quotes; (d) readout mitigation via O~ = A^-T O is exactly
+    unbiased on a noisy distribution and reduces to the analytic contrast division
+    in the symmetric case; (e) the two pure ensembles of I/2 give the same linear
+    score to machine precision at four noise rates while the individual <Z_L> terms
+    span >0.5, which is the identity the hardware M2 test measures; (f) the
+    tomography circuits alone leave exactly 24 tied bit orders but pin the logical
+    position, every estimator is identical across all 24, and five fingerprint
+    circuits break the tie uniquely; (g) the one-parameter p_instr fit inverts
+    exactly; (h) the three cloud stages are the sizes the shot budget assumes."""
+    import hw_mixedness as hm
+    hm.setup()
+    st = hm.selftests()
+    assert st['ideal_bloch_residual'] < 1e-12, st
+    assert st['estimator_vs_statevector'] < 1e-6, st
+    assert st['anchor_device_prep'] < 1e-9, st
+    assert st['mitigation_roundtrip'] < 1e-12, st
+    assert st['linear_ensemble_residual'] < 1e-12, st
+    assert st['linear_term_span_min'] > 0.5, st
+    assert st['layout_tie_invariance'] < 1e-12, st
+    assert st['layout_margin_min'] > 100.0, st
+    assert st['fit_p_instr_residual'] < 1e-6, st
+    assert st['stage_sizes'] == {'probe': 8, 'tomo': 16, 'bench': 34}, st
+    assert st['n_circuits_total'] == 58, st
+
+
 # name -> (callable, slow?, description)
 TESTS = [
     ('gates',       m._selftest_gates, False,
@@ -239,6 +276,20 @@ TESTS = [
      'score decomposes exactly over a pure ensemble while the QUADRATIC one '
      'over-reads by exactly delta^T C delta, and the gradient identity holds where '
      'it is nonzero'),
+    ('hwmixedness', _t_hwmixedness, False,
+     'the hardware counterpart of mixedinput: every estimator used to turn ED '
+     'Table 10d\'s MODEL-IMPLIED device radius into a measurement, anchored before '
+     'it touches a count -- all 16 tomography circuits ideally read the input Bloch '
+     'component exactly with code-space weight exactly 1 at both depths, the '
+     'count-based estimator equals the exact state vector, the re-implemented noise '
+     'model reproduces the AUDITED device_prep radius/weight/purity/leakage, '
+     'readout mitigation via O~ = A^-T O is exactly unbiased and reduces to the '
+     'analytic contrast division when symmetric, the two pure ensembles of I/2 give '
+     'the same linear score to machine precision while the individual <Z_L> terms '
+     'span >0.5, the tomography circuits leave exactly 24 tied bit orders but pin '
+     'the logical one with every estimator identical across all 24 while five '
+     'fingerprint circuits break the tie uniquely, the one-parameter p_instr fit '
+     'inverts exactly, and the three cloud stages are the sizes the budget assumes'),
     ('ancilla',     _t_ancilla, True,
      'Kraus-rank ladder, five self-tests: rank(C)=1 reproduces the production '
      'unitary ceiling and rank(C)=4 the production CPTP ceiling, the Choi '
