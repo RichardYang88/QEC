@@ -73,42 +73,63 @@ prices the over-read, and the linear exactness; the over-read number itself stay
 with the analytic result that is audited to 1e-14.  This is the same shot-budget
 bound ED Table 3's note already states.
 
-Stages (3 cloud jobs, priority order, each dumped incrementally)
+Stages (4 cloud jobs, priority order, submitted ONE AT A TIME, each dumped
+incrementally; the run plan and the abort rules are QCLOUD_SETUP.md 8)
 ----------------------------------------------------------------
-    probe :  8 circuits x 1500 shots, 5 qubits -- 2+1 readout calibration (the
-             repeat brackets the drift) and 5 single-X fingerprints that determine
-             the returned bit order uniquely;  12 000 shots
-    tomo  : 16 circuits x 8000 shots, 5 qubits -- M1 M2 M3 M5; 128 000 shots
-    bench : 34 circuits x 1000 shots, 9 qubits -- mid/late A-B, then the full
-             16-branch sum at p=0 for psi in {0,+} (2 x 16), late-measure, on the
-             paper's warm-start angles;  34 000 shots
-Total 58 circuits, 174 000 shots.  Pure execution is ~4 s at 15-40 us/shot, so if
-the vendor meters execution time there is ~75x headroom and --shots should be
-raised; if it meters job wall-clock then the THREE-JOB structure is the budget and
-must not grow.  The probe job exists to tell us which before tomo is sized, and a
-QPU-time refusal halves --shots and retries down to SHOTS_FLOOR rather than losing
-the run, with every attempt recorded.
+    probe  :  8 circuits x  300 shots, 5 qubits -- 2+1 readout calibration (the
+              repeat brackets the drift) and 5 single-X fingerprints that determine
+              the returned bit order uniquely;  2 400 shots
+    tomo   : 19 circuits x 8000 shots, 5 qubits -- M1 M2 M3 M5, plus its OWN three
+              calibration circuits so it never assumes the canary's block is still
+              its own;  152 000 shots
+    bench  : 34 circuits x 2000 shots, 9 qubits -- mid/late A-B, then the full
+              16-branch sum at p=0 for psi in {0,+} (2 x 16), late-measure, on the
+              paper's warm-start angles;  68 000 shots
+    ladder :  4 circuits x 4000 shots, 5 qubits -- the DEPTH_SCAN grid at rounds=4
+              (293 instructions / 144 CNOT), analysed together with tomo as one
+              depth curve;  16 000 shots
+Total 65 circuits, 238 400 shots.
+
+The metering unit is NOT documented by the vendor and the two candidate models
+differ ~50x in what a 300 s allocation buys: metered per shot, 300 s is ~21 000
+shots and this plan is 11x over budget; metered per job wall-clock (queue included),
+shots are nearly free and the FOUR-JOB structure is the budget.  Nothing in the
+artifacts decides between them -- the 2026-09 run executed ~162 000 shots and then
+ran out, but the size of that budget in seconds was never recorded.  So `probe` is
+a canary sized to cost ~34 s even under the pessimistic model, its wall clock picks
+the shot count for every later job (QCLOUD_SETUP.md 8.4), and a QPU-time refusal
+halves --shots and retries down to SHOTS_FLOOR rather than losing the run, with
+every attempt recorded.  A refusal is free, so the halving ladder is itself a
+measurement of the cost model.  `--mode cloud --stage all` is therefore rejected:
+the abort rules are a human decision, not something to run unattended.
 
 Shot sizing is not a guess: `--mode simulate` runs the whole chain on synthetic
-counts from a device built out of quoted vendor fidelities, so the achievable error
-bars are known before any shots are bought.  At 8000 shots on a 0.9993/0.9831/
-0.9612 device it recovers w = 0.340 (truth 0.3396) and r = 0.84-0.88 (truth
-0.85-0.88) with a 95% CI half-width of 0.028 on r, every null control inside 1
-sigma, and |L_Z - L_X| bounded to 4.3% of the term span.  Halving the shots widens
-the CI on r by sqrt(2); that is the whole trade-off and it is a CLI flag.
+counts from a device built out of quoted vendor fidelities, through the SAME
+analysis path the cloud data takes (including the tomo job's own calibration), so
+the achievable error bars are known before any shots are bought.  At 8000 shots on
+a 0.9993/0.9831/0.9612 device it recovers w = 0.3415 (truth 0.3396) and r =
+0.83-0.87 (truth 0.854-0.881) with a 95% CI half-width of 0.0278 on r, every null
+control inside 1 sigma, and |L_Z - L_X| bounded to 4.7% of the term span; over 6
+sampling seeds the M2 z-score has mean +0.50 and rms 1.21, i.e. pure shot noise.
+The same study on 0.9988/0.9790/0.9260 gives a CI half-width of 0.0489 and needs
+47 918 shots for +-0.02 -- 3.1x more -- which is the arithmetic behind the backend
+choice.  Halving the shots widens the CI on r by sqrt(2); that is the whole
+trade-off, it is a CLI flag, and `--mode plan` prints the table.
 
 Run:
+    ./qenv/bin/python hw_mixedness.py --mode plan         # the budget, no account
     ./qenv/bin/python hw_mixedness.py --mode verify       # exact, no account
-    ./qenv/bin/python hw_mixedness.py --mode selftest     # the 8 anchors, no account
+    ./qenv/bin/python hw_mixedness.py --mode selftest     # the 9 anchors, no account
     ./qenv/bin/python hw_mixedness.py --mode sample       # CPUQVM dry run of the
                                                           # whole analysis chain
     ./qenv/bin/python hw_mixedness.py --mode simulate \
-        --vendor 0.9993,0.9831,0.9612 --shots 8000       # power study, no QPU time
+        --vendor 0.9993,0.9831,0.9612 --shots 8000 --seeds 6   # power study
     ./qenv/bin/python hw_mixedness.py --mode preflight \
-        --chip-ids WK_C180_2,WK_C180,WK_C180_3           # FREE cloud queries
-    ./qenv/bin/python hw_mixedness.py --mode cloud --stage probe --chip-id WK_C180_2
-    ./qenv/bin/python hw_mixedness.py --mode cloud --stage tomo  --chip-id WK_C180_2
-    ./qenv/bin/python hw_mixedness.py --mode cloud --stage bench --chip-id WK_C180_2
+        --chip-ids WK_C180_2,WK_C180                    # FREE cloud queries
+    bash launch_mixedness.sh probe    # then read wall_s and apply the abort rules
+    bash launch_mixedness.sh tomo
+    bash launch_mixedness.sh bench
+    bash launch_mixedness.sh ladder
     ./qenv/bin/python hw_mixedness.py --mode analyze --stage all   # offline, no token
 Outputs:
     hw_mixedness.json, qcloud_raw_{probe,mixedness,bench}.json,
@@ -149,21 +170,50 @@ IDEAL_BLOCH = {'0': (0.0, 0.0, 1.0), '1': (0.0, 0.0, -1.0),
                '+i': (0.0, 1.0, 0.0), '-i': (0.0, -1.0, 0.0)}
 BASIS_AXIS = {'X': 0, 'Y': 1, 'Z': 2}   # which Bloch component basis B reads
 
-STAGE_SHOTS = {'probe': 1500, 'tomo': 8000, 'bench': 1000}
+STAGE_SHOTS = {'probe': 300, 'tomo': 8000, 'bench': 2000, 'ladder': 4000}
 # QPU time on this platform is metered in a unit the vendor does not document, and
 # the 2026-09 run ran out mid-sweep (see QCLOUD_SETUP.md 6.2).  So a refusal is
 # treated as information rather than as failure: the stage is retried at half the
 # shots, down to SHOTS_FLOOR, and every attempt is recorded in the artifact.
+#
+# The probe default is deliberately 300, not 1500: it is the CANARY whose only job
+# is to measure the cost model (QCLOUD_SETUP.md 8.1), and the two candidate models
+# differ by ~50x in what 300 s buys.  At the pessimistic 14 ms/shot implied by the
+# 2026-09 timeline, 8 circuits x 300 shots = 2400 shots costs ~34 s, i.e. ~11% of
+# the budget, while still returning an assignment matrix whose e_ij are good to
+# +-0.011 (at e~0.04), a unique bit order, and the platform's shots shortfall.  The
+# tomo stage then repeats the three calibration circuits at its own (much higher)
+# shot count, so the published assignment matrix is not the canary's.
+#
+# The probe stays on FIVE qubits and therefore cannot carry the mid/late A/B pair:
+# a submission has one block, and on a 9-qubit block the returned bitstrings are
+# 9 bits wide, which would silently invalidate the 5-position layout likelihood and
+# the 5x5 assignment matrix.  Whether a 5-qubit circuit submitted inside a 9-qubit
+# block comes back 5 or 9 bits wide is NOT verifiable offline, so the plan never
+# depends on it.  The A/B pair is circuits 1-2 of the bench stage instead.
 SHOTS_FLOOR = 1000
 QPU_REFUSAL_MARKERS = ('qpu time', 'insufficient', 'not enough', 'quota')
 # seeds for the power study's repeat draws; the first is the one every other
 # function defaults to, so a single-seed run and a scan share their first draw
 SEED_BANK = (20260921, 11, 202, 3003, 40004, 777777, 5, 606, 8080, 91,
              1234, 24680, 13579, 99991, 424242, 8888)
-STAGE_NQ = {'probe': NQ5, 'tomo': NQ5, 'bench': q.NQ}
+STAGE_NQ = {'probe': NQ5, 'tomo': NQ5, 'bench': q.NQ, 'ladder': NQ5}
 STAGE_RAW = {'probe': 'qcloud_raw_probe.json',
              'tomo': 'qcloud_raw_mixedness.json',
-             'bench': 'qcloud_raw_bench.json'}
+             'bench': 'qcloud_raw_bench.json',
+             'ladder': 'qcloud_raw_ladder.json'}
+# The ladder stage re-runs the DEPTH_SCAN grid at deeper rounds, so the measured
+# radius becomes a curve in depth rather than two points.  rounds=4 is 293
+# instructions / 144 CNOT and rounds=8 is 581 / 288 (both verified constructible);
+# 8 is off by default because it is the most expensive circuit in the whole plan
+# and the least essential to any of M1-M5.
+LADDER_ROUNDS = (4,)
+# Every stage is submitted on ONE fixed physical block, passed with --block, so the
+# readout assignment matrix measured by the canary applies to the tomography.  The
+# 5-qubit stages and the 9-qubit bench necessarily use different blocks (a
+# submission has one block), and which two were used is recorded in the artifact
+# rather than assumed to be comparable.
+STAGE_JOB = {'probe': 1, 'tomo': 2, 'bench': 3, 'ladder': 4}
 # the bench stage reuses the frame the WK_C180 feasibility run used, so the new
 # full-branch point and the old 4-circuit point are the same physical situation
 BENCH_FRAME = 'IIIII'
@@ -272,6 +322,27 @@ def stage_circuits(stage, phi=None):
             pairs = ([(p, b) for p in TOMO_STATES for b in BASES] if r == 1
                      else list(DEPTH_SCAN))
             for psi, basis in pairs:
+                out.append(build_tomo(psi, basis, rounds=r))
+                meta.append(dict(kind='tomo', psi=psi, basis=basis, rounds=r))
+        # The tomography job carries its OWN three calibration circuits.  A
+        # submission has one block, and the block is whatever the platform ranks
+        # best at submission time, so a job that depends on a calibration measured
+        # in an earlier job silently assumes the two landed on the same physical
+        # qubits.  Carrying them costs three 5-10 instruction circuits and makes
+        # the headline M1/M2/M3 numbers self-contained on whichever chip ran them.
+        out += [build_cal('zero'), build_cal('one'), build_cal('zero')]
+        meta += [dict(kind='cal', cal='zero', rep=0), dict(kind='cal', cal='one', rep=0),
+                 dict(kind='cal', cal='zero', rep=1)]
+        return out, meta
+    if stage == 'ladder':
+        # The DEPTH_SCAN grid at deeper rounds: for psi=|0> the Bloch vector lies
+        # along z and for psi=|+> along x, so (0,Z) and (+,X) are the radius at any
+        # depth, while (0,X) and (+,Z) remain null controls at any depth.  Same
+        # meta kind as the tomo stage, so --stage all merges them into one depth
+        # curve and analyze_tomo's loops pick up every rounds value present.
+        out, meta = [], []
+        for r in LADDER_ROUNDS:
+            for psi, basis in DEPTH_SCAN:
                 out.append(build_tomo(psi, basis, rounds=r))
                 meta.append(dict(kind='tomo', psi=psi, basis=basis, rounds=r))
         return out, meta
@@ -1030,15 +1101,44 @@ def selftests(verbose=True):
     say('(g) one-parameter fit of p_instr from the code-space weight recovers a '
         'planted rate to %.2e' % worst_fit)
 
-    # (h) the three cloud stages have the size and architecture the budget assumes
+    # (h) the four cloud stages have the size and architecture the budget assumes
     sizes = {s: len(stage_circuits(s, phi=np.zeros((16, 60)))[0])
-             for s in ('probe', 'tomo', 'bench')}
-    assert sizes == {'probe': 8, 'tomo': 16, 'bench': 34}, sizes
+             for s in ('probe', 'tomo', 'bench', 'ladder')}
+    assert sizes == {'probe': 8, 'tomo': 19, 'bench': 34,
+                     'ladder': 4 * len(LADDER_ROUNDS)}, sizes
     res['stage_sizes'] = sizes
     res['n_circuits_total'] = sum(sizes.values())
     res['shots_total'] = sum(sizes[s] * STAGE_SHOTS[s] for s in sizes)
     say('(h) stage circuit counts %s = %d circuits, %d shots at the default '
         'per-stage budgets' % (sizes, res['n_circuits_total'], res['shots_total']))
+
+    # (i) the tomo job carries its own calibration, so it never has to assume that
+    #     the canary's physical block is still this job's block (QCLOUD_SETUP.md 8.2)
+    _g, tm = stage_circuits('tomo')
+    kinds = [m['kind'] for m in tm]
+    assert kinds.count('cal') == 3 and kinds.count('tomo') == 16, kinds
+    assert [m['cal'] for m in tm if m['kind'] == 'cal'] == ['zero', 'one', 'zero']
+    # and the ladder is the SAME grid at strictly deeper rounds, with the same meta
+    # kind, which is what lets --stage all merge the two into one depth curve
+    _gl, ml = stage_circuits('ladder')
+    assert all(m['kind'] == 'tomo' for m in ml), ml
+    assert sorted({m['rounds'] for m in ml}) == sorted(LADDER_ROUNDS)
+    assert min(m['rounds'] for m in ml) > 2
+    assert {(m['psi'], m['basis']) for m in ml} == set(DEPTH_SCAN)
+    merged = sorted({m['rounds'] for m in tm + ml if m['kind'] == 'tomo'})
+    assert merged == [1, 2] + sorted(LADDER_ROUNDS), merged
+    # the two signal circuits the radius is read from must be present at every depth,
+    # otherwise analyze_tomo's M3 fit skips that depth silently
+    tomo_keys = {(m['psi'], m['basis'], m['rounds'])
+                 for m in tm + ml if m['kind'] == 'tomo'}
+    for r in merged:
+        assert ('0', 'Z', r) in tomo_keys, r
+    res['ladder_rounds'] = list(LADDER_ROUNDS)
+    res['merged_depths'] = merged
+    say('(i) the tomo job carries its own 3 calibration circuits; the ladder adds '
+        'rounds %s over the %s grid, so the merged depth curve is %s and (|0>,Z) '
+        'is present at every depth' % (list(LADDER_ROUNDS),
+                                       [list(p) for p in DEPTH_SCAN], merged))
     return res
 
 
@@ -1204,6 +1304,8 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
     e01, e10 = cal['e01'], cal['e10']
     circuits, by_key = {}, {}
     for rec, m in zip(results, meta):
+        if m.get('kind') != 'tomo':
+            continue      # the stage's own calibration circuits, handled separately
         key = '%s|%s|r%d' % (m['psi'], m['basis'], m['rounds'])
         out = read_tomo(rec, tuple(sigma), n, e01, e10)
         out['n_requested'] = shots_requested
@@ -1212,6 +1314,13 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
             (1.0, IDEAL_BLOCH[m['psi']][BASIS_AXIS[m['basis']]])))
         circuits[key] = out
         by_key[(m['psi'], m['basis'], m['rounds'])] = (rec, out, m)
+    # every depth the submitted circuits actually reached, so the ladder stage
+    # extends the curve instead of being analysed as if it were depth 1 and 2
+    rounds_present = sorted({k[2] for k in by_key})
+    assert 1 in rounds_present, (
+        'the ladder stage is the SAME estimator at deeper rounds and must be '
+        'analysed together with the depth-1/2 tomography, not on its own '
+        '(rounds present = %s)' % (rounds_present,))
 
     per_input = {}
     for psi in TOMO_STATES:
@@ -1285,18 +1394,20 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
     #     those inputs the Bloch vector lies along the measured axis, so that single
     #     component IS the radius.
     model = {}
-    for rounds in (1, 2):
+    for rounds in rounds_present:
+        if ('0', 'Z', rounds) not in by_key:
+            continue      # a depth without the (|0>, Z) signal circuit cannot be fitted
         gates = enc_dec_gates(rounds)
         w_meas = float(by_key[('0', 'Z', rounds)][1]['mitigated']['w'])
         if rounds == 1:
             r_meas = per_input['0']['radius_mitigated']
             se = per_input['0']['bootstrap']['mitigated']['radius_std']
         else:
-            # at rounds=2 only the (0, Z) circuit is available, and for |0>_L the
+            # beyond depth 1 only the DEPTH_SCAN grid is submitted, and for |0>_L the
             # Bloch vector lies along z, so that one component IS the radius and its
             # own standard error is the right one to scale the residual by
-            r_meas = abs(float(by_key[('0', 'Z', 2)][1]['mitigated']['sigma_cs']))
-            se = float(by_key[('0', 'Z', 2)][1]['raw']['sigma_cs_stderr'])
+            r_meas = abs(float(by_key[('0', 'Z', rounds)][1]['mitigated']['sigma_cs']))
+            se = float(by_key[('0', 'Z', rounds)][1]['raw']['sigma_cs_stderr'])
         try:
             p_fit = fit_p_instr(gates, w_meas, prep_vec('0'))
         except AssertionError as exc:
@@ -1331,34 +1442,51 @@ def analyze_tomo(results, meta, sigma, cal, shots_requested=None, n=NQ5,
         model['vendor_prediction'] = vendor_prediction(*vendor)
 
     # M5: the depth scan itself, including the two null controls and how many
-    #     standard errors each sits from zero
+    #     standard errors each sits from zero.  Written over every depth actually
+    #     submitted (the ladder stage adds rounds=4 and optionally 8), with the
+    #     r1/r2 keys kept because the report, the figure and selftest (g) read them.
     scan = {}
     for psi, B in DEPTH_SCAN:
+        depths = [r for r in rounds_present if (psi, B, r) in by_key]
+        if not depths:
+            continue
         d1 = by_key[(psi, B, 1)][1]
-        d2 = by_key[(psi, B, 2)][1]
         null = IDEAL_BLOCH[psi][BASIS_AXIS[B]] == 0.0
-        se1, se2 = d1['raw']['sigma_cs_stderr'], d2['raw']['sigma_cs_stderr']
+        se1 = d1['raw']['sigma_cs_stderr']
+        per_depth = {}
+        for r in depths:
+            dd = by_key[(psi, B, r)][1]
+            per_depth[r] = dict(
+                sigma_cs_mitigated=dd['mitigated']['sigma_cs'],
+                sigma_cs_raw=dd['raw']['sigma_cs'],
+                stderr=dd['raw']['sigma_cs_stderr'], w=dd['mitigated']['w'],
+                null_sigma=(dd['raw']['sigma_cs'] / dd['raw']['sigma_cs_stderr']
+                            if (null and dd['raw']['sigma_cs_stderr'] > 0) else None))
+        d2 = by_key[(psi, B, 2)][1] if (psi, B, 2) in by_key else None
+        se2 = d2['raw']['sigma_cs_stderr'] if d2 else None
         scan['%s|%s' % (psi, B)] = dict(
-            null_control=null,
+            null_control=null, depths=depths, by_rounds=per_depth,
             sigma_cs_r1_mitigated=d1['mitigated']['sigma_cs'],
-            sigma_cs_r2_mitigated=d2['mitigated']['sigma_cs'],
-            ratio_r2_over_r1=(d2['mitigated']['sigma_cs']
-                              / d1['mitigated']['sigma_cs']
-                              if abs(d1['mitigated']['sigma_cs']) > 1e-12 else None),
+            sigma_cs_r2_mitigated=(d2['mitigated']['sigma_cs'] if d2 else None),
+            ratio_r2_over_r1=((d2['mitigated']['sigma_cs'] / d1['mitigated']['sigma_cs'])
+                              if (d2 and abs(d1['mitigated']['sigma_cs']) > 1e-12)
+                              else None),
             sigma_cs_r1_raw=d1['raw']['sigma_cs'],
-            sigma_cs_r2_raw=d2['raw']['sigma_cs'],
+            sigma_cs_r2_raw=(d2['raw']['sigma_cs'] if d2 else None),
             stderr_r1=se1, stderr_r2=se2,
             null_sigma_r1=(d1['raw']['sigma_cs'] / se1) if (null and se1 > 0) else None,
-            null_sigma_r2=(d2['raw']['sigma_cs'] / se2) if (null and se2 > 0) else None,
-            w_r1=d1['mitigated']['w'], w_r2=d2['mitigated']['w'])
+            null_sigma_r2=((d2['raw']['sigma_cs'] / se2)
+                           if (null and d2 and se2 > 0) else None),
+            w_r1=d1['mitigated']['w'],
+            w_r2=(d2['mitigated']['w'] if d2 else None))
     nulls = [v for v in scan.values() if v['null_control']]
+    all_null_sigmas = [abs(p['null_sigma']) for v in nulls
+                       for p in v['by_rounds'].values() if p['null_sigma'] is not None]
     scan_summary = dict(
         n_null_controls=len(nulls),
-        max_null_sigma=max(max(abs(v['null_sigma_r1'] or 0.0),
-                               abs(v['null_sigma_r2'] or 0.0)) for v in nulls),
-        nulls_within_3sigma=bool(all(
-            abs(v['null_sigma_r1'] or 0.0) < 3.0
-            and abs(v['null_sigma_r2'] or 0.0) < 3.0 for v in nulls)),
+        depths=sorted({r for v in scan.values() for r in v['depths']}),
+        max_null_sigma=max(all_null_sigmas) if all_null_sigmas else 0.0,
+        nulls_within_3sigma=bool(all(s < 3.0 for s in all_null_sigmas)),
         note='the null controls measure a Bloch component that is exactly zero '
              'ideally; a value beyond a few standard errors is a phase or '
              'calibration problem, not evidence of mixedness')
@@ -1663,11 +1791,23 @@ def simulate_device(vendor, shots=4000, seed=20260921, n_boot=400,
         # exactly this in test (e); the same trap is guarded here by construction.
         probs = model_output_probs(g, 1.0 - f1, 1.0 - f2)
         tres.append(_sample(_to_observed(probs, sigma_true), shots, rng, e01, e10))
+        if m.get('kind') != 'tomo':
+            continue          # the job's own calibration circuits, no truth to record
         d = model_mixedness(g, p1=1.0 - f1, p2=1.0 - f2)
         truth['%s|%s|r%d' % (m['psi'], m['basis'], m['rounds'])] = dict(
             w=d['codespace_weight'], r=d['radius'],
             sigma_cs=d['bloch'][2], sigma_z_uncond=d['sigma_z_uncond'])
-    out, lines = analyze_tomo(tres, tm, sigma, probe_out['assignment'], shots,
+    # Use the calibration the tomo job CARRIES, not the probe's, so the power study
+    # exercises the same path analyze_stage takes on real counts (QCLOUD_SETUP.md 8.2:
+    # a submission has one block, so a job must not assume the canary's block is
+    # still its own).
+    zs = [r for r, m in zip(tres, tm)
+          if m.get('kind') == 'cal' and m.get('cal') == 'zero']
+    os_ = [r for r, m in zip(tres, tm)
+           if m.get('kind') == 'cal' and m.get('cal') == 'one']
+    assert len(zs) == 2 and len(os_) == 1, (len(zs), len(os_))
+    tomo_cal = assignment_from_cal(zs[0], os_[0], NQ5)
+    out, lines = analyze_tomo(tres, tm, sigma, tomo_cal, shots,
                               n_boot=n_boot, seed=seed, vendor=vendor, verbose=False)
     if verbose:
         print('[simulate] device model: f1q=%.4f f2q=%.4f fread=%.4f, %d shots per '
@@ -1856,21 +1996,45 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
                             n_circuits=len(results))
         art.setdefault('meta', {})['layout_sigma'] = list(sigma)
         return out
-    if stage == 'tomo':
+    if stage in ('tomo', 'ladder'):
         pr = art.get('probe', {}).get('analysis')
+        # the bit order needs the fingerprint circuits, which only the probe stage
+        # submits; the assignment matrix does not, and the tomo stage carries its
+        # own three calibration circuits so that it does not have to assume the
+        # probe's block is still this job's block.
+        own = [m.get('cal') for m in meta if m.get('kind') == 'cal']
+        own_cal = None
+        if own.count('zero') >= 2 and own.count('one') >= 1:
+            zs = [r for r, m in zip(results, meta)
+                  if m.get('kind') == 'cal' and m.get('cal') == 'zero']
+            os_ = [r for r, m in zip(results, meta)
+                   if m.get('kind') == 'cal' and m.get('cal') == 'one']
+            own_cal = assignment_from_cal(zs[0], os_[0], NQ5)
         if pr:
             sigma = tuple(pr['layout_sigma'])
-            cal = pr['assignment']
-            source = 'probe stage'
+            lay_src = 'probe stage'
         else:
+            tm = [m for m in meta if m.get('kind') == 'tomo']
+            tr = [r for r, m in zip(results, meta) if m.get('kind') == 'tomo']
             ideals = [exact_probs(build_tomo(m['psi'], m['basis'], m['rounds']))
-                      for m in meta]
-            sigma, ev = detect_layout_ml(results, ideals, verbose=verbose)
-            cal = dict(e01=[0.0] * NQ5, e10=[0.0] * NQ5, n_zero=0, n_one=0)
-            source = ('the tomography circuits alone (no probe stage: the four '
-                      'code-space positions are tied and readout mitigation is '
-                      'skipped, so every mitigated number equals its raw value)')
+                      for m in tm]
+            sigma, ev = detect_layout_ml(tr, ideals, verbose=verbose)
+            lay_src = ('the tomography circuits alone (the four code-space positions '
+                       'are tied and readout mitigation is applied per observed '
+                       'position, which selftest (f) proves is harmless)')
             art.setdefault('meta', {})['layout_evidence'] = ev
+        if own_cal is not None:
+            cal, source = own_cal, 'this job\'s own calibration circuits'
+        elif pr:
+            cal, source = pr['assignment'], 'probe stage'
+        else:
+            cal = dict(e01=[0.0] * NQ5, e10=[0.0] * NQ5, n_zero=0, n_one=0)
+            source = ('none available: readout mitigation is skipped, so every '
+                      'mitigated number equals its raw value')
+        if pr and own_cal is not None:
+            d = max(abs(a - b) for a, b in zip(pr['assignment']['e01'], own_cal['e01']))
+            source += ' (max |e01 - probe e01| = %.4f)' % d
+        source += '; layout from ' + lay_src
         out, lines = analyze_tomo(results, meta, sigma, cal, shots_requested,
                                   n_boot=n_boot, vendor=vendor, verbose=False)
         out['calibration_source'] = source
@@ -1895,15 +2059,134 @@ def _load_dump(stage):
     return [{str(k): int(v) for k, v in d.items()} for d in raw]
 
 
+def print_plan(phi, budget_s=300.0, vendor=None):
+    """Print the executable run plan of QCLOUD_SETUP.md 8, with the circuit counts
+    and instruction totals computed from the builders rather than typed in, so the
+    table cannot drift away from the code it describes.  Touches nothing."""
+    ms_per_shot = 14.0        # the pessimistic model: 1800 s / 128 000 shots
+    rows, tot_shots, tot_cost = [], 0, 0.0
+    print('=' * 78)
+    print('RUN PLAN -- %s, one submission per job, one physical block per job'
+          % 'OriginQ Wukong')
+    print('Cost model is UNKNOWN and the two candidates differ ~50x (8.1):')
+    print('  pessimistic  metered per shot   -> 300 s buys ~%d shots'
+          % int(budget_s * 1000 / ms_per_shot))
+    print('  optimistic   metered per job wall clock (queue included)')
+    print('               -> shots are nearly free, the JOB COUNT is the budget')
+    print('  evidence for neither is in the artifacts; Job 1 exists to decide.')
+    print('=' * 78)
+    for stage in ('probe', 'tomo', 'bench', 'ladder'):
+        gates, meta = stage_circuits(stage, phi if stage == 'bench' else None)
+        instr = [len(g) for g in gates]
+        cnot = [sum(1 for x in g if x[0] == 'CNOT') for g in gates]
+        shots = STAGE_SHOTS[stage]
+        n_shots = shots * len(gates)
+        cost = n_shots * ms_per_shot / 1000.0
+        tot_shots += n_shots
+        tot_cost += cost
+        depths = sorted({m['rounds'] for m in meta if 'rounds' in m})
+        rows.append((STAGE_JOB[stage], stage, STAGE_NQ[stage], len(gates),
+                     min(instr), max(instr), sum(cnot), shots, n_shots, cost,
+                     depths))
+    hdr = ('job stage   nq  circ  instr/circuit   CNOT   shots/circ  total shots  '
+           'pessimistic cost  depths')
+    print(hdr)
+    print('-' * len(hdr))
+    for (job, stage, nq, nc, imin, imax, ct, sh, tot, cost, depths) in rows:
+        print('%3d  %-7s %2d  %4d  %5d-%-5d %7d %10d %12d %11.0f s   %s'
+              % (job, stage, nq, nc, imin, imax, ct, sh, tot, cost,
+                 depths or '-'))
+    print('-' * len(hdr))
+    print('    %-7s      %4d                            %12d %11.0f s'
+          % ('TOTAL', sum(r[3] for r in rows), tot_shots, tot_cost))
+    print()
+    print('THE SHOTS / COST / PRECISION TRADE-OFF FOR JOB 2 (19 circuits).')
+    print('This is the decision the abort rules actually turn on, so it is printed')
+    print('rather than left in a document.  "sigma(r<1)" assumes the vendor-')
+    print('predicted r~0.86 and CI = 0.028 x sqrt(8000/S), the scaling measured by')
+    print('the power study; the pessimistic cost is S x 19 x 14 ms.')
+    print('  shots/circ  total shots  pessimistic cost  CI half-width  sigma(r<1)')
+    for s_ in (8000, 4000, 2000, 1000, 500):
+        n_ = s_ * 19
+        ci = 0.028 * math.sqrt(8000.0 / s_)
+        print('  %10d  %11d  %13.0f s  %13.3f  %10.1f%s'
+              % (s_, n_, n_ * ms_per_shot / 1000.0, ci, 0.14 / ci,
+                 '   <- whole remaining budget' if s_ == 1000 else ''))
+    print('  => under the PESSIMISTIC model Job 2 at 1000 shots (266 s) IS the')
+    print('     entire remaining budget: Jobs 3 and 4 are then impossible, and the')
+    print('     right choice is to spend it on Job 2 (new science) rather than on')
+    print('     Job 3 (a better-statistics repeat of the 2026-09 feasibility run).')
+    print('  => the built-in halving ladder 8000->4000->2000->1000 is itself the')
+    print('     MEASUREMENT of the cost model: a refusal is returned at submission')
+    print('     time and costs nothing (2026-09: batch1 ran, batch2 was refused),')
+    print('     so each refusal narrows the affordable shot count for free.')
+    print('     ASSUMPTION BEING RELIED ON: the vendor refuses a job whose cost')
+    print('     exceeds the remaining budget, rather than accepting it and letting')
+    print('     it overrun.  If that is wrong, starting at 8000 could bill ~2100 s')
+    print('     against a 300 s allocation -- so start Job 2 at 1000 unless the')
+    print('     user has confirmed the quota is hard-limited at submission.')
+    print()
+    print('ABORT RULES (8.3) -- w1 = Job 1 wall clock, measured, not assumed:')
+    print('  Job 1 refused ("QPU time is insufficient") -> budget already gone, STOP')
+    print('  w1 <= 60 s   -> Job 2 at 8000 shots (halving ladder on refusal),')
+    print('                  then Job 3 at 2000, then Job 4 at 4000')
+    print('  60 < w1 <= 180 s -> Job 2 at 3000 shots; Job 3 at 1000 only if')
+    print('                  w1+w2 <= 240 s; Job 4 dropped')
+    print('  w1 > 180 s   -> Job 2 at 1500 shots, and DROP its depth-2 grid and')
+    print('                  its own calibration circuits (12 d=1 circuits only);')
+    print('                  Jobs 3 and 4 dropped')
+    print('  a refusal costs nothing, so shots start optimistic and walk down')
+    print()
+    print('WHAT EACH JOB BUYS ON ITS OWN (8.4):')
+    print('  Job 1  5x5 readout assignment matrix on a second chip (fills the')
+    print('         ChipInfo 401 gap), unique bit order, the platform\'s ~8% shots')
+    print('         shortfall, and the cost model.  No mixedness claim.')
+    print('  Job 2  M1 measured w/r/purity (r CI half-width 0.028 at 8000 shots,')
+    print('         so r<1 is a ~5 sigma statement), M2 the linear-fraction')
+    print('         ensemble equality to +-0.023, M3 the isotropic surrogate at')
+    print('         the hardware depth, M5 two null controls.')
+    print('  Job 3  upgrades the paper\'s "4 circuits x 400 shots feasibility" to a')
+    print('         16-branch protocol benchmark on a second chip, plus the')
+    print('         mid/late A/B that re-tests the documented anomaly.')
+    print('  Job 4  rounds=%s -> a measured radius-vs-depth curve, i.e. a per-round'
+          % (LADDER_ROUNDS,))
+    print('         logical error rate to compare against the threshold behaviour.')
+    print()
+    print('NOT PURSUED AT ANY BUDGET: the over-read delta^T C delta (~5e7 shots)')
+    print('and any significance claim for "4.4% over identity" (~2 sigma at best).')
+    if vendor:
+        vp = vendor_prediction(*vendor)
+        print()
+        print('what the quoted vendor fidelities predict for the depth-1 circuit:')
+        for k in ('two_qubit_survival', 'codespace_weight', 'radius',
+                  'radius_as_measured'):
+            print('  %-24s %.6f' % (k, vp[k]))
+    print('=' * 78)
+    return dict(rows=[dict(zip(('job', 'stage', 'nq', 'circuits', 'instr_min',
+                                'instr_max', 'cnot_total', 'shots_per_circuit',
+                                'shots_total', 'pessimistic_cost_s', 'depths'), r))
+                      for r in rows],
+                shots_total=tot_shots, pessimistic_cost_s=tot_cost,
+                budget_s=budget_s, ms_per_shot_assumed=ms_per_shot)
+
+
 def main(argv=None):
+    # declared first: LADDER_ROUNDS is read by the --rounds help string below and
+    # rebound from it, and Python requires the global declaration to precede any
+    # use of the name in the function body
+    global LADDER_ROUNDS
     ap = argparse.ArgumentParser(
         description='measured device mixedness for the mixed-input boundary',
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--mode', default='verify',
                     choices=['verify', 'sample', 'selftest', 'simulate', 'preflight',
-                             'cloud', 'analyze'])
+                             'plan', 'cloud', 'analyze'])
     ap.add_argument('--stage', default='all',
-                    choices=['probe', 'tomo', 'bench', 'all'])
+                    choices=['probe', 'tomo', 'bench', 'ladder', 'all'])
+    ap.add_argument('--rounds', default=None,
+                    help='comma-separated extra depths for the ladder stage '
+                         '(default %s; 8 costs 581 instructions/288 CNOT per circuit)'
+                         % (LADDER_ROUNDS,))
     ap.add_argument('--chip-id', default='WK_C180_2')
     ap.add_argument('--chip-ids', default=None,
                     help='comma-separated chips for --mode preflight '
@@ -1939,7 +2222,10 @@ def main(argv=None):
 
     setup()
     vendor = tuple(float(x) for x in a.vendor.split(',')) if a.vendor else None
-    stages = ['probe', 'tomo', 'bench'] if a.stage == 'all' else [a.stage]
+    if a.rounds:
+        LADDER_ROUNDS = tuple(int(x) for x in a.rounds.split(',') if x.strip())
+    stages = (['probe', 'tomo', 'bench', 'ladder'] if a.stage == 'all'
+              else [a.stage])
 
     if a.mode == 'selftest':
         st = selftests()
@@ -1959,8 +2245,13 @@ def main(argv=None):
                 inv[key] = inv.get(key, 0) + 1
             print('  stage %-6s %2d circuits, (instructions, CNOT, MEAS) '
                   'histogram %s' % (stage, len(gates), dict(inv)))
-            if stage == 'tomo':
+            if stage in ('tomo', 'ladder'):
                 for g, m in zip(gates, meta):
+                    if m.get('kind') != 'tomo':
+                        print('    cal|%s rep%d  ideal: a product of |0> (or |1> '
+                              'on every qubit), used only for the assignment matrix'
+                              % (m.get('cal'), m.get('rep')))
+                        continue
                     w, nvec = ideal_bloch_of(g)
                     print('    %s|%s|r%d  ideal w=%.12f  <Z>rot=%+.12f (want %+.0f)'
                           % (m['psi'], m['basis'], m['rounds'], w, nvec[2],
@@ -2017,6 +2308,14 @@ def main(argv=None):
     # ---- cloud / analyze ----
     phi = q.load_angles(a.noise)
     q.PHI_GLOBAL = phi
+
+    if a.mode == 'plan':
+        plan = print_plan(phi, vendor=vendor)
+        art0 = load_artifact(a.json)
+        art0.setdefault('meta', {})['plan'] = plan
+        save_artifact(art0, a.json)
+        return 0
+
     art = load_artifact(a.json)
     art.setdefault('meta', {}).update(dict(
         task='measured device mixedness for the mixed-input boundary',
@@ -2027,15 +2326,51 @@ def main(argv=None):
         python=sys.version.split()[0], numpy=np.__version__))
 
     if a.mode == 'analyze':
+        loaded = {}
         for stage in stages:
+            path = os.path.join(ROOT, STAGE_RAW[stage])
+            if not os.path.exists(path):
+                print('[analyze] %s: no dump at %s -- skipped (that job was '
+                      'dropped by the abort rules, or has not run yet)'
+                      % (stage, STAGE_RAW[stage]), flush=True)
+                continue
             results = _load_dump(stage)
             _g, meta = stage_circuits(stage, phi if stage == 'bench' else None)
             assert len(results) == len(meta), (len(results), len(meta), stage)
             print('[analyze] %s: %d circuits from %s'
                   % (stage, len(results), STAGE_RAW[stage]), flush=True)
-            analyze_stage(stage, results, meta, a.shots or STAGE_SHOTS[stage], art,
+            loaded[stage] = (results, meta)
+        # the ladder job is the SAME estimator at deeper rounds, so its counts are
+        # appended to the tomography's and analysed once; analysed alone it would
+        # have no depth-1 circuit and analyze_tomo would (correctly) refuse it
+        if 'tomo' in loaded and 'ladder' in loaded:
+            (rt, mt), (rl, ml) = loaded['tomo'], loaded['ladder']
+            loaded['tomo'] = (rt + rl, mt + ml)
+            print('[analyze] ladder merged into tomo: %d + %d circuits, depths %s'
+                  % (len(rt), len(rl),
+                     sorted({m['rounds'] for m in mt + ml})), flush=True)
+            loaded.pop('ladder')
+        for stage in [s for s in stages if s in loaded]:
+            results, meta = loaded[stage]
+            # read back what was ACTUALLY requested for this stage rather than
+            # assuming the default: the abort rules mean the tomo job may have run
+            # at 8000, 3000 or 1500 shots, and the ladder at something else again
+            sr = a.shots or art.get('runs', {}).get(stage, {}).get(
+                'shots_requested') or STAGE_SHOTS[stage]
+            analyze_stage(stage, results, meta, sr, art,
                           phi=phi, vendor=vendor, n_boot=a.n_boot)
     else:
+        if a.stage == 'all':
+            print('ERROR: --mode cloud refuses --stage all.  Each job is one queue '
+                  'wait and the abort rules of QCLOUD_SETUP.md 8.3 are a HUMAN '
+                  'decision taken from the measured wall clock of the previous job; '
+                  'running all four stages unattended could spend the entire 300 s '
+                  'budget on the first one.  Submit them one at a time:\n'
+                  '  bash launch_mixedness.sh probe   # then read wall_s\n'
+                  '  bash launch_mixedness.sh tomo\n'
+                  '  bash launch_mixedness.sh bench\n'
+                  '  bash launch_mixedness.sh ladder')
+            return 2
         tok = a.token
         if not tok:
             import hw_error_budget as heb

@@ -229,7 +229,9 @@ def _t_hwmixedness():
     tomography circuits alone leave exactly 24 tied bit orders but pin the logical
     position, every estimator is identical across all 24, and five fingerprint
     circuits break the tie uniquely; (g) the one-parameter p_instr fit inverts
-    exactly; (h) the three cloud stages are the sizes the shot budget assumes."""
+    exactly; (h) the four cloud stages are the sizes the shot budget assumes;
+    (i) the tomography job carries its own calibration and the ladder extends the
+    depth curve with the (|0>,Z) signal circuit present at every depth."""
     import hw_mixedness as hm
     hm.setup()
     st = hm.selftests()
@@ -242,8 +244,10 @@ def _t_hwmixedness():
     assert st['layout_tie_invariance'] < 1e-12, st
     assert st['layout_margin_min'] > 100.0, st
     assert st['fit_p_instr_residual'] < 1e-6, st
-    assert st['stage_sizes'] == {'probe': 8, 'tomo': 16, 'bench': 34}, st
-    assert st['n_circuits_total'] == 58, st
+    assert st['stage_sizes'] == {'probe': 8, 'tomo': 19, 'bench': 34,
+                                 'ladder': 4 * len(hm.LADDER_ROUNDS)}, st
+    assert st['n_circuits_total'] == 65, st
+    assert st['merged_depths'] == [1, 2] + sorted(hm.LADDER_ROUNDS), st
 
 
 # name -> (callable, slow?, description)
