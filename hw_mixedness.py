@@ -127,13 +127,24 @@ choice.  Halving the shots widens the CI on r by sqrt(2); that is the whole
 trade-off, it is a CLI flag, and `--mode plan` prints the table.
 
 At the 1000 shots the confirmed budget actually allows, that scaling gives a CI
-half-width of 0.079 on r, so "r < 1" is a ~1.8 sigma statement rather than the ~5
-sigma that 8000 shots would give, and M3's predicted -3.4 sigma refutation of the
-isotropic surrogate weakens to roughly -1.2 sigma -- a trend, not a refutation.
-Those are the honest error bars of a ~300 s allocation, the analysis reports them
-as measured, and nothing is rescued by choosing a more favourable shot count after
-the fact.  What the run still buys is the upgrade from the paper's 4-circuit x
-400-shot feasibility set to a genuine 19-circuit tomography on WK_C180_2.
+half-width of 0.079 on r -- but the significance of "r < 1" also depends on how far
+below 1 the device actually sits, and the FREE preflight of 2026-10-11 MEASURED that
+on WK_C180_2's own best block: f2q = 0.99275 against the quoted table's 0.9831.
+Better gates mean a purer state, so the predicted radius is 0.9478 rather than
+0.8550 and "r < 1" is a ~0.6 sigma statement, not the ~1.8 sigma the quoted table
+implied.  Reaching 5 sigma would need ~70 000 shots per circuit, ~18 700 s of QPU,
+62x the budget, so on this block the mixedness headline is not purchasable at any
+realistic allocation -- the binding constraint is the device being better than its
+datasheet, not the ~300 s.  M3's predicted -3.4 sigma refutation of the isotropic
+surrogate weakens correspondingly and may vanish: a device closer to depolarizing is
+harder to distinguish from it.  M2 does NOT weaken, because it is a null test whose
+precision depends on the shot count alone.  Those are the honest error bars; the
+analysis reports them as measured, and nothing is rescued by choosing a more
+favourable shot count -- or a more favourable BLOCK -- after the fact (see the
+BLOCK_SELECTION_RULE comment and selftest (k) for why significance-ranked block
+choice is forbidden).  What the run still buys is the upgrade from the paper's
+4-circuit x 400-shot feasibility set to a genuine 19-circuit tomography on
+WK_C180_2, with its own measured readout assignment matrix.
 
 Run -- everything through preflight costs zero QPU time:
     ./qenv/bin/python hw_mixedness.py --mode plan         # the budget, no account
@@ -250,6 +261,58 @@ TOMO_STATE_PRIORITY = ('0', '1', '+', '-')
 # Every cost statement in --mode plan is derived from this one number rather than
 # restating it, so the plan cannot drift away from the budget it is sized for.
 BUDGET_S = 300.0
+# CONFIRMED cost model (account holder, 2026-10): QPU time is deducted in real
+# time, exhausting it disables the account immediately, and a job cannot overrun
+# its allocation.  14 ms/shot is 1800 s / 128 000 shots from the 2026-09 timeline,
+# so BUDGET_S buys ~21 400 shots for the WHOLE experiment.  Promoted to a module
+# constant because selftest (k) needs the same number print_plan uses -- a rate
+# that lives in one function cannot be checked against the budget by another.
+MS_PER_SHOT = 14.0
+
+# --- measured calibration of the block the vendor's own optimiser picks ---------
+# Recorded from the FREE preflight of 2026-10-11T01:00:25Z on WK_C180_2 -- the
+# first time ChipInfo answered at all, having been 401 Unauthorized since
+# 2026-09-21.  Per-qubit figures of merit for best_qubit_blocks(5):
+#   q39 read 0.96870 1q 0.99860 T1 32.2us T2  2.1us
+#   q48 read 0.96610 1q 0.99940 T1 36.5us T2  6.2us
+#   q49 read 0.94730 1q 0.99930 T1 33.8us T2  3.0us
+#   q58 read 0.92280 1q 0.99950 T1 41.6us T2  8.9us
+#   q67 read 0.94990 1q 0.99930 T1 48.2us T2  5.3us
+#   CZ edges 39-48 0.9922, 39-49 0.9936, 49-58 0.9875, 58-67 0.9977  (a tree, so
+#   the block is connected and 5-qubit stages can run on it as submitted)
+# giving f1q=0.99922, f2q=0.99275, fread=0.95096.
+#
+# THESE ARE WHAT THE DEVICE ACTUALLY DOES, and the two-qubit figure is BETTER than
+# the quoted aggregate table (0.9831) that every power estimate in
+# QCLOUD_SETUP.md sec.7-8 was built on.  Through vendor_prediction that raises the
+# predicted radius 0.8550 -> 0.9478, so the headline signal 1-r falls
+# 0.1450 -> 0.0522 (2.8x smaller) and r<1 becomes a 0.60 sigma statement at
+# STAGE_SHOTS['tomo']=1000 shots rather than the 1.8 sigma the quoted table
+# implied.  More shots do not rescue it: 5 sigma on this block needs ~70 000
+# shots/circuit = 1.33 M shots = ~5.2 h of QPU.  The ~300 s budget is therefore NOT
+# the binding constraint on that particular claim -- the device being better than
+# its datasheet is.  Held here so the arithmetic is reproducible and so nobody
+# re-derives the 1.8 sigma figure from the quoted table a third time.
+VENDOR_BLOCK_WK_C180_2 = [39, 48, 49, 58, 67]
+MEASURED_CALIB_UTC = '2026-10-11T01:00:25Z'
+MEASURED_F1Q = 0.99922
+MEASURED_F2Q = 0.99275
+MEASURED_FREAD = 0.95096
+QUOTED_F1Q, QUOTED_F2Q, QUOTED_FREAD = 0.9993, 0.9831, 0.9612
+CI_HALF_WIDTH_AT_1000 = 0.079      # bootstrap half-width, from the power study
+
+# The block is the vendor's own best_qubit_blocks(5) pick and MUST stay that way.
+# Ranking all 96 connected 5-qubit sub-blocks of WK_C180_2 by the significance of
+# r<1 puts this block LAST, 96/96, and puts [40, 49, 50, 58, 68] first at 6.3
+# sigma -- because a worse device is more mixed, so significance is maximised by
+# the worst qubits on the chip.  Picking a block from that ranking would be
+# choosing the apparatus so the hypothesis test passes, which is not a measurement
+# and would not survive a referee asking why that block.  The only defensible
+# criterion is one fixed before any outcome is known; the vendor's optimiser is
+# such a criterion.  selftest (k) locks the rule and the trap in together.
+BLOCK_SELECTION_RULE = ('vendor best_qubit_blocks(nq); never ranked by the '
+                        'significance of the result it would produce')
+
 # seeds for the power study's repeat draws; the first is the one every other
 # function defaults to, so a single-seed run and a scan share their first draw
 SEED_BANK = (20260921, 11, 202, 3003, 40004, 777777, 5, 606, 8080, 91,
@@ -1257,8 +1320,65 @@ def selftests(verbose=True):
         'boundary leaves a half-measured input: %s'
         % (ck, len(bounds),
            ' -> '.join('%dc/%dinp' % (b, len(i)) for b, i in salv)))
-    return res
-
+    # (k) block choice and the significance of r<1 are ANTI-correlated, and the code
+    #     must keep taking the block the vendor's optimiser picks rather than the one
+    #     that makes the hypothesis test pass.  The 2026-10-11 preflight measured
+    #     WK_C180_2's best_qubit_blocks(5) at f2q=0.99275, BETTER than the quoted
+    #     table's 0.9831; better gates give a purer state, so the measured
+    #     calibration predicts a LARGER radius and a WEAKER r<1 than every power
+    #     estimate in QCLOUD_SETUP.md sec.7-8 assumed.  Ranking the chip's 96
+    #     connected 5-qubit blocks by that significance puts the vendor's pick LAST
+    #     and [40,49,50,58,68] first at 6.3 sigma, purely because those are the worst
+    #     qubits on the chip.  Both facts are asserted so neither can be quietly
+    #     edited away: the direction of the correction, and the rejection of
+    #     significance-maximising block choice.
+    S = STAGE_SHOTS['tomo']
+    n_eff_frac = MEASURED_FREAD ** 4
+    ci_half = CI_HALF_WIDTH_AT_1000 * (1000.0 / (S * n_eff_frac)) ** 0.5
+    r_meas = vendor_prediction(MEASURED_F1Q, MEASURED_F2Q, MEASURED_FREAD)['radius']
+    r_quot = vendor_prediction(QUOTED_F1Q, QUOTED_F2Q, QUOTED_FREAD)['radius']
+    z_meas = (1.0 - r_meas) / ci_half
+    z_quot = (1.0 - r_quot) / ci_half
+    assert abs(r_meas - 0.9478) < 5e-4, r_meas
+    assert abs(r_quot - 0.8550) < 5e-4, r_quot
+    assert r_meas > r_quot, (r_meas, r_quot)   # the device beats its own datasheet
+    assert z_meas < z_quot, (z_meas, z_quot)   # so the headline claim is weaker
+    assert z_meas < 1.0, z_meas                # and not significant at this budget
+    assert abs(z_meas - 0.60) < 0.05, z_meas
+    # the trap, in numbers: the significance-maximising block is the WORST device
+    TRAP_BLOCK = [40, 49, 50, 58, 68]
+    r_trap = vendor_prediction(0.99924, 0.9579, 0.9489)['radius']
+    z_trap = (1.0 - r_trap) / (CI_HALF_WIDTH_AT_1000
+                               * (1000.0 / (S * 0.9489 ** 4)) ** 0.5)
+    assert r_trap < r_meas and z_trap > 5.0, (r_trap, z_trap)
+    assert 'best_qubit_blocks' in BLOCK_SELECTION_RULE, BLOCK_SELECTION_RULE
+    assert 'never' in BLOCK_SELECTION_RULE, BLOCK_SELECTION_RULE
+    # 5 sigma on the vendor's block is not a budget question -- it is out of reach by
+    # a factor large enough that no plausible top-up changes the answer
+    s5 = (1000.0 * (CI_HALF_WIDTH_AT_1000 * 5.0 / (1.0 - r_meas)) ** 2
+          / n_eff_frac)
+    # `tm` is the 19-entry tomo meta list bound in (j); stage_circuits returns a
+    # (gates, meta) PAIR, so len(stage_circuits(...)) is 2 and not the circuit count
+    wall5 = len(tm) * s5 * MS_PER_SHOT / 1000.0
+    assert len(tm) == 19, len(tm)
+    assert wall5 > 50 * BUDGET_S, wall5
+    res['measured_calibration'] = dict(
+        block=VENDOR_BLOCK_WK_C180_2, as_of=MEASURED_CALIB_UTC,
+        f1q=MEASURED_F1Q, f2q=MEASURED_F2Q, fread=MEASURED_FREAD,
+        radius=r_meas, sigma_r_below_1=z_meas, ci_half_width=ci_half,
+        quoted_radius=r_quot, quoted_sigma=z_quot,
+        shots_for_5_sigma_per_circuit=s5, wall_s_for_5_sigma=wall5,
+        significance_maximising_block=TRAP_BLOCK,
+        significance_maximising_radius=r_trap,
+        significance_maximising_sigma=z_trap, rule=BLOCK_SELECTION_RULE)
+    say('(k) the vendor block %s measures f2q=%.5f, BETTER than the quoted %.4f, so '
+        'the predicted radius is %.4f not %.4f and r<1 is %.2f sigma, not the %.2f '
+        'the quoted table implied.  The significance-maximising block %s would give '
+        '%.2f sigma precisely BECAUSE it is the worst device on the chip (r=%.3f), '
+        'and is rejected: %s.  5 sigma here needs %.0f s = %.0fx the budget.'
+        % (VENDOR_BLOCK_WK_C180_2, MEASURED_F2Q, QUOTED_F2Q, r_meas, r_quot,
+           z_meas, z_quot, TRAP_BLOCK, z_trap, r_trap, BLOCK_SELECTION_RULE,
+           wall5, wall5 / BUDGET_S))
     return res
 
 
@@ -1277,6 +1397,112 @@ def _backend(chip_id, token):
         return svc, svc.backend(chip_id=chip_id)
 
 
+def _block_connected(block, edges):
+    """True if `block` is connected using only the calibrated edges among it.
+
+    A submission gets one block and the encoder needs every qubit reachable, so
+    "the vendor ranked it best" is not sufficient on its own -- the calibration
+    response has to contain the edges that make it a single piece."""
+    S = set(int(b) for b in block)
+    if not S:
+        return False
+    adj = {u: set() for u in S}
+    for (a, b) in edges:
+        if a in S and b in S:
+            adj[a].add(b)
+            adj[b].add(a)
+    start = next(iter(S))
+    seen, stack = {start}, [start]
+    while stack:
+        u = stack.pop()
+        for v in adj[u] - seen:
+            seen.add(v)
+            stack.append(v)
+    return len(seen) == len(S)
+
+
+def measured_block_calibration(chip_id, block, token, shots=None):
+    """FREE: the vendor's own per-qubit figures of merit for `block`, aggregated
+    and pushed through the same prediction the quoted table goes through.
+
+    ChipInfo was 401 Unauthorized from 2026-09-21 until 2026-10-11, so every error
+    budget in this repo was built on the quoted aggregate table rather than on
+    measurements.  It answers now, and the two disagree in the direction that
+    decides the experiment: on WK_C180_2's best 5-qubit block the measured
+    two-qubit fidelity is 0.99275 against a quoted 0.9831.  Better gates mean a
+    purer state, so the headline signal 1-r shrinks and the significance of r<1
+    shrinks with it.  This recomputes that comparison from the live device at
+    preflight time instead of trusting the module constants, so a recalibration
+    shows up as a changed number rather than a stale prediction.
+
+    Readout enters twice and in opposite directions, which is why both radii are
+    reported.  `radius` carries gate errors only, because the tomo stage measures
+    its own assignment matrix and mitigates readout.  `codespace_survival` is the
+    fraction of shots the post-selection keeps, which readout degrades and
+    mitigation cannot give back -- it can only widen the error bar, and that
+    widening is charged to `sigma_r_below_1` through n_effective_shots."""
+    shots = shots or STAGE_SHOTS['tomo']
+    blk = [int(b) for b in block]
+    out = dict(chip_id=chip_id, block=blk, shots=shots, attempted_utc=_now(),
+               available=False)
+    try:
+        _svc, be = _backend(chip_id, token)
+        ci = be.chip_info()
+        sq = {int(x.get_qubit_id()): x for x in ci.single_qubit_info()}
+        dq = {}
+        for e in ci.double_qubits_info():
+            t = tuple(sorted(int(u) for u in e.get_qubits()))
+            if len(t) == 2 and e.get_fidelity() is not None:
+                dq[t] = max(dq.get(t, 0.0), float(e.get_fidelity()))
+        out['chip_info'] = dict(qubits_num=ci.qubits_num(),
+                                single_gate_timing_ns=ci.get_single_gate_timing(),
+                                double_gate_timing_ns=ci.get_double_gate_timing(),
+                                basic_gates=list(ci.get_basic_gates()),
+                                n_qubits_calibrated=len(sq),
+                                n_edges_calibrated=len(dq))
+    except Exception as exc:
+        out['error'] = repr(exc)[:400]
+        return out
+    missing = [b for b in blk if b not in sq]
+    if missing:
+        out['error'] = ('no single-qubit calibration for %s; ChipInfo on %s covers '
+                        'qubits %s' % (missing, chip_id, sorted(sq)))
+        return out
+    out['per_qubit'] = {str(b): dict(
+        readout_fidelity=sq[b].get_readout_fidelity(),
+        single_gate_fidelity=sq[b].get_single_gate_fidelity(),
+        t1_us=sq[b].get_t1(), t2_us=sq[b].get_t2(),
+        frequency_hz=sq[b].get_frequency()) for b in blk}
+    edges = {('%d-%d' % t): dq[t] for t in sorted(dq)
+             if t[0] in blk and t[1] in blk}
+    out['edges'] = edges
+    out['connected'] = _block_connected(blk, dq)
+    if not out['connected']:
+        out['error'] = ('block %s is NOT connected by its calibrated edges %s, so a '
+                        '5-qubit submission on it cannot be routed' % (blk, edges))
+        return out
+    f1 = sum(sq[b].get_single_gate_fidelity() for b in blk) / float(len(blk))
+    fr = sum(sq[b].get_readout_fidelity() for b in blk) / float(len(blk))
+    if not edges:
+        out.update(available=False, f1q=f1, fread=fr,
+                   error='block has no calibrated two-qubit edge; not usable')
+        return out
+    f2 = sum(edges.values()) / float(len(edges))
+    out.update(available=True, n_edges=len(edges), f1q=f1, f2q=f2, fread=fr)
+    pm = vendor_prediction(f1, f2, fr)
+    pq = vendor_prediction(QUOTED_F1Q, QUOTED_F2Q, QUOTED_FREAD)
+    n_eff = shots * fr ** 4
+    ci_half = CI_HALF_WIDTH_AT_1000 * (1000.0 / max(n_eff, 1.0)) ** 0.5
+    out.update(measured_prediction=pm, quoted_prediction=pq,
+               codespace_survival=fr ** 4, n_effective_shots=n_eff,
+               ci_half_width=ci_half)
+    if ci_half > 0:
+        out['sigma_r_below_1'] = (1.0 - pm['radius']) / ci_half
+        out['sigma_if_quoted_table_were_true'] = (1.0 - pq['radius']) / ci_half
+    return out
+
+
+
 def preflight(chip_ids, token=None, verbose=True):
     """FREE cloud queries only -- submits nothing and spends no QPU time.
 
@@ -1289,7 +1515,7 @@ def preflight(chip_ids, token=None, verbose=True):
     raised, so the artifact always says which of the two happened."""
     out = dict(attempted_utc=_now(), chip_ids=list(chip_ids),
                spends_qpu_time=False, backends=None, blocks={}, calibration={},
-               errors=[])
+               measured_block={}, errors=[])
     try:
         import hw_error_budget as heb
         tok = token or heb.resolve_token()
@@ -1314,14 +1540,59 @@ def preflight(chip_ids, token=None, verbose=True):
             except Exception as exc:
                 out['errors'].append('best_qubit_blocks(%d) on %s: %r'
                                      % (nq, chip, exc))
+    # The vendor's per-qubit calibration, queried for the block THIS chip actually
+    # offers.  hw_error_budget.BLOCK is the 9-qubit block the 2026-09 WK_C180 run
+    # was pinned to (q147-176) and WK_C180_2 only publishes q39-86, so calling it
+    # without a block returns a record whose every figure of merit is null -- which
+    # reads as "the vendor publishes nothing" when the truth is "we asked about the
+    # wrong qubits".  Pass the live block, and say which was used.
+    tok2 = None
     try:
         import hw_error_budget as heb
+        tok2 = heb.resolve_token()
         for chip in chip_ids:
-            out['calibration'][chip] = heb.try_vendor_calibration(chip)
+            live = out['blocks'].get('%s|%d' % (chip, q.NQ))
+            live5 = out['blocks'].get('%s|%d' % (chip, NQ5))
+            blk = (live[0] if live else None)
+            out['calibration'][chip] = heb.try_vendor_calibration(
+                chip, block=blk,
+                block_source=('live best_qubit_blocks(%d)' % q.NQ) if blk
+                else 'hw_error_budget.BLOCK (the 2026-09 WK_C180 run)')
+            if live5:
+                mb = measured_block_calibration(chip, live5[0], tok2)
+                out['measured_block'][chip] = mb
+                if mb.get('error'):
+                    out['errors'].append('measured_block_calibration(%s): %s'
+                                         % (chip, mb['error']))
     except Exception as exc:
         out['errors'].append('vendor calibration: %r' % (exc,))
     if verbose:
         print('[preflight] blocks: %s' % json.dumps(out['blocks']), flush=True)
+        for chip, mb in out['measured_block'].items():
+            if not mb.get('available'):
+                print('[preflight] %s measured calibration UNAVAILABLE: %s'
+                      % (chip, mb.get('error')), flush=True)
+                continue
+            pm, pq = mb['measured_prediction'], mb['quoted_prediction']
+            print('[preflight] %s block %s connected=%s  MEASURED f1q=%.5f '
+                  'f2q=%.5f fread=%.5f' % (chip, mb['block'], mb['connected'],
+                                           mb['f1q'], mb['f2q'], mb['fread']),
+                  flush=True)
+            print('[preflight]   predicted radius  measured calib %.4f  vs quoted '
+                  'table %.4f   -> signal 1-r %.4f vs %.4f'
+                  % (pm['radius'], pq['radius'], 1 - pm['radius'],
+                     1 - pq['radius']), flush=True)
+            if mb.get('sigma_r_below_1') is not None:
+                print('[preflight]   at %d shots/circuit (n_eff %.0f after '
+                      'code-space post-selection, CI +-%.4f): r<1 is %.2f sigma '
+                      'on the MEASURED calibration, and would have been %.2f sigma '
+                      'had the quoted table been right'
+                      % (mb['shots'], mb['n_effective_shots'], mb['ci_half_width'],
+                         mb['sigma_r_below_1'],
+                         mb['sigma_if_quoted_table_were_true']), flush=True)
+                print('[preflight]   => the quoted table UNDERSTATES this device; '
+                      'the mixedness headline is weaker than sec.7-8 predicted.  '
+                      'Block choice stays %s' % BLOCK_SELECTION_RULE, flush=True)
         for e in out['errors']:
             print('[preflight] %s' % e, flush=True)
     return out
@@ -2269,13 +2540,16 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
         if not any(m.get('kind') == 'tomo' for m in meta):
             # The allocation ran out inside the FIRST chunk, so what came back is
             # calibration and nothing else.  That is still a real measurement --
-            # the readout assignment matrix of the block the platform chose, which
-            # the vendor's own ChipInfo endpoint does not expose (HTTP 401, see
-            # QCLOUD_SETUP.md 4) -- so record it and stop with a message that says
-            # what is missing.  Going on would ask detect_layout_ml to infer a bit
-            # order from ZERO tomography circuits and surface its "120 tied
-            # hypotheses" error, which reads like a builder bug rather than what it
-            # is: an empty measurement.
+            # the readout assignment matrix of the block the platform chose.  It is
+            # NOT made redundant by the vendor's ChipInfo figures of merit even
+            # though that endpoint has answered since 2026-10-11 (QCLOUD_SETUP.md
+            # 8.8.1): the self-measured matrix carries this block's drift and the
+            # platform's shots shortfall, neither of which is in the published
+            # calibration.  So record it and stop with a message that says what is
+            # missing.  Going on would ask detect_layout_ml to infer a bit order
+            # from ZERO tomography circuits and surface its "120 tied hypotheses"
+            # error, which reads like a builder bug rather than what it is: an
+            # empty measurement.
             msg = ('this job returned only its %d calibration circuit(s) and no '
                    'tomography, so there is no radius, no M2 and no depth curve to '
                    'report -- the allocation ran out inside the first chunk'
@@ -2344,7 +2618,7 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
     """Print the executable run plan of QCLOUD_SETUP.md 8, with the circuit counts
     and instruction totals computed from the builders rather than typed in, so the
     table cannot drift away from the code it describes.  Touches nothing."""
-    ms_per_shot = 14.0        # CONFIRMED: 1800 s / 128 000 shots, the 2026-09 run
+    ms_per_shot = MS_PER_SHOT   # CONFIRMED: see the MS_PER_SHOT comment
     rows, tot_shots, tot_cost = [], 0, 0.0
     shots_budget = int(budget_s * 1000 / ms_per_shot)
     print('=' * 78)
@@ -2470,28 +2744,64 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
     print('  inputs and depths are missing, and refuses to present a subset as')
     print('  if it were the complete claim.')
     print()
+    # The significance of r<1 on the MEASURED calibration of the vendor's own best
+    # block, recomputed here rather than quoted, so the plan and selftest (k) cannot
+    # drift apart.  The quoted table said 0.9831 for f2q; the device measures
+    # 0.99275, which makes the state purer and the headline claim weaker.
+    n_eff_frac = MEASURED_FREAD ** 4
+    ci_tomo = CI_HALF_WIDTH_AT_1000 * (
+        1000.0 / (STAGE_SHOTS['tomo'] * n_eff_frac)) ** 0.5
+    r_meas = vendor_prediction(MEASURED_F1Q, MEASURED_F2Q, MEASURED_FREAD)['radius']
+    r_quot = vendor_prediction(QUOTED_F1Q, QUOTED_F2Q, QUOTED_FREAD)['radius']
+    z_meas = (1.0 - r_meas) / ci_tomo
+    z_quot = (1.0 - r_quot) / ci_tomo
+    s5 = (1000.0 * (CI_HALF_WIDTH_AT_1000 * 5.0 / (1.0 - r_meas)) ** 2
+          / n_eff_frac)
+    wall5 = len(stage_circuits('tomo')[1]) * s5 * MS_PER_SHOT / 1000.0
     print('WHAT THE ONE AFFORDABLE JOB BUYS (8.4), at %d shots/circuit:'
           % STAGE_SHOTS['tomo'])
     print('  M1  the headline: measured w, Bloch radius r and purity for four')
-    print('      logical inputs, with a bootstrap CI.  CI half-width 0.079 at')
-    print('      this shot count, so r<1 is a ~1.8 sigma statement -- weaker than')
-    print('      the 5 sigma that 8000 shots would give, and that is the honest')
-    print('      price of a %.0f s allocation.  It still replaces the paper\'s'
-          % budget_s)
-    print('      4-circuit x 400-shot feasibility set with a real tomography.')
+    print('      logical inputs, with a bootstrap CI of +-%.4f at this shot count'
+          % ci_tomo)
+    print('      (n_eff %.0f after code-space post-selection keeps fread^4=%.3f).'
+          % (STAGE_SHOTS['tomo'] * n_eff_frac, n_eff_frac))
+    print('      The 2026-10-11 preflight MEASURED the vendor block %s at'
+          % VENDOR_BLOCK_WK_C180_2)
+    print('      f2q=%.5f, better than the quoted %.4f, so the predicted radius'
+          % (MEASURED_F2Q, QUOTED_F2Q))
+    print('      is %.4f not %.4f and r<1 is %.2f sigma, NOT the %.2f sigma the'
+          % (r_meas, r_quot, z_meas, z_quot))
+    print('      quoted table implied.  5 sigma would need %.0f shots/circuit ='
+          % s5)
+    print('      %.0f s = %.0fx this %.0f s budget, so on this block the mixedness'
+          % (wall5, wall5 / budget_s, budget_s))
+    print('      headline is NOT purchasable: the device is better than its')
+    print('      datasheet, and that -- not the budget -- is the binding')
+    print('      constraint.  Do NOT "fix" this by ranking blocks on significance:')
+    print('      the worst block on the chip gives 6.3 sigma (see 8.8, selftest k).')
+    print('      What it still buys is replacing the paper\'s 4-circuit x 400-shot')
+    print('      feasibility set with a real 19-circuit tomography.')
     print('  M2  the linear-fraction ensemble equality L_Z = L_X, to +-0.060')
-    print('      (0.023 at 8000 shots) against a term span of ~1.43.')
+    print('      (0.023 at 8000 shots) against a term span of ~1.43.  This is a')
+    print('      NULL test: its precision depends on shots alone, so unlike M1 and')
+    print('      M3 it is not weakened by the device being good.')
     print('  M3  the isotropic depolarizing surrogate fitted at the hardware')
     print('      depth and then asked to predict r with nothing left to choose.')
-    print('      The power study predicts it FAILS here at -3.4 sigma (depth 1)')
-    print('      and -3.9 sigma (depth 2); at 1000 shots that becomes roughly')
-    print('      -1.2 and -1.4 sigma, i.e. a trend, not a refutation.  Recorded')
-    print('      as such rather than overstated.')
+    print('      The power study, built on the QUOTED vendor table, predicts it')
+    print('      FAILS here at -3.4 sigma (depth 1) and -3.9 sigma (depth 2); at')
+    print('      1000 shots that becomes roughly -1.2 and -1.4 sigma.  On the')
+    print('      MEASURED calibration of 8.8.3 this device is closer to isotropic')
+    print('      depolarizing than the table said, so M3 may lose its')
+    print('      discriminating power altogether.  Report whichever the data gives,')
+    print('      not whichever the prediction promised.')
     print('  M5  two null controls plus the depth-1 -> depth-2 radius ratio.')
-    print('  Also, for free inside the same job: the 5x5 readout assignment')
-    print('      matrix of the block the platform chose (which the vendor\'s own')
-    print('      ChipInfo endpoint does not expose, HTTP 401), the platform\'s')
-    print('      shots shortfall, and the bit order recovered from the data.')
+    print('  Also, for free inside the same job: the 5x5 readout assignment matrix')
+    print('      of the block the platform chose.  ChipInfo has answered since')
+    print('      2026-10-11 and publishes per-qubit readout fidelities, but this')
+    print('      matrix is NOT redundant with them -- it carries this block\'s drift')
+    print('      and the platform\'s shots shortfall, which the published')
+    print('      calibration does not.  Also free: the platform\'s shots shortfall')
+    print('      and the bit order recovered from the data.')
     print()
     print('DEFERRED, NOT ABANDONED -- these stay implemented for a top-up:')
     print('  probe   redundant: tomo self-calibrates and self-detects its layout.')

@@ -11,9 +11,17 @@ carries readout fidelity, single-gate fidelity, T1, T2 and frequency per qubit,
 `double_qubits_info()` the two-qubit gate fidelity per edge, and
 `get_single_gate_timing()`/`get_double_gate_timing()` the instruction durations --
 but it sits behind the same authorisation as a job submission, and this account's
-key is refused (401 Unauthorized, re-checked 2026-09-21); no snapshot was captured
-at run time either.  So no vendor number can be quoted, and this file derives the
-strongest budget the data ON FILE supports, labelling what each entry includes.
+key was refused (401 Unauthorized) from 2026-09-21 until 2026-10-11; no snapshot was
+captured at run time either.  **As of 2026-10-11 the endpoint ANSWERS**, so the
+per-qubit figures of merit for WK_C180_2's q39-86 are now obtainable for free through
+`try_vendor_calibration(chip_id, block=...)` -- note the `block` argument: the BLOCK
+constant below belongs to the 2026-09 WK_C180 run and returns an all-null record on
+WK_C180_2, which is a chip/block mismatch and not "the vendor publishes nothing"
+(QCLOUD_SETUP.md 8.8.2).  What is derived in this file still stands, and stands for a
+specific purpose: it is the strongest budget the data ON FILE supports, which is the
+only thing the 2026-09 run can honestly be compared against.  The freshly published
+calibration is a separate and better input, which hw_mixedness.py records ALONGSIDE
+this one rather than retro-fitting it into the historical artifact.
 
 What is derived, and how
 ------------------------
@@ -200,17 +208,33 @@ def resolve_token():
     raise RuntimeError('no API token: set ORIGINQ_TOKEN or create %s' % path)
 
 
-def try_vendor_calibration(chip_id='WK_C180'):
+def try_vendor_calibration(chip_id='WK_C180', block=None, block_source=None):
     """Re-attempt the FREE calibration metadata query.  Never submits a circuit.
 
     Either the per-qubit figures of merit for the pinned block come back, or the
     refusal is recorded verbatim with a timestamp, so the artifact always states
     which of the two happened rather than leaving the reader to guess why the
     error budget is effective rather than calibrated.
+
+    `block` MUST be a block of `chip_id`.  The default BLOCK below is the 9-qubit
+    block the 2026-09 WK_C180 run was pinned to (q147-176); WK_C180_2 publishes
+    calibration for q39-86 only, so querying that chip with the default yields a
+    record whose every figure of merit is null.  That null is indistinguishable
+    from "the vendor publishes nothing" unless the block provenance is recorded,
+    which is what block_source is for.  `qubits_calibrated` and `qubit_id_range`
+    are reported for the same reason: they make a chip/block mismatch obvious.
+
+    As of 2026-10-11 this endpoint ANSWERS (it had been 401 Unauthorized since
+    2026-09-21), so the per-qubit figures of merit are available and the error
+    budget no longer has to rest on the quoted aggregate table alone.
     """
+    blk = [int(b) for b in block] if block else list(BLOCK)
+    src = block_source or ('hw_error_budget.BLOCK -- the 9-qubit block the 2026-09 '
+                           'WK_C180 run was pinned to, NOT necessarily valid on '
+                           'this chip')
     rec = {'attempted_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-           'chip_id': chip_id, 'block': BLOCK, 'available': False,
-           'spends_qpu_time': False}
+           'chip_id': chip_id, 'block': blk, 'block_source': src,
+           'available': False, 'spends_qpu_time': False}
     try:
         import qcloud_vscr_new as q
         svc = q._make_qcloud_service(resolve_token())
@@ -228,17 +252,30 @@ def try_vendor_calibration(chip_id='WK_C180'):
         for info in ci.double_qubits_info():
             qs = [int(u) for u in info.get_qubits()]
             if len(qs) == 2:
-                double['%d-%d' % tuple(qs)] = info.get_fidelity()
+                double['%d-%d' % tuple(sorted(qs))] = info.get_fidelity()
+        ids = sorted(int(k) for k in single)
         rec.update({
             'available': True,
             'single_gate_timing_ns': ci.get_single_gate_timing(),
             'double_gate_timing_ns': ci.get_double_gate_timing(),
             'basic_gates': list(ci.get_basic_gates()),
             'qubits_num': ci.qubits_num(),
-            'block_qubits': {str(b): single.get(str(b)) for b in BLOCK},
+            'qubits_calibrated': len(single),
+            'qubit_id_range': [ids[0], ids[-1]] if ids else None,
+            'block_qubits': {str(b): single.get(str(b)) for b in blk},
             'block_edges': {k: v for k, v in double.items()
-                            if all(int(u) in BLOCK for u in k.split('-'))},
+                            if all(int(u) in blk for u in k.split('-'))},
         })
+        if not any(rec['block_qubits'].values()):
+            # every figure of merit came back null: the block is not on this chip,
+            # not "the vendor has no data".  Say so instead of leaving a null.
+            rec['block_matches_chip'] = False
+            rec['note'] = ('ChipInfo answered but published no calibration for any '
+                           'qubit of block %s; it covers qubits %s.  Pass a block '
+                           'from best_qubit_blocks() for THIS chip.'
+                           % (blk, rec['qubit_id_range']))
+        else:
+            rec['block_matches_chip'] = True
     except Exception as exc:                       # refusal, network, or API drift
         rec['error'] = repr(exc)[:400]
         rec['note'] = ('vendor figures of merit are behind the same authorisation '

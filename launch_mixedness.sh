@@ -29,7 +29,7 @@
 # Usage -- the stage is MANDATORY, there is no "all":
 #   bash launch_mixedness.sh tomo                            # the plan
 #   SHOTS=750 bash launch_mixedness.sh tomo                  # more margin, ~200 s
-#   BLOCK=147,155,157,164,165 bash launch_mixedness.sh tomo  # pin the block
+#   BLOCK=39,48,49,58,67 bash launch_mixedness.sh tomo       # pin the block
 #   ROUNDS=4,8 bash launch_mixedness.sh ladder               # extra depths
 #
 # Before spending anything, these cost zero QPU time and must all pass:
@@ -42,11 +42,26 @@
 #   ./qenv/bin/python hw_mixedness.py --mode preflight \
 #       --chip-ids WK_C180_2 --vendor 0.9993,0.9831,0.9612      # FREE cloud queries
 #
-# Only WK_C180_2 is in scope.  WK_C180_3 is NOT in devs.txt (the recorded
-# service.backends() output lists only WK_C180, WK_C180_2 and the photonic
-# PQPUMESH8), so it does not exist and has been removed from this script; WK_C180
-# stays in the vendor table only because its quoted fidelities are the comparison
-# that justifies choosing WK_C180_2, not because anything is submitted to it.
+# Only WK_C180_2 is in scope.  WK_C180_3 is absent from this script because it is
+# OUT OF SCOPE, not because it does not exist: devs.txt is a 2026-09-08 snapshot of
+# service.backends() listing only WK_C180, WK_C180_2 and the photonic PQPUMESH8, but
+# the live query of 2026-10-11 returns WK_C180_3: true -- that chip came up after the
+# snapshot, and HanYuan_01 is the offline one.  WK_C180 stays in the vendor table
+# only because its quoted fidelities are the comparison that justified choosing
+# WK_C180_2, not because anything is submitted to it.
+#
+# MEASURED CALIBRATION, 2026-10-11 (QCLOUD_SETUP.md 8.8) -- read this before running.
+# best_qubit_blocks(5) on WK_C180_2 is [39,48,49,58,67], and ChipInfo (no longer 401)
+# publishes f2q=0.99275 for it, BETTER than the 0.9831 this script passes as --vendor.
+# Better gates mean a purer state, so the predicted radius is 0.9478 not 0.8550 and
+# "r<1" is a 0.60 sigma statement at SHOTS=1000, not the ~1.8 sigma the quoted table
+# implied; 5 sigma needs ~18 700 s of QPU, 62x the budget.  The binding constraint on
+# that headline is the device being better than its datasheet, not the ~300 s.
+# The block must stay the vendor's pick.  Ranking the chip's 96 connected 5-qubit
+# blocks by the significance of r<1 puts this one LAST, 96/96, and [40,49,50,58,68]
+# first at 6.3 sigma -- purely because those are the worst qubits on the chip.
+# Choosing the apparatus so the hypothesis test passes is not a measurement, so
+# selftest (k) asserts both the direction of the correction and the rejection.
 cd /home/yqc/github/QEC
 CHIP=${CHIP:-WK_C180_2}
 STAGE=${1:?"usage: bash launch_mixedness.sh {tomo|probe|bench|ladder}"}
