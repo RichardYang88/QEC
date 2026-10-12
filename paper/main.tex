@@ -802,9 +802,22 @@ We executed the protocol on the OriginQ Wukong superconducting processor
 (chip \texttt{WK\_C180}, $180$ qubits) through the pyQPanda3 cloud
 interface~\cite{pyqpanda3,originq_cloud}, using compiler options
 (amendment, qubit mapping, optimization) and a fixed best-quality $9$-qubit
-physical block; the returned bitstring layout was established empirically as
-$[a_3a_2a_1a_0][d_4d_3d_2d_1d_0]$ by hypothesis scoring over data-hit
-evidence. Four branch circuits ($400$ shots each, $1\,600$ executed in total)
+physical block; the returned bitstring layout is
+$[a_3a_2a_1a_0][d_4d_3d_2d_1d_0]$, i.e.\ each register appears in descending
+qubit order at the key positions of its own classical bits. It was established
+by hypothesis scoring over data-hit evidence and is corroborated exactly by the
+ideal circuit: for the $s{=}12$ branch the noise-free outcome is
+$(a_0a_1a_2a_3)=(1100)$ with the data register all-zero, which under this layout
+is the single key \texttt{001100000}---and that key is the observed mode of the
+late-measure branch ($44$ shots) while its complement is absent. The scoring
+criterion is in principle circular, since ``is this key a syndrome match'' is a
+function of the window being scored, so the layout is anchored to that
+deterministic reference rather than to the score alone. The local simulator does
+\emph{not} share the vendor's key order---it returns the globally reversed
+convention---so a layout verified only against simulated counts validates the
+wrong window; every cross-check here converts simulator keys into the vendor
+convention first. Four branch circuits ($400$ shots each, $1\,600$ executed in
+total)
 probe the two measurement schemes and two error injections
 (Fig.~\ref{fig:hardware}): $1\,476$ shots came back parseable under that
 layout, $124$ of those survived post-selection on a correctly read syndrome,
@@ -860,14 +873,24 @@ not the gate count, is what bounds it.
 
 The same data support an \emph{effective} error budget (ED Table~3d), which is
 what separates a device limit from a method limit. No vendor calibration
-accompanies the run: the cloud interface exposes per-qubit readout fidelity,
-single-qubit gate fidelity, $T_1$ and $T_2$ only behind the authorisation used
-to submit jobs, which this account no longer holds, and the refusal is recorded
-with a timestamp in the artifact rather than passed over in silence. The rates
-that follow are therefore marginals of the measured distributions against a
-deterministic ideal syndrome---no error model and no fit---and each lumps every
-physical error incurred before the readout together with the assignment error of
-the readout itself. On the injected late-measure circuit the four per-ancilla
+accompanies that run, and the reason is a recorded point-in-time refusal rather
+than a standing property of the platform or of this account: the free
+\texttt{chip\_info} query for \texttt{WK\_C180} returned \texttt{Unauthorized} at
+2026-09-21T15:12:04Z, and that attempt is stored in
+\texttt{hw\_error\_budget.json} with its timestamp and error string rather than
+passed over in silence. The same query, repeated on 2026-10-11 for
+\texttt{WK\_C180\_2}, \emph{succeeds}: it returns per-qubit readout and
+single-gate fidelity, $T_1$, $T_2$ and per-edge two-qubit fidelity for the block
+the vendor's own optimiser selects, at no cost in QPU time
+(\texttt{hw\_mixedness\_preflight.json}). The calibration that is now obtainable
+is therefore for a \emph{different processor} than the one these counts came
+from, and applying it to them retroactively would attribute one chip's figures of
+merit to another chip's data. The rates that follow are consequently marginals of
+the measured distributions against a deterministic ideal syndrome---no error
+model and no fit---and each lumps every physical error incurred before the
+readout together with the assignment error of the readout itself. That is a
+property of how they were computed, and it is not changed by the calibration
+having since become reachable. On the injected late-measure circuit the four per-ancilla
 rates are $0.253$, $0.558$, $0.305$ and $0.288$: a mean of $1.40$ wrong bits out
 of $4$ per shot, with $a_1$ worse than a coin flip, and the measured
 all-four-correct rate is $0.908\times$ the product of those marginals, i.e. the
@@ -889,6 +912,120 @@ whose effective $1\to0$ rate exceeds its $0\to1$ rate ($0.558$ against $0.389$),
 and deferring its readout---which lengthens its idle wait by the $126$
 instructions of the recovery and decode sections---flips that asymmetry from
 $-0.301$ to $+0.169$ while $a_0$'s stays at $-0.363$.
+
+\subsubsection*{A warm-vs-cold recovery comparison, and why it is reported as
+inconclusive rather than as a result}
+
+The same platform was used for a second, pre-registered experiment: a
+warm-versus-cold comparison of the syndrome-conditioned recovery, in which the
+warm arm starts the instrument from the trained angles and the cold arm from a
+fixed reference, so that the estimator is a \emph{difference} of two
+distributions on the same physical block and is insensitive to any error that
+acts identically on both arms. It was executed on \texttt{WK\_C180\_2} on
+2026-10-12 as four $206$-instruction science circuits and two $9$-qubit readout
+calibration circuits at $3\,000$ shots each on a pinned $9$-qubit block, with
+amendment, qubit mapping and optimization enabled. Analysed on the correct
+bit-window it returns a signal of $-0.0038\pm0.0052$ ($-0.73\sigma$) and a null
+of $+0.0114\pm0.0040$ ($+2.84\sigma$) against pre-registered ideals of
+$+0.500000$ and $+0.000003$. \emph{Neither number is reported as physics}, and
+the run is classified \textsc{invalid}---an apparatus and compilation
+fault---rather than as a failure of warm starting, for three reasons that were
+established from the data the job itself returned.
+
+First, one readout channel of the block was broken, and it was in the
+\emph{data} register: the calibration circuits measure logical qubit $3$ at
+$e_{01}=0.5679$ and $e_{10}=0.5885$, i.e.\ contrast $1-e_{01}-e_{10}=-0.156$,
+which is worse than a coin flip and \emph{negative}. A negative contrast
+attenuates that channel's contribution to a warm-minus-cold difference with its
+sign flipped, so a difference of this size can be produced by readout alone.
+Because the broken channel sits inside the primary estimator's data window, that
+estimator is not interpretable; had the broken channel been an ancilla the
+estimator would have survived at the cost of the post-selected fidelity only,
+which is why every one of the nine channels is now tabulated with its logical
+qubit index and role rather than the five data channels alone.
+
+Second, the in-job readout calibration \emph{does} transfer to the science
+circuits, and that is what makes the first point actionable rather than merely
+unfortunate. For a single-qubit readout channel, $(e_{01},e_{10})$ bound the
+probability of reading $0$ to the interval
+$[\min(1-e_{01},e_{10}),\max(1-e_{01},e_{10})]$ for \emph{any} preceding
+circuit---a bound that requires no error model, no fit and no assumption about
+what was executed before the measurement. For logical qubit $3$ the calibration
+gives $[0.432,0.589]$, and the four science circuits read $0.459$, $0.504$,
+$0.523$ and $0.523$ at that same logical position: all $36$ channel comparisons
+across the job lie inside their bounds. The calibration therefore describes the
+channels the science circuits actually used, so the broken-channel label is
+trustworthy and a calibration-first submission could have caught it before the
+four $206$-instruction circuits were paid for. The vendor's free
+\texttt{chip\_info} metadata could not: on this block it is essentially
+uncorrelated with the day-of calibration, reporting the channel that measured
+$0.4218$ at $0.9612$, and its own worst qubit ($0.9014$) measured perfect
+($1.0000$).
+
+Third, the null control fails, and its failure localises the fault. At
+$+2.84\sigma$ it is not consistent with its pre-registered ideal of zero;
+dropping the single broken channel moves it to $-0.0006\pm0.0060$
+($-0.10\sigma$) and moves the signal to $-0.0003\pm0.0069$ ($-0.05\sigma$) with
+it. A bias that disappears together with one channel, in both arms at once, is
+that channel's artefact rather than a property of the device or of the
+estimator---which is the diagnosis, and it is corroborated rather than merely
+asserted, because the subset's own null control comes out clean at $-0.10\sigma$
+where the full register's did not. The exclusion still cannot be promoted to a
+result: it is a post-hoc subset analysis, the channel to drop having been chosen
+after seeing which one the calibration flagged, so it carries a selection effect
+that a pre-registered four-channel estimator would not. It is reported as a
+caveated diagnostic. Its substantive content is negative in any case---the signal
+is $-0.05\sigma$, and the implied transmission factor of the data register is
+$w=-0.008$, indistinguishable from zero.
+
+A fourth finding is methodological, and is reported because it changed the
+answer. The analysis must know which five of the nine returned bits constitute
+the data register, and the natural way to choose is to score candidate windows
+against the counts themselves. That criterion is circular---whether a key matches
+the expected syndrome depends on which window is being scored---and on these
+counts it selects the \emph{complement} of the correct window, by $62$ data-hits
+to $2$. The complement puts four ancillas and one data qubit in the ``data''
+register, and on it the same job yields a signal of $-0.0311$ ($-7.8\sigma$)
+beside a null of $+0.0010$ ($+0.3\sigma$): a striking anti-correlated ``effect''
+next to a clean control, which is exactly the pattern a real warm-start failure
+would produce. Every number quoted here is instead computed on the window derived
+from the circuit's measurement map and the platform's measured key order, and
+cross-checked on the noiseless simulator, where the correct window accepts
+$100\%$ of shots and the other three accept none. The simulator does not share
+the vendor's key order---it returns the globally reversed convention---so that
+cross-check validates the wrong window unless simulated keys are converted
+first; the conversion is applied at the sampling boundary so that no analysis
+path can bypass it.
+
+The general lesson is about what a difference estimator does and does not protect
+against. A warm-minus-cold difference is insensitive to any error that acts
+identically on both arms, and that common-mode argument is what motivated the
+design; it assumes every channel in the register transmits with a
+\emph{positive} contrast. A readout channel with $1-e_{01}-e_{10}<0$ violates the
+assumption outright---it contributes to the difference with its sign flipped---so
+a single dead channel can manufacture a gap of exactly the size and shape that a
+real warm-start failure would produce. Nothing free predicted it: the vendor's
+metadata was uncorrelated with the day-of readout on this block. What did detect
+it was the job's own two calibration circuits, at $27$ instructions against the
+science circuits' $824$, and because those calibrations transfer they can be run
+\emph{first} and used to gate the submission. That is the concrete remedy, and it
+costs about two seconds of machine time.
+
+One hypothesis these data do \emph{not} support is worth retracting explicitly.
+Because the calibration and the science circuits are compiled separately, it was
+concerned that server-side qubit mapping might re-route logical qubits differently
+per circuit, which would make an in-job calibration meaningless; an early reading
+of these counts appeared to confirm it. That reading was an artefact of the
+bit-window error described above, and on the corrected analysis all $36$
+comparisons lie inside their bounds. There is therefore no evidence of
+per-circuit re-routing on this platform, and disabling mapping is not required by
+these data; the option exists and is implemented, but it is a control rather than
+a demonstrated necessity. The prerequisite for any future warm-versus-cold claim
+here is narrower and better founded: pick the block under calibration, and do not
+pay for science circuits on a block whose data register has not been screened.
+Until that is executed, the honest statement is that the comparison was not
+performed under characterized conditions---not that warm starting failed on this
+hardware, and not that it succeeded.
 
 \section*{Discussion}
 
@@ -977,8 +1114,18 @@ method claims there---so a hardware fidelity must be compared against a simulati
 at matched $r$. The general statement is asymmetric in a useful way: as devices get
 noisier the mixed-input penalty grows, while the stationarity of the decoder point
 does not move at all. Mid-circuit measurement---the standard route to feed-forward
-recovery---is unavailable on this processor, which is why our protocol is
-branch-fixed and feedback-free; platforms with fast mid-circuit
+recovery---was submitted to this processor and did execute, but the syndrome it
+returned carried no usable information about the injected error: across the
+sixteen branches of that run the ancilla marginal is close to uniform (Shannon
+entropy $3.67$--$3.97$ bits out of a maximum of $4.00$), and on one circuit the
+target syndrome branch received $0$ of $369$ shots. The late-measure variant of
+that same branch did better---a syndrome-conditional fidelity of $0.80$ ($44$ of
+$55$ selected shots) where the mid-circuit variant of it returned $0.00$ ($0$ of
+$44$)---though its output distribution still sat at total-variation distance
+$0.88$ from ideal, so our protocol is branch-fixed and feedback-free. Whether the
+mid-circuit path is architecturally unavailable on this device, or merely
+miscalibrated or drifting, is \emph{not} established by these
+data and we do not claim it; platforms with fast mid-circuit
 readout~\cite{sivak_breakeven,ryan_anderson_rt} could execute the same trained
 branches with real-time selection. Extending VSCR to larger codes requires
 only that the syndrome measurement remain projective, and we have now checked the
@@ -1564,7 +1711,11 @@ pyQPanda3~\cite{pyqpanda3,originq_cloud} with
 $9$-qubit block $[147,155,157,164,165,166,174,175,176]$ selected by the
 backend's quality query. Circuits use the late-measurement variant. The
 returned key layout $[a_3a_2a_1a_0][d_4d_3d_2d_1d_0]$ was established by
-scoring four layout hypotheses on data-hit evidence. Branch statistics use
+scoring four layout hypotheses on data-hit evidence, and is corroborated by the
+ideal circuit rather than resting on that score alone: the score is circular in
+principle, while the noise-free $s{=}12$ outcome is the single key
+\texttt{001100000} under this layout and is the observed mode of that branch.
+Branch statistics use
 post-selection on the ancilla field with Wilson $95\%$ intervals; ideal
 references are exact statevector branch amplitudes of the identical circuits.
 Feasibility data: $4$ circuits $\times$ $400$ shots ($366$--$371$ usable;
@@ -1578,6 +1729,34 @@ takes each ancilla's error rate as the marginal of the measured syndrome
 distribution against the deterministic ideal syndrome, so no error model enters
 it; it also records that the vendor calibration query was refused, with the
 timestamp and the error string, rather than omitting the gap.
+
+\paragraph{Warm-versus-cold comparison: platform, artifacts and analysis path.}
+The inconclusive comparison reported in Results ran on \texttt{WK\_C180\_2} on
+2026-10-12 through the same interface, on the physical block
+$[39,48,49,57,58,66,67,75,85]$ returned by the backend's own quality query, with
+amendment, mapping and optimization all enabled and no per-circuit re-selection.
+Six circuits were submitted at $3\,000$ shots each---four $206$-instruction
+science circuits (two arms $\times$ one signal branch $s{=}5$ and one matched
+null branch $s{=}12$) and two nine-qubit readout-calibration circuits of $9$ and
+$18$ instructions---for $18\,000$ shots and $252$~s at the confirmed
+$14$~ms/shot, inside the $300$~s allocation. The counts and the submission-time
+sidecar (timestamp, block, options, per-circuit instruction counts) are stored as
+\texttt{qcloud\_raw\_warmcold.json} and its \texttt{.meta.json}; the analysis
+re-reads both and refuses to proceed if the sidecar disagrees with the
+reconstructed metadata, so the artifact cannot silently drift from the job that
+produced it. Every estimator is in \texttt{hw\_mixedness.py} and is reproduced by
+\texttt{--mode analyze} with no account and no QPU time.
+
+The bit-window used throughout is derived from the circuit's
+\texttt{MEAS}(qubit$\to$bit) map together with the platform's key order, and is
+cross-checked two ways: against the noiseless simulator, where it is the unique
+one of four candidate windows that accepts every shot, and against the 2026-09
+data, where it reproduces that run's reported numbers exactly. The simulator
+cross-check is only independent because the sampling wrapper converts simulator
+keys into the vendor convention first; the local simulator's native key order is
+the global reverse of the vendor's, so an unconverted check verifies the
+complement window and will confirm a wrong answer. Analysis run on the complement
+window is what produced the $-7.8\sigma$ figure retracted in Results.
 
 \section*{Figure captions}
 
@@ -1737,14 +1916,21 @@ drivers and self-tests are in the same repository: \texttt{ssvr\_qec.py},
 \texttt{hw\_verify\_analysis.py}, \texttt{hw\_error\_budget.py} and
 \texttt{run\_selftests.py}.
 
-\emph{Restriction.} One category of third-party data is unavailable and is reported
-as such rather than omitted: the vendor calibration of \texttt{WK\_C180}
-(per-qubit readout and single-gate fidelities, $T_1$, $T_2$) is exposed only behind
-an authorisation this account no longer holds. The refusal, with its timestamp and
-error string, is recorded in \texttt{hw\_error\_budget.json}; that is precisely why
-the hardware error budget quoted here is \emph{effective}---a marginal of the
-measured syndrome distributions against a deterministic ideal, with no error model
-and no fit---rather than calibrated. Bibliography verification dumps
+\emph{Restriction.} One category of third-party data was unavailable when the
+hardware run was analysed, and is reported as such rather than omitted: the free
+\texttt{chip\_info} query for the vendor calibration of \texttt{WK\_C180}
+(per-qubit readout and single-gate fidelities, $T_1$, $T_2$) returned
+\texttt{Unauthorized} at 2026-09-21T15:12:04Z. That attempt, with its timestamp
+and error string, is recorded in \texttt{hw\_error\_budget.json}. The restriction
+is point-in-time and chip-specific rather than standing: the same query for
+\texttt{WK\_C180\_2} succeeded on 2026-10-11 and returns full per-qubit and
+per-edge calibration at no cost in QPU time, recorded in
+\texttt{hw\_mixedness\_preflight.json}. Because that calibration belongs to a
+different processor than the one the reported counts came from, it is not
+retro-applied to them; that---and not any continuing lack of access---is why the
+hardware error budget quoted here is \emph{effective}, a marginal of the measured
+syndrome distributions against a deterministic ideal with no error model and no
+fit, rather than calibrated. Bibliography verification dumps
 (\texttt{refs\_verification*.json}) are included so that every cited record can be
 re-checked field by field.
 

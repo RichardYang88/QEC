@@ -1,0 +1,92 @@
+{
+ "block": [
+  39,
+  48,
+  49,
+  57,
+  58,
+  66,
+  67,
+  75,
+  85
+ ],
+ "chip_id": "WK_C180_2",
+ "instruction_counts": [
+  206,
+  206,
+  206,
+  206,
+  9,
+  18
+ ],
+ "kinds": [
+  "warmcold",
+  "warmcold",
+  "warmcold",
+  "warmcold",
+  "cal9",
+  "cal9"
+ ],
+ "mapping": true,
+ "meta": [
+  {
+   "angles": "vscr_angles_paper_dep.npz",
+   "arm": "warm",
+   "frame": "IZIII",
+   "kind": "warmcold",
+   "measure": "late",
+   "p": 0.0,
+   "psi": "+",
+   "role": "signal",
+   "s": 5
+  },
+  {
+   "angles": "vscr_angles_dep.npz",
+   "arm": "cold",
+   "frame": "IZIII",
+   "kind": "warmcold",
+   "measure": "late",
+   "p": 0.0,
+   "psi": "+",
+   "role": "signal",
+   "s": 5
+  },
+  {
+   "angles": "vscr_angles_paper_dep.npz",
+   "arm": "warm",
+   "frame": "IIXII",
+   "kind": "warmcold",
+   "measure": "late",
+   "p": 0.0,
+   "psi": "+",
+   "role": "null",
+   "s": 12
+  },
+  {
+   "angles": "vscr_angles_dep.npz",
+   "arm": "cold",
+   "frame": "IIXII",
+   "kind": "warmcold",
+   "measure": "late",
+   "p": 0.0,
+   "psi": "+",
+   "role": "null",
+   "s": 12
+  },
+  {
+   "cal": "zero",
+   "kind": "cal9",
+   "rep": 0
+  },
+  {
+   "cal": "one",
+   "kind": "cal9",
+   "rep": 0
+  }
+ ],
+ "n_circuits": 6,
+ "shots": 3000,
+ "stage": "warmcold",
+ "use_options": true,
+ "written_utc": "2026-10-12T15:06:47Z"
+}

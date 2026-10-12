@@ -229,9 +229,22 @@ def _t_hwmixedness():
     tomography circuits alone leave exactly 24 tied bit orders but pin the logical
     position, every estimator is identical across all 24, and five fingerprint
     circuits break the tie uniquely; (g) the one-parameter p_instr fit inverts
-    exactly; (h) the four cloud stages are the sizes the shot budget assumes;
+    exactly; (h) the five cloud stages are the sizes the shot budget assumes;
     (i) the tomography job carries its own calibration and the ladder extends the
-    depth curve with the (|0>,Z) signal circuit present at every depth."""
+    depth curve with the (|0>,Z) signal circuit present at every depth;
+    (j) tomo's chunk boundaries all land on analysable prefixes;
+    (k) the vendor's own best block MEASURES better than its datasheet, so the
+    tomo headline r<1 is a 0.60 sigma null and 5 sigma needs 62x the budget, and
+    the block that WOULD give 6.3 sigma is rejected precisely because it is the
+    worst device on the chip;
+    (l) the warm-vs-cold A/B that the allocation buys instead: branch s=5 is the
+    ONLY one of sixteen where the paper's warm-started angles and the cold-started
+    control differ (ideal gap exactly 0.500000), s=12 is the matched null, the
+    effect is a logical Z so psi='+' is load-bearing and a Z-basis run would be
+    null by construction, the six-circuit job costs 252 s of the 300 s budget with
+    the signal pair submitted first, and the unconditioned primary estimator is
+    justified by the near-uniform ancilla marginal re-derived from the 2026-09
+    raw counts on every run."""
     import hw_mixedness as hm
     hm.setup()
     st = hm.selftests()
@@ -245,9 +258,41 @@ def _t_hwmixedness():
     assert st['layout_margin_min'] > 100.0, st
     assert st['fit_p_instr_residual'] < 1e-6, st
     assert st['stage_sizes'] == {'probe': 8, 'tomo': 19, 'bench': 34,
-                                 'ladder': 4 * len(hm.LADDER_ROUNDS)}, st
-    assert st['n_circuits_total'] == 65, st
+                                 'ladder': 4 * len(hm.LADDER_ROUNDS),
+                                 'warmcold': (hm.WARMCOLD_N_SCIENCE
+                                              + hm.WARMCOLD_N_CAL)}, st
+    assert st['n_circuits_total'] == 71, st
     assert st['merged_depths'] == [1, 2] + sorted(hm.LADDER_ROUNDS), st
+    # (k) the vendor block BEATS its datasheet, so the tomo headline r<1 is weak
+    # and must not be sold as significant; and the block that WOULD make it
+    # significant is the worst device on the chip, which is why it is rejected
+    mc = st['measured_calibration']
+    assert mc['radius'] > mc['quoted_radius'], mc
+    assert mc['sigma_r_below_1'] < mc['quoted_sigma'], mc
+    assert mc['sigma_r_below_1'] < 1.0, mc
+    assert mc['wall_s_for_5_sigma'] > 50 * hm.BUDGET_S, mc
+    assert mc['significance_maximising_radius'] < mc['radius'], mc
+    assert mc['significance_maximising_sigma'] > 5.0, mc
+    # (l) the warm-vs-cold A/B that the allocation actually buys: one branch
+    # carries the effect, a matched branch does not, the input state is
+    # load-bearing, and the job fits with margin to spare
+    wc = st['warmcold']
+    assert wc['branches_with_effect'] == [wc['signal_s']], wc
+    assert abs(wc['gap_ideal_signal'] - 0.5) < 1e-6, wc
+    assert abs(wc['gap_ideal_null']) < hm.WARMCOLD_GAP_TOL, wc
+    assert wc['z_basis_gap'] < hm.WARMCOLD_GAP_TOL, wc
+    assert wc['xy_basis_gap_min'] > 0.49, wc
+    assert wc['chunk_boundaries'] == [2, 4, 6], wc
+    assert wc['cost_s'] <= hm.BUDGET_S, wc
+    assert wc['margin_s'] >= 30.0, wc
+    assert wc['power_at_measured_w']['sigma_z'] >= 5.0, wc
+    assert wc['power_at_pessimistic_w']['sigma_z'] >= 3.0, wc
+    assert wc['angles'] == hm.WARMCOLD_ANGLES, wc
+    if wc['measured_2026_09']:
+        # the estimator choice is justified by data on disk, re-derived every run
+        assert wc['measured_2026_09']['ancilla_entropy_bits_min'] > 3.0, wc
+        assert (wc['measured_2026_09']['data_survival_mean']
+                > 2 * hm.WARMCOLD_W_FLOOR_UNIFORM), wc
 
 
 # name -> (callable, slow?, description)
@@ -293,7 +338,13 @@ TESTS = [
      'span >0.5, the tomography circuits leave exactly 24 tied bit orders but pin '
      'the logical one with every estimator identical across all 24 while five '
      'fingerprint circuits break the tie uniquely, the one-parameter p_instr fit '
-     'inverts exactly, and the three cloud stages are the sizes the budget assumes'),
+     'inverts exactly, the five cloud stages are the sizes the budget assumes, the '
+     'vendor\'s own best block measures BETTER than its datasheet so r<1 is a 0.60 '
+     'sigma null and the significance-maximising block is rejected as the worst '
+     'device on the chip, and the warm-vs-cold A/B that the allocation buys instead '
+     'has exactly one effect branch out of sixteen (ideal gap 0.500000), a matched '
+     'null, a load-bearing psi=\'+\', a 252 s cost inside the 300 s budget, and '
+     '7.3 sigma of power at the data survival measured in 2026-09'),
     ('ancilla',     _t_ancilla, True,
      'Kraus-rank ladder, five self-tests: rank(C)=1 reproduces the production '
      'unitary ceiling and rank(C)=4 the production CPTP ceiling, the Choi '

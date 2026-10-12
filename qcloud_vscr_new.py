@@ -468,10 +468,46 @@ def build_qprog(gates):
     return prog
 
 
-def cpuqvm_sample(gates, shots=500):
+def sim_key_to_vendor_key(key, nq=None, nq_anc=None):
+    """Convert a LOCAL SIMULATOR bitstring into the VENDOR's key convention.
+
+    This exists because the two differ, and the difference is not cosmetic -- it
+    silently selects the complement of the correct analysis window.
+
+    Established from the 2026-09 feasibility run by matching a deterministic
+    ideal outcome, not assumed.  For the s=12 late-measure branch the noise-free
+    result is (a0,a1,a2,a3)=(1,1,0,0) with the data register all-zero:
+      * CPUQVM returns that outcome as the key '000000011', i.e. simulator key
+        position p <-> classical bit (NQ-1-p), a GLOBAL reversal;
+      * the QPU returns the same physical outcome as '001100000', i.e. each
+        register written in DESCENDING classical-bit order at the key positions
+        of its own bits: [c3 c2 c1 c0][c8 c7 c6 c5 c4] = [a3a2a1a0][d4d3d2d1d0].
+    '001100000' was the observed mode of that branch (44 shots) and the count
+    that reproduces the paper's 44/55, while '000000011' is absent from the
+    hardware data; conversely the mid-measure identity branch accepts 0 of 369
+    shots under the vendor window and 97 under the simulator window, matching
+    the reported 5.0 sigma deficit only for the vendor one.
+
+    Consequence: a layout verified against simulated counts alone validates the
+    WRONG window for hardware data.  Every simulator-backed check must pass
+    through this function first, which is why cpuqvm_sample does it by default.
+    """
+    nq = nq or NQ
+    nq_anc = NQ_ANC if nq_anc is None else nq_anc
+    assert len(key) == nq, (len(key), nq)
+    cbits = key[::-1]                      # -> classical-bit order c0..c(NQ-1)
+    return cbits[:nq_anc][::-1] + cbits[nq_anc:][::-1]
+
+
+def cpuqvm_sample(gates, shots=500, vendor_order=True):
     """Sample a branch circuit on the local pyqpanda3 CPU simulator.
 
-    Returns dict bitstring(cb0..cb8 order) -> count."""
+    Returns dict bitstring -> count.  With `vendor_order` (the default) the keys
+    are converted to the vendor's convention by `sim_key_to_vendor_key`, so the
+    result is directly comparable with hardware counts and with every window
+    derived for hardware data.  Pass vendor_order=False only to inspect the
+    simulator's native order -- never to analyse, because the native order is
+    the global reverse of the vendor's and selects the complement window."""
     if not HAS_PYQPANDA3:
         raise RuntimeError(f'pyqpanda3 not installed: {_PYQPANDA_IMPORT_ERR}')
     prog = build_qprog(gates)
@@ -485,6 +521,8 @@ def cpuqvm_sample(gates, shots=500):
     counts = {}
     for key, cnt in raw.items():
         key = str(key).replace(' ', '')
+        if vendor_order:
+            key = sim_key_to_vendor_key(key)
         counts[key] = counts.get(key, 0) + int(cnt)
     return counts
 
@@ -506,6 +544,36 @@ def counts_to_branch_stats(counts, s_idx, anc_slice=slice(0, 4), rev=False):
 
 
 def detect_layout(meta, results):
+    """Pick the bit-window layout by scoring four candidates against the OUTCOMES.
+
+    WARNING -- THE CRITERION IS CIRCULAR, AND ON REAL DATA IT PICKS THE WRONG
+    WINDOW OUTRIGHT.  "Is this key a syndrome match" is itself a function of the
+    window being scored, so the score is not independent evidence about the
+    layout.  It happened to pick correctly on the 2026-09 feasibility run (44
+    data-hits for anc@key[5:9] rev=True against 0 for every other window, a clean
+    sweep).  It did not on the 2026-10-12 warmcold run, where the same four
+    hypotheses scored 23 / 1 / 62 / 2 and it chose anc@key[0:4] rev=True -- the
+    exact COMPLEMENT of the correct anc@key[5:9] rev=True, which scored 2.  A
+    31-to-1 margin in favour of the wrong answer, and the artifact then described
+    the ancilla register as the data register and reported a -7.8 sigma
+    "anti-correlated" warm-vs-cold signal that does not exist: on the correct
+    window the same counts give -0.7 sigma.
+
+    The layout is knowable without looking at outcomes at all.  Two things fix
+    it: the circuit's MEAS(q -> cbit) map, which says which classical bits carry
+    the ancilla, and the platform's key bit-order, which is a vendor property
+    measured once and recorded in `sim_key_to_vendor_key`.  Use
+    `hw_mixedness.layout_from_meas` for the combination and
+    `verify_layout_noiseless` to confirm it -- but note that the noiseless check
+    is only independent because cpuqvm_sample now converts simulator keys into
+    the vendor convention; CPUQVM's native order is the global reverse of the
+    vendor's, so an unnormalised check verifies the complement window and will
+    happily "confirm" a wrong answer.  This function is kept because four other
+    scripts and the 2026-09 feasibility analysis call it, and changing its
+    behaviour would make those artifacts unreproducible; new code should not use
+    it as an authority.  Callers that keep it should cross-check it against the
+    MEAS-derived layout and report any disagreement, as
+    `hw_mixedness.analyze_warmcold` now does."""
     hypotheses = [(slice(0, 4), False), (slice(5, 9), False),
                   (slice(0, 4), True), (slice(5, 9), True)]
     best, best_score = hypotheses[0], (-1, -1)
@@ -591,19 +659,40 @@ def _make_qcloud_service(token):
     raise RuntimeError('failed to construct QCloudService; check pyqpanda3 version and token')
 
 
-def _build_options(block=None):
+def _build_options(block=None, mapping=True, amend=True, optimization=True):
     """QCloudOptions for real-chip submission.
 
     Enables server-side amend/mapping/optimization; if a physical qubit
     block is given, pins the task to it via set_specified_block.
-    """
+
+    `mapping` is the server-side RE-ROUTING switch, and it can be turned off
+    independently of the block pinning.  With block pinned AND mapping off, a
+    logical qubit index provably refers to the same physical qubit in every
+    circuit of the job, because nothing is left to re-assign it.  That is a
+    guarantee bought by construction rather than measured after the fact, and it
+    is the right mode when an in-job calibration has to gate the science circuits.
+
+    It is a CONTROL, not a demonstrated necessity on this platform, and an earlier
+    version of this docstring said otherwise.  That version cited
+    hw_mixedness.check_cal9_transferability finding 2 of 36 channel comparisons
+    outside the calibration's own hard P(read 0) bound on the 2026-10-12 warmcold
+    run, and read it as proof that mapping had re-routed the science circuits onto
+    different physical qubits.  The violations were an artefact of a wrong
+    key-position lookup that compared each cal9 channel against the wrong column of
+    the science counts; on the corrected lookup all 36 comparisons lie inside their
+    bounds, so that run -- which had mapping ON -- shows the calibration DOES
+    transfer with mapping enabled.  There is no evidence of per-circuit re-routing
+    here.  Turning mapping off WITHOUT pinning the block remains the one
+    combination to avoid, because then the server chooses the qubits and the two
+    arms may not even share them."""
     from pyqpanda3.qcloud import QCloudOptions
     opt = QCloudOptions()
-    for setter in ('set_amend', 'set_mapping', 'set_optimization'):
+    for setter, want in (('set_amend', amend), ('set_mapping', mapping),
+                         ('set_optimization', optimization)):
         try:
-            getattr(opt, setter)(True)
+            getattr(opt, setter)(want)
         except Exception as e:
-            print(f'[cloud] warning: {setter}(True) failed: {e}', flush=True)
+            print(f'[cloud] warning: {setter}({want}) failed: {e}', flush=True)
     if block:
         opt.set_specified_block([int(q) for q in block])
     return opt
@@ -757,14 +846,17 @@ def _parse_origin_data(raw, shots):
 
 def submit_cloud(gate_lists, token, chip_id='WK_C180_2', shots=4000,
                  batch=True, dump_raw=None, chunk=32, job_timeout=21600,
-                 use_options=True, block=None):
+                 use_options=True, block=None, mapping=True):
     """Submit all branch circuits to the real chip. Returns list of counts dicts.
 
     use_options: build QCloudOptions(amend+mapping+optimization) for real-chip
                  tasks. block: explicit physical qubit block; if None and
                  use_options, the best block is auto-queried via
-                 backend.best_qubit_blocks(NQ).
-    """
+                 backend.best_qubit_blocks(NQ).  mapping: the server-side
+                 re-routing switch -- pass False TOGETHER WITH an explicit block
+                 to keep every circuit of the job on the same physical qubits, so
+                 that an in-job calibration describes the science circuits.  See
+                 _build_options for why the 2026-10-12 run needed this."""
     if not HAS_PYQPANDA3:
         raise RuntimeError(f'pyqpanda3 not installed: {_PYQPANDA_IMPORT_ERR}')
 
@@ -775,7 +867,7 @@ def submit_cloud(gate_lists, token, chip_id='WK_C180_2', shots=4000,
         backend = service.backend(chip_id=chip_id)
     print(f'[cloud] backend: {chip_id}', flush=True)
 
-    options = _build_options(block) if use_options else None
+    options = _build_options(block, mapping=mapping) if use_options else None
     if options is not None and block is None:
         try:
             bb = backend.best_qubit_blocks(NQ)
@@ -787,8 +879,13 @@ def submit_cloud(gate_lists, token, chip_id='WK_C180_2', shots=4000,
             print(f'[cloud] best_qubit_blocks unavailable ({e}); '
                   f'server will choose qubits', flush=True)
     if options is not None:
-        print(f'[cloud] options: amend+mapping+optimization=True, '
-              f'specified_block={block}', flush=True)
+        print(f'[cloud] options: amend=True, mapping={mapping}, '
+              f'optimization=True, specified_block={block}', flush=True)
+        if not mapping and not block:
+            print('[cloud] WARNING: mapping is OFF but no block is pinned, so the '
+                  'server still chooses the physical qubits and different circuits '
+                  'may not share them.  To make an in-job calibration '
+                  'transferable, disable mapping AND pin the block.', flush=True)
 
     results = []
     if batch:

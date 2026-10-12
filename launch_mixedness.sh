@@ -2,21 +2,44 @@
 # launch_mixedness.sh -- the OriginQ real-QPU run that MEASURES the device
 # mixedness the mixed-input boundary prices (ED Table 10d), instead of inferring it.
 #
-# ONE backend (WK_C180_2) and ONE affordable job (tomo).  The account holder
+# ONE backend (WK_C180_2) and ONE affordable job (warmcold).  The account holder
 # confirmed that QPU time is billed in real time, that exhausting it immediately
 # disables the account, and that a job cannot overrun its allocation; with ~300 s
-# left and 14 ms/shot that is ~21 400 shots for everything, and the tomo stage at
-# 1000 shots is 19 000 of them (~266 s).  The full arithmetic, the shot/precision
-# trade-off and the salvage ladder are QCLOUD_SETUP.md 8 and `--mode plan`.
+# left and 14 ms/shot that is ~21 400 shots for everything.  The full arithmetic,
+# the shot/precision trade-off and both salvage ladders are QCLOUD_SETUP.md 8 and
+# `--mode plan`, and selftests (k) and (l) lock the two decisive facts.
 #
-#   tomo     (THE PLAN)     19 circuits x 1000 shots, 5 qubits (19 000 shots, ~266 s)
-#   probe    (deferred)      8 circuits x  300 shots, 5 qubits ( 2 400 shots, ~ 34 s)
+#   warmcold (THE PLAN)      6 circuits x 3000 shots, 9 qubits (18 000 shots, ~252 s)
+#   tomo     (fits, but a   19 circuits x 1000 shots, 5 qubits (19 000 shots, ~266 s)
+#            NULL result)
+#   probe    (redundant)     8 circuits x  300 shots, 5 qubits ( 2 400 shots, ~ 34 s)
+#   ladder   (fits, top-up)  4 circuits x 4000 shots, 5 qubits (16 000 shots, ~224 s)
 #   bench    (unaffordable) 34 circuits x 2000 shots, 9 qubits (68 000 shots, ~952 s)
-#   ladder   (unaffordable)  4 circuits x 4000 shots, 5 qubits (16 000 shots, ~224 s)
+#
+# WHY warmcold AND NOT tomo -- both fit, so this is arithmetic, not preference.
+# tomo's headline is r<1, and selftest (k) measures this block at f2q=0.99275,
+# BETTER than the quoted 0.9831, which puts r<1 at 0.60 sigma: 266 s buys a null,
+# and 5 sigma needs 18 651 s = 62x the allocation.  warmcold instead measures the
+# gap between the paper's warm-started recovery and a cold-started control on the
+# ONE branch where they differ, s=5 / frame IZIII / psi=+, where the noiseless gap
+# is exactly 0.500000.  Through the data-register survival w=0.1219 measured by
+# the 2026-09 run that is 0.0610 +- 0.0084 = 7.3 sigma, or 4.4 sigma at half that
+# survival.  selftest (l) locks the branch, the state, the null, the cost and the
+# power; --mode sample --stage warmcold runs the whole chain on the local CPUQVM
+# for zero QPU time and must report VERDICT: A/B PASSED before anything is bought.
 #
 # probe is deferred as redundant, not merely unaffordable: tomo carries its own
 # three calibration circuits, and analyze_stage recovers the bit order from the
 # tomography circuits themselves, which selftest (f) proves is sufficient.
+#
+# warmcold is submitted in chunks of 2 circuits, raw counts written to disk after
+# every chunk, and the SIGNAL PAIR IS FIRST: 2 circuits buy the headline A/B on
+# their own, 4 add the null control without which the result is uncontrolled, 6 add
+# the block's own 9-qubit readout assignment.  That is deliberately the opposite of
+# tomo's calibration-first order, because this stage's primary estimator is a raw
+# probability whose warm-minus-cold difference is common-mode in readout error and
+# needs no assignment matrix -- so the decisive pair goes first and a cut-off still
+# yields the claim.
 #
 # tomo is submitted in chunks of 3 circuits and the raw counts are written to disk
 # after every chunk, because a job that runs past the allocation is CUT OFF and a
@@ -27,16 +50,33 @@
 # partial result, not a lost one.
 #
 # Usage -- the stage is MANDATORY, there is no "all":
-#   bash launch_mixedness.sh tomo                            # the plan
+#   bash launch_mixedness.sh warmcold                        # THE PLAN, ~252 s
+#   SHOTS=2000 bash launch_mixedness.sh warmcold             # more margin, ~168 s
+#   BLOCK=39,48,49,57,58,66,67,75,85 \
+#       bash launch_mixedness.sh warmcold                    # pin the 9-qubit block
+#   bash launch_mixedness.sh tomo                            # deferred: a 0.60 sigma null
 #   SHOTS=750 bash launch_mixedness.sh tomo                  # more margin, ~200 s
-#   BLOCK=39,48,49,58,67 bash launch_mixedness.sh tomo       # pin the block
+#   BLOCK=39,48,49,58,67 bash launch_mixedness.sh tomo       # pin the 5-qubit block
 #   ROUNDS=4,8 bash launch_mixedness.sh ladder               # extra depths
 #
-# Before spending anything, these cost zero QPU time and must all pass:
+# NOTE THE BLOCK WIDTH: warmcold and bench run on NINE qubits, so their default
+# block is best_qubit_blocks(9) = [39,48,49,57,58,66,67,75,85], NOT the five-qubit
+# [39,48,49,58,67] that tomo/probe/ladder use.  Passing a 5-qubit BLOCK to
+# warmcold would submit 9-qubit circuits onto 5 qubits.  A submission has one
+# block, so the two stage families cannot share one job.
+#
+# Before spending anything, these cost zero QPU time and must all pass.  The first
+# four are the ones that gate the warmcold job; the last two gate tomo.
 #   ./qenv/bin/python hw_mixedness.py --mode plan              # the budget table
-#   ./qenv/bin/python hw_mixedness.py --mode verify
-#   ./qenv/bin/python run_selftests.py hwmixedness
-#   ./qenv/bin/python hw_mixedness.py --mode sample
+#   ./qenv/bin/python hw_mixedness.py --mode verify --stage warmcold
+#   ./qenv/bin/python run_selftests.py hwmixedness             # selftests (a)-(l)
+#   ./qenv/bin/python hw_mixedness.py --mode sample --stage warmcold --shots 4000
+#       # samples all 6 circuits on the local CPUQVM, pushes them through the full
+#       # analysis chain, and prints the power study at the real 3000-shot budget.
+#       # MUST end in "[warmcold] VERDICT: A/B PASSED" and
+#       # "[warmcold-dry-run] noiseless chain OK" before any QPU time is bought.
+#       # This is what caught the reversed-key data-window bug, so do not skip it.
+#   ./qenv/bin/python hw_mixedness.py --mode sample            # the tomo chain
 #   ./qenv/bin/python hw_mixedness.py --mode simulate --seeds 6 --shots 1000 \
 #       --vendor 0.9993,0.9831,0.9612 --json /tmp/power.json   # at the real budget
 #   ./qenv/bin/python hw_mixedness.py --mode preflight \
@@ -64,11 +104,25 @@
 # selftest (k) asserts both the direction of the correction and the rejection.
 cd /home/yqc/github/QEC
 CHIP=${CHIP:-WK_C180_2}
-STAGE=${1:?"usage: bash launch_mixedness.sh {tomo|probe|bench|ladder}"}
+STAGE=${1:?"usage: bash launch_mixedness.sh {warmcold|tomo|probe|bench|ladder}"}
 case "$STAGE" in
-  probe|tomo|bench|ladder) ;;
+  warmcold|probe|tomo|bench|ladder) ;;
   *) echo "unknown stage '$STAGE' (there is deliberately no 'all': see 8.3)"; exit 2 ;;
 esac
+# A 5-qubit BLOCK on a 9-qubit stage -- or the reverse -- puts circuits wider than
+# the block they land on.  The widths are STAGE_NQ in hw_mixedness.py.  Guard it
+# here so the mistake is caught before it costs QPU time instead of after.
+NQ_STAGE=5
+case "$STAGE" in warmcold|bench) NQ_STAGE=9 ;; esac
+if [ -n "$BLOCK" ]; then
+  NQ_BLOCK=$(echo "$BLOCK" | tr ',' '\n' | grep -c .)
+  if [ "$NQ_BLOCK" -ne "$NQ_STAGE" ]; then
+    echo "ERROR: stage '$STAGE' runs on $NQ_STAGE qubits but BLOCK has $NQ_BLOCK entries."
+    echo "       warmcold/bench need best_qubit_blocks(9) = 39,48,49,57,58,66,67,75,85;"
+    echo "       tomo/probe/ladder need best_qubit_blocks(5) = 39,48,49,58,67."
+    exit 2
+  fi
+fi
 # the paper's warm-start angles, not the v1 snapshot the feasibility run used
 export VSCR_ANGLES_FILE=${VSCR_ANGLES_FILE:-$PWD/vscr_angles_paper_dep.npz}
 # vendor aggregate fidelities quoted for the chosen backend, recorded in the

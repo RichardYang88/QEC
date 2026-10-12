@@ -202,7 +202,8 @@ IDEAL_BLOCH = {'0': (0.0, 0.0, 1.0), '1': (0.0, 0.0, -1.0),
                '+i': (0.0, 1.0, 0.0), '-i': (0.0, -1.0, 0.0)}
 BASIS_AXIS = {'X': 0, 'Y': 1, 'Z': 2}   # which Bloch component basis B reads
 
-STAGE_SHOTS = {'probe': 300, 'tomo': 1000, 'bench': 2000, 'ladder': 4000}
+STAGE_SHOTS = {'probe': 300, 'tomo': 1000, 'bench': 2000, 'ladder': 4000,
+               'warmcold': 3000}
 # THE COST MODEL IS NOW MEASURED, NOT HYPOTHESISED.  The account holder confirmed
 # (2026-10) that QPU time is billed in real time, that exhausting it immediately
 # disables the account, and that a job CANNOT overrun its allocation.  So the
@@ -252,7 +253,7 @@ QPU_REFUSAL_MARKERS = ('qpu time', 'insufficient', 'not enough', 'quota')
 # analyze_tomo requires all three bases of a state to report that state's radius,
 # and all four states for M2, so a state-grouped order means no chunk boundary can
 # leave a half-measured state behind.  3 is the finest chunking with that property.
-STAGE_CHUNK = {'probe': 8, 'tomo': 3, 'bench': 4, 'ladder': 4}
+STAGE_CHUNK = {'probe': 8, 'tomo': 3, 'bench': 4, 'ladder': 4, 'warmcold': 2}
 # Order the depth-1 tomography by input state so |0>_L -- the state the paper's
 # headline mixedness number is about, and the one whose Z circuit M3 needs -- is
 # measured first and survives a kill that happens later.
@@ -268,6 +269,29 @@ BUDGET_S = 300.0
 # constant because selftest (k) needs the same number print_plan uses -- a rate
 # that lives in one function cannot be checked against the budget by another.
 MS_PER_SHOT = 14.0
+# BUT 14 ms/shot IS NOT REPRODUCIBLE FROM ANYTHING ON DISK, and the direction of
+# the error matters, so the evidence is recorded rather than buried.  What
+# qcloud_run2.log actually timestamps for the 2026-09 run is:
+#   trial  16 circuits x 2000 shots =  32 000 shots, "all results received in 77s"
+#   full   64 circuits x 4000 shots = 256 000 shots delivered in ~208 s, then
+#          RuntimeError: QPU time is insufficient. Please purchase more.
+# i.e. 288 000 shots in ~285 s of WALL time = ~1.0 ms/shot, 14x faster than this
+# constant.  The two are not necessarily in conflict -- wall time is not billed
+# time, and a vendor counter that includes queueing, compilation and per-circuit
+# setup can legitimately run several times faster than the job's wall clock -- but
+# the 1800 s in the derivation above is an account-dashboard figure that no file in
+# this repository records, so the multiplier between wall and billed time is
+# UNVERIFIED and could be anywhere from 1x to 14x.
+# Consequence, and why the plan is still safe: MS_PER_SHOT is the pessimistic end,
+# so every cost printed by --mode plan is an UPPER bound.  If the true billed rate
+# is nearer 1-6 ms/shot then the ~300 s allocation buys 47 000-300 000 shots
+# rather than 21 400, and the warmcold stage would cost 18-108 s instead of 252 s.
+# Nothing here should be "corrected" by raising a stage's shot count on the
+# strength of this note alone: the rate is unverified, a job cannot be extended
+# once submitted, and the cheapest way to settle it is to read the account's own
+# remaining-QPU-time figure before and after the first chunk.  Until then the
+# conservative constant stands and the margin it leaves is the point.
+MS_PER_SHOT_WALL_OBSERVED_2026_09 = 1.0
 
 # --- measured calibration of the block the vendor's own optimiser picks ---------
 # Recorded from the FREE preflight of 2026-10-11T01:00:25Z on WK_C180_2 -- the
@@ -317,11 +341,13 @@ BLOCK_SELECTION_RULE = ('vendor best_qubit_blocks(nq); never ranked by the '
 # function defaults to, so a single-seed run and a scan share their first draw
 SEED_BANK = (20260921, 11, 202, 3003, 40004, 777777, 5, 606, 8080, 91,
              1234, 24680, 13579, 99991, 424242, 8888)
-STAGE_NQ = {'probe': NQ5, 'tomo': NQ5, 'bench': q.NQ, 'ladder': NQ5}
+STAGE_NQ = {'probe': NQ5, 'tomo': NQ5, 'bench': q.NQ, 'ladder': NQ5,
+            'warmcold': q.NQ}
 STAGE_RAW = {'probe': 'qcloud_raw_probe.json',
              'tomo': 'qcloud_raw_mixedness.json',
              'bench': 'qcloud_raw_bench.json',
-             'ladder': 'qcloud_raw_ladder.json'}
+             'ladder': 'qcloud_raw_ladder.json',
+             'warmcold': 'qcloud_raw_warmcold.json'}
 # The ladder stage re-runs the DEPTH_SCAN grid at deeper rounds, so the measured
 # radius becomes a curve in depth rather than two points.  rounds=4 is 293
 # instructions / 144 CNOT and rounds=8 is 581 / 288 (both verified constructible);
@@ -333,12 +359,97 @@ LADDER_ROUNDS = (4,)
 # 5-qubit stages and the 9-qubit bench necessarily use different blocks (a
 # submission has one block), and which two were used is recorded in the artifact
 # rather than assumed to be comparable.
-STAGE_JOB = {'probe': 1, 'tomo': 2, 'bench': 3, 'ladder': 4}
+STAGE_JOB = {'probe': 1, 'tomo': 2, 'bench': 3, 'ladder': 4, 'warmcold': 5}
 # the bench stage reuses the frame the WK_C180 feasibility run used, so the new
 # full-branch point and the old 4-circuit point are the same physical situation
 BENCH_FRAME = 'IIIII'
 BENCH_S_INJECTED = 12
 BENCH_FRAME_INJECTED = 'IIXII'
+
+# ---------------------------------------------------------------------
+# The warm-vs-cold recovery A/B -- the only hardware claim this budget can buy
+# ---------------------------------------------------------------------
+# WHY THIS STAGE EXISTS.  The tomo stage's headline is r<1, and selftest (k)
+# proved that on the vendor's own best block the measured calibration predicts
+# r = 0.9478, i.e. r<1 is a 0.60 sigma statement at 1000 shots and needs ~5.2 h
+# of QPU for 5 sigma.  That claim is not purchasable at any plausible budget, so
+# spending the allocation on it would buy a null result.  This stage spends the
+# same allocation on a claim that IS purchasable: the paper's variational recovery
+# is trained twice -- warm-started from the analytic decoder (the angles the
+# manuscript reports) and cold-started from zero -- and the two angle sets differ
+# by a LARGE, exactly computable amount on exactly one of the sixteen syndrome
+# branches.  Measuring that difference on the device tests the paper's central
+# methodological claim rather than the device's purity.
+#
+# THE EFFECT IS LOCALISED AND PRE-COMPUTED, not searched for.  Enumerating all 16
+# branches at p=0 with the exact 512-dim state-vector simulator:
+#     branch s=5  (frame IZIII, psi=+):  warm F=1.000000000  cold F=0.499999625
+#                                        gap = +0.5000003748
+#     every other branch:                |gap| < 1e-5
+# So s=5 is the ONLY branch carrying a warm/cold difference, and s=12 (frame
+# IIXII, gap +0.000003) is the matched null control that must come out at zero.
+# Both were fixed before any hardware data was taken.
+#
+# psi='+' IS LOAD-BEARING, NOT A FREE CHOICE.  The same enumeration over input
+# states gives gap(s=5) = +0.500000 for psi in {+, -, +i, -i} and +0.000001 for
+# psi in {0, 1}: the cold recovery's failure on branch 5 is a LOGICAL Z, which is
+# invisible in the Z basis and maximal in the X/Y bases.  Running this A/B at
+# psi='0' would return a null result by construction and look like a failed
+# experiment.  selftest (l) asserts the state dependence so it cannot be silently
+# edited into a Z-basis run.
+#
+# p=0 (NO INJECTED STOCHASTIC ERROR).  The frame is the deterministic one whose
+# stabilizer syndrome is s, so every shot is the branch of interest and there is
+# nothing to post-select on.  That is not a convenience: see WARMCOLD_PRIMARY.
+WARMCOLD_PSI = '+'
+WARMCOLD_SIGNAL_S, WARMCOLD_SIGNAL_FRAME = 5, 'IZIII'
+WARMCOLD_NULL_S, WARMCOLD_NULL_FRAME = 12, 'IIXII'
+WARMCOLD_GAP_IDEAL_SIGNAL = 0.5000003748512316
+WARMCOLD_GAP_IDEAL_NULL = 0.000003
+WARMCOLD_GAP_TOL = 1e-3          # |gap| below this counts as "no warm/cold effect"
+# The two angle sets are the ones ALREADY ON DISK, so nothing is retrained and
+# the hardware run cannot drift from the manuscript: 'warm' is exactly the file
+# the paper's figures and numbers are built from.
+WARMCOLD_ANGLES = {'warm': 'vscr_angles_paper_dep.npz',
+                   'cold': 'vscr_angles_dep.npz'}
+# THE PRIMARY ESTIMATOR IS UNCONDITIONED P(data=00000), NOT POST-SELECTED F_s.
+# This is a deliberate, pre-registered change of estimator and the reason is
+# measured rather than aesthetic.  The 2026-09 WK_C180 run (raw_trial_batch.json,
+# 16 branches x ~1985 shots) has an ancilla marginal that is very nearly uniform:
+# Shannon entropy 3.67-3.97 bits out of a maximum of 4.0 under the layout that run
+# itself recorded, modal syndrome share 0.10-0.38 against a uniform 0.0625, and on
+# the 4-circuit feasibility set the
+# mid-circuit variant returned P(expected key) = 0.000 with n_sel = 0 out of 369
+# and a total-variation distance to ideal of 1.0000.  Conditioning on a bit that
+# carries no information about the injected frame therefore discards ~94% of the
+# shots to buy nothing, and inflates the error bar by ~4x.  The unconditioned
+# data-register probability keeps every shot, and at p=0 it IS the branch
+# quantity: with a deterministic frame there is no frame average to undo.
+# Both estimators are reported; this one is primary.  selftest (l) RE-DERIVES the
+# entropy and the survival from raw_trial_batch.json and fails if the marginal ever
+# stops being near-uniform -- that is the only condition under which the
+# post-selected F_s would become the better primary estimator again.
+WARMCOLD_PRIMARY = 'P_data_zero_unconditioned'
+WARMCOLD_SECONDARY = 'F_s_postselected'
+# MEASURED DATA-REGISTER SURVIVAL, from that same 2026-09 run: P(data=00000)
+# averaged over its 16 branches is 0.1219 (min 0.0734, max 0.1727) against a
+# uniform-noise floor of 1/32 = 0.0312.  A device that randomises the data
+# register cannot transmit which recovery ran, so the OBSERVABLE gap is the ideal
+# gap multiplied by this survival:
+#     warm P(00000) ~ w + (1-w)/32      cold ~ w/2 + (1-w)/32
+#     observable gap = w * 0.500
+# At w = 0.122 that is 0.061, and with 3000 shots/circuit sigma_pair = 0.0084,
+# i.e. ~7.3 sigma.  At w = 0.06 it is still ~4.4 sigma.  The experiment is
+# therefore robust across the whole observed range of w, which is the property
+# that makes it worth the allocation.
+WARMCOLD_W_MEASURED_2026_09 = 0.1219
+WARMCOLD_W_FLOOR_UNIFORM = 1.0 / 32
+WARMCOLD_W_PESSIMISTIC = 0.06
+# 4 science circuits + 2 nine-qubit readout-calibration circuits, all at
+# STAGE_SHOTS['warmcold'] = 3000 -> 18 000 shots -> 252 s at the confirmed
+# 14 ms/shot, leaving 48 s of margin against a budget that cannot overrun.
+WARMCOLD_N_SCIENCE = 4
+WARMCOLD_N_CAL = 2
 OUT_JSON = os.path.join(ROOT, 'hw_mixedness.json')
 LAYOUT_FLOOR = 1e-9        # floor on ideal probabilities in the layout likelihood
 
@@ -425,7 +536,149 @@ def build_bench(phi, states=('0', '+')):
     return out, meta
 
 
-def stage_circuits(stage, phi=None):
+def build_cal9(kind):
+    """Readout-assignment circuits on ALL NINE qubits: 'zero' = |0^9>,
+    'one' = X^(x9)|0^9>.
+
+    build_cal is five qubits wide, and the warmcold job runs on a nine-qubit
+    block.  Whether a five-qubit circuit submitted inside a nine-qubit block
+    comes back five or nine bits wide is NOT verifiable offline (see the
+    STAGE_CHUNK comment), and the whole point of these two circuits is to be
+    interpretable, so they are built at the block's own width.  They cost 9 and
+    18 instructions against the science circuits' 206, and they buy the block's
+    per-qubit readout error measured on the day, which is what decomposes the
+    observed data-register survival into a readout part and a circuit part."""
+    gates = [('X', i) for i in range(q.NQ)] if kind == 'one' else []
+    return gates + [('MEAS', i, i) for i in range(q.NQ)]
+
+
+def load_angle_set(name):
+    """One of WARMCOLD_ANGLES' two committed files, loaded from disk.
+
+    Refuses to fall back to training: the warm arm is the exact angle set the
+    manuscript's figures and numbers are built from, so retraining it would make
+    the hardware run a DIFFERENT experiment from the one the paper reports, and
+    that substitution must be impossible to do silently."""
+    path = os.path.join(ROOT, WARMCOLD_ANGLES[name])
+    if not os.path.exists(path):
+        raise SystemExit(
+            'ERROR: the %s angle file %s is missing.  The warmcold A/B compares '
+            'two EXISTING trainings and will not retrain, because a retrained '
+            'warm arm would no longer be the recovery the manuscript reports.'
+            % (name, path))
+    return np.load(path)['phi']
+
+
+def load_warmcold_angles():
+    """(warm, cold) angle arrays, both shape (16, 60)."""
+    return load_angle_set('warm'), load_angle_set('cold')
+
+
+def warmcold_frame_of(s):
+    """The Pauli frame whose stabilizer syndrome is branch `s`.
+
+    Taken from the same SYND_TABLE the training, the paper's figures and
+    qcloud_vscr_new's own smoke test use, reached through q.m (ssvr_qec) rather
+    than restated here.  Restating a 16-entry map in a second place is how a
+    hardware branch silently stops being the branch the simulation predicted, and
+    that would invalidate the whole A/B without anything looking wrong."""
+    return q.m.SYND_TABLE[q.m.SYND_BITS[s]]
+
+
+def warmcold_s_of(frame):
+    """The inverse of warmcold_frame_of (the map is a bijection on 16 branches)."""
+    for s in range(16):
+        if warmcold_frame_of(s) == frame:
+            return s
+    raise KeyError('no syndrome branch corresponds to frame %r' % frame)
+
+
+def build_warmcold(phi_warm, phi_cold):
+    """The warm-vs-cold recovery A/B: one signal branch, one null branch, two
+    angle sets, plus the block's own nine-qubit readout calibration.
+
+    ORDER IS THE SALVAGE PLAN.  STAGE_CHUNK['warmcold'] = 2 puts the submission
+    boundaries after circuits 2 and 4, so chunk 1 is the SIGNAL PAIR and is a
+    complete, analysable headline on its own; chunk 2 adds the null control;
+    chunk 3 adds calibration.  That is deliberately the opposite of the tomo
+    stage's cal-first order: the tomo estimators cannot be read at all without an
+    assignment matrix, whereas this stage's primary estimator is a raw probability
+    that needs no matrix, so the calibration here is a decomposition bonus rather
+    than a prerequisite and the decisive pair goes first.
+
+    CAL-FIRST WAS REJECTED, THEN THE GROUNDS FOR REJECTING IT WERE RETRACTED.
+    The obvious worry is that a broken readout channel should be caught BEFORE
+    paying for the four 206-instruction science circuits.  Two measurements from
+    the 2026-10-12 run were originally read as closing that idea:
+
+      * The vendor's own ChipInfo cannot screen.  This one STANDS.  It reported
+        every one of the nine block qubits at readout_fidelity 0.90-0.97,
+        including physical 85 at 0.9612, while the day-of cal9 measured one
+        channel at 0.4218 with contrast -0.156; ChipInfo's worst qubit (physical
+        66 at 0.9014) measured PERFECT at 1.0000.  ChipInfo and day-of readout
+        are essentially uncorrelated on this block, so there is no free pre-spend
+        gate and the screening must cost something.
+      * cal9 cannot screen the science circuits either, because its channel labels
+        DO NOT TRANSFER.  This one WAS WRONG and is retracted.  The apparent
+        violations (2 of 36 comparisons outside cal9's own hard P(read 0) bound,
+        read as evidence that the vendor re-routes logical qubits per circuit)
+        were an artefact of comparing cal9's channel against the wrong column of
+        the science counts: the position lookup used the CLASSICAL BIT of a logical
+        qubit as its KEY POSITION, putting logical q3 at 7 instead of 3.  On the
+        corrected lookup all 36 comparisons lie inside their bounds -- logical q3
+        allows P(read 0) in [0.432, 0.589] and the four science circuits read
+        0.459, 0.504, 0.523, 0.523.
+
+    So cal9 DOES characterise the block the science circuits ran on, and CAL-FIRST
+    IS VIABLE after all: two circuits of 9 and 18 instructions, about two seconds
+    of machine time, would have flagged the dead data channel before the 824
+    instructions of science were paid for.  The chunk order above is left as it
+    stands only because changing it now would make the 2026-10-12 artifact
+    unreproducible; a re-run should put cal9 first and gate on
+    `screen.block_usable`.
+
+    The earlier claim that the warm-minus-cold difference is "common-mode in
+    readout error" and so largely cancels was also TOO STRONG, and the corrected
+    analysis shows precisely how.  Common-mode cancellation needs every channel to
+    transmit with POSITIVE contrast; a channel with 1-e01-e10 < 0 contributes to
+    the difference with its sign flipped, so one dead channel can manufacture a
+    gap of the size and shape a real effect would have.  On this run that is not
+    hypothetical: the five-channel null reads +2.84 sigma and the four-channel
+    version that drops the dead channel reads -0.10 sigma.  An earlier version of
+    this note made the same point from the warm arm returning P(data=00000) below
+    the 1/32 uniform baseline; that argument is WITHDRAWN, because the number it
+    quoted (0.0091) came from the complement bit window.  On the correct window
+    the warm arm reads 0.0407 (signal) and 0.0305 (null), both at the baseline
+    within error.  Readout is a confounder to be measured, not a factor to be
+    assumed away.
+
+    Every circuit is late-measure.  On the 2026-09 feasibility set the mid-circuit
+    variant of the same branch returned P(expected key) = 0.000 and n_sel = 0 out
+    of 369, while the late variant of that branch returned 0.119 and F_s = 0.80;
+    mid-circuit measurement is not usable on this platform and is not risked."""
+    out, meta = [], []
+    # The frame and the branch index are the SAME fact stated twice, so they are
+    # checked against the syndrome table rather than trusted: a circuit built for
+    # frame F but post-selected on the wrong s measures nothing.
+    for _s, _f in ((WARMCOLD_SIGNAL_S, WARMCOLD_SIGNAL_FRAME),
+                   (WARMCOLD_NULL_S, WARMCOLD_NULL_FRAME)):
+        assert warmcold_frame_of(_s) == _f, (_s, _f, warmcold_frame_of(_s))
+    for s, frame, role in ((WARMCOLD_SIGNAL_S, WARMCOLD_SIGNAL_FRAME, 'signal'),
+                           (WARMCOLD_NULL_S, WARMCOLD_NULL_FRAME, 'null')):
+        for arm in ('warm', 'cold'):
+            phi = phi_warm if arm == 'warm' else phi_cold
+            out.append(q.build_branch_circuit(q.ENC5, WARMCOLD_PSI, frame, s, phi,
+                                              late_measure=True))
+            meta.append(dict(kind='warmcold', role=role, arm=arm,
+                             psi=WARMCOLD_PSI, p=0.0, frame=frame, s=s,
+                             measure='late', angles=WARMCOLD_ANGLES[arm]))
+    for kind in ('zero', 'one'):
+        out.append(build_cal9(kind))
+        meta.append(dict(kind='cal9', cal=kind, rep=0))
+    return out, meta
+
+
+def stage_circuits(stage, phi=None, phi_cold=None):
     """(gate_lists, meta) for one cloud job.  meta entries are plain dicts so they
     survive the JSON dump and can be rebuilt identically in --mode analyze."""
     if stage == 'probe':
@@ -489,6 +742,12 @@ def stage_circuits(stage, phi=None):
         g1, m1 = build_bench_ab(phi)
         g2, m2 = build_bench(phi)
         return g1 + g2, m1 + m2
+    if stage == 'warmcold':
+        assert phi is not None and phi_cold is not None, (
+            'the warmcold stage needs BOTH angle sets: the warm arm is the file '
+            'the manuscript reports (%s) and the cold arm is the from-zero '
+            'control (%s)' % (WARMCOLD_ANGLES['warm'], WARMCOLD_ANGLES['cold']))
+        return build_warmcold(phi, phi_cold)
     raise ValueError(stage)
 
 
@@ -1239,11 +1498,13 @@ def selftests(verbose=True):
     say('(g) one-parameter fit of p_instr from the code-space weight recovers a '
         'planted rate to %.2e' % worst_fit)
 
-    # (h) the four cloud stages have the size and architecture the budget assumes
-    sizes = {s: len(stage_circuits(s, phi=np.zeros((16, 60)))[0])
-             for s in ('probe', 'tomo', 'bench', 'ladder')}
+    # (h) the five cloud stages have the size and architecture the budget assumes
+    _z = np.zeros((16, 60))
+    sizes = {s: len(stage_circuits(s, phi=_z, phi_cold=_z)[0])
+             for s in ('probe', 'tomo', 'bench', 'ladder', 'warmcold')}
     assert sizes == {'probe': 8, 'tomo': 19, 'bench': 34,
-                     'ladder': 4 * len(LADDER_ROUNDS)}, sizes
+                     'ladder': 4 * len(LADDER_ROUNDS),
+                     'warmcold': WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL}, sizes
     res['stage_sizes'] = sizes
     res['n_circuits_total'] = sum(sizes.values())
     res['shots_total'] = sum(sizes[s] * STAGE_SHOTS[s] for s in sizes)
@@ -1379,6 +1640,421 @@ def selftests(verbose=True):
         % (VENDOR_BLOCK_WK_C180_2, MEASURED_F2Q, QUOTED_F2Q, r_meas, r_quot,
            z_meas, z_quot, TRAP_BLOCK, z_trap, r_trap, BLOCK_SELECTION_RULE,
            wall5, wall5 / BUDGET_S))
+    # (l) the warm-vs-cold recovery A/B.  This stage spends the ENTIRE remaining
+    #     allocation on one claim, so every part of that claim's pre-registration
+    #     is locked here instead of left in prose: which branch, which frame,
+    #     which input state, how large the effect is, what the matched null is,
+    #     what the job costs, and why the primary estimator is unconditioned
+    #     rather than post-selected.  Everything is recomputed from the builders
+    #     and the exact 512-dim simulator, so none of it can drift from the code
+    #     it describes -- and none of it was chosen after seeing hardware data.
+    wc_warm, wc_cold = load_warmcold_angles()
+    assert wc_warm.shape == (16, 60), wc_warm.shape
+    assert wc_cold.shape == (16, 60), wc_cold.shape
+    assert not np.allclose(wc_warm, wc_cold), 'the two arms must differ'
+    # the branch index and the frame are the same fact stated twice, so they are
+    # checked against the syndrome table in both directions
+    assert warmcold_frame_of(WARMCOLD_SIGNAL_S) == WARMCOLD_SIGNAL_FRAME
+    assert warmcold_frame_of(WARMCOLD_NULL_S) == WARMCOLD_NULL_FRAME
+    assert warmcold_s_of(WARMCOLD_SIGNAL_FRAME) == WARMCOLD_SIGNAL_S
+    assert warmcold_s_of(WARMCOLD_NULL_FRAME) == WARMCOLD_NULL_S
+
+    def _wc_gap(psi, s, aw=wc_warm, ac=wc_cold):
+        fr = warmcold_frame_of(s)
+        return (ideal_data_zero_prob(psi, fr, s, aw)
+                - ideal_data_zero_prob(psi, fr, s, ac))
+
+    gap_sig = _wc_gap(WARMCOLD_PSI, WARMCOLD_SIGNAL_S)
+    gap_null = _wc_gap(WARMCOLD_PSI, WARMCOLD_NULL_S)
+    assert abs(gap_sig - WARMCOLD_GAP_IDEAL_SIGNAL) < 1e-9, gap_sig
+    assert abs(gap_null) < WARMCOLD_GAP_TOL, gap_null
+    # s=5 is the ONLY one of the sixteen branches carrying the effect, so the
+    # branch was not picked after seeing which one worked
+    wc_big = [s for s in range(16)
+              if abs(_wc_gap(WARMCOLD_PSI, s)) > WARMCOLD_GAP_TOL]
+    assert wc_big == [WARMCOLD_SIGNAL_S], wc_big
+    # psi='+' IS LOAD-BEARING: the cold arm's failure on branch 5 is a logical Z,
+    # which is invisible in the Z basis and maximal in the X/Y bases.  Re-running
+    # this A/B at psi='0' would return a null BY CONSTRUCTION and look like a
+    # failed experiment, so the state dependence is asserted in both directions.
+    wc_z_basis = max(abs(_wc_gap(p, WARMCOLD_SIGNAL_S)) for p in ('0', '1'))
+    wc_xy_basis = min(abs(_wc_gap(p, WARMCOLD_SIGNAL_S))
+                      for p in ('+', '-', '+i', '-i'))
+    assert wc_z_basis < WARMCOLD_GAP_TOL, wc_z_basis
+    assert wc_xy_basis > 0.49, wc_xy_basis
+    # at p=0 the syndrome is deterministic, so the unconditioned primary
+    # estimator and the post-selected secondary one have the SAME ideal value --
+    # which is what makes reporting both a consistency check rather than a choice
+    wc_p_s = []
+    for _s in (WARMCOLD_SIGNAL_S, WARMCOLD_NULL_S):
+        _fr = warmcold_frame_of(_s)
+        for _arm in (wc_warm, wc_cold):
+            _g = q.build_branch_circuit(q.ENC5, WARMCOLD_PSI, _fr, _s, _arm,
+                                        late_measure=True)
+            _pv, _ps = q.branch_amplitudes(_g, _s)
+            wc_p_s.append(_ps)
+            assert abs(float(abs(_pv[_s]) ** 2)
+                       - ideal_data_zero_prob(WARMCOLD_PSI, _fr, _s, _arm)) < 1e-9
+    assert min(wc_p_s) > 1 - 1e-9, wc_p_s
+
+    # the job must FIT the allocation with margin: a job that cannot overrun is
+    # cut off, and a cut-off job returns nothing at all
+    wc_g, wc_m = stage_circuits('warmcold', wc_warm, wc_cold)
+    n_wc = WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL
+    assert len(wc_g) == len(wc_m) == n_wc, (len(wc_g), len(wc_m), n_wc)
+    wc_shots = n_wc * STAGE_SHOTS['warmcold']
+    wc_cost = wc_shots * MS_PER_SHOT / 1000.0
+    assert wc_cost <= BUDGET_S, (wc_cost, BUDGET_S)
+    assert BUDGET_S - wc_cost >= 30.0, ('no margin against a cut-off',
+                                        BUDGET_S - wc_cost)
+    # chunk=2 puts the SIGNAL PAIR first and complete, so a cut-off after chunk 1
+    # still yields the headline; the null and the calibration are the bonus.  This
+    # is deliberately cal-LAST, the opposite of tomo's cal-first order, because
+    # this stage's primary estimator is a raw probability whose warm-minus-cold
+    # difference is common-mode in readout error and needs no assignment matrix.
+    assert STAGE_CHUNK['warmcold'] == 2, STAGE_CHUNK['warmcold']
+    _ck = STAGE_CHUNK['warmcold']
+    wc_bounds = [min(len(wc_m), i * _ck)
+                 for i in range(1, -(-len(wc_m) // _ck) + 1)]
+    assert wc_bounds == [2, 4, 6], wc_bounds
+    assert [m['kind'] for m in wc_m] == ['warmcold'] * 4 + ['cal9'] * 2, wc_m
+    assert {(m['role'], m['arm']) for m in wc_m[:2]} == {
+        ('signal', 'warm'), ('signal', 'cold')}, wc_m[:2]
+    assert {(m['role'], m['arm']) for m in wc_m[2:4]} == {
+        ('null', 'warm'), ('null', 'cold')}, wc_m[2:4]
+    # every science circuit is late-measure and nine qubits wide: the mid-circuit
+    # variant of this same branch returned n_sel = 0 out of 369 in 2026-09
+    for _g, _m in zip(wc_g, wc_m):
+        if _m['kind'] != 'warmcold':
+            assert len(_g) in (q.NQ, 2 * q.NQ), _g
+            continue
+        assert _m['measure'] == 'late', _m
+        assert _m['p'] == 0.0 and _m['psi'] == WARMCOLD_PSI, _m
+        assert sum(1 for x in _g if x[0] == 'MEAS') == q.NQ, _g
+        assert max(x[1] for x in _g) < q.NQ, _g
+    # power: at the data survival measured in 2026-09 the effect is comfortably
+    # resolvable, and it is still resolvable at HALF that survival
+    wc_pw = warmcold_power(shots=STAGE_SHOTS['warmcold'])
+    wc_pp = warmcold_power(w=WARMCOLD_W_PESSIMISTIC,
+                           shots=STAGE_SHOTS['warmcold'])
+    assert wc_pw['sigma_z'] >= 5.0, wc_pw
+    assert wc_pp['sigma_z'] >= 3.0, wc_pp
+    assert abs(wc_pw['observable_gap']
+               - WARMCOLD_W_MEASURED_2026_09 * WARMCOLD_GAP_IDEAL_SIGNAL) < 1e-12
+
+    # THE ESTIMATOR CHANGE IS JUSTIFIED BY DATA ALREADY ON DISK, not by taste, so
+    # the justification is re-derived here whenever that file is present.  If the
+    # ancilla marginal ever stops being near-uniform this assert fires, and the
+    # post-selected F_s becomes the right primary estimator again.
+    wc_data = None
+    _raw = os.path.join(ROOT, 'raw_trial_batch.json')
+    if os.path.exists(_raw):
+        with open(_raw) as f:
+            _r16 = json.load(f)
+        _H, _ws = [], []
+        for _r in _r16:
+            _n = sum(_r.values())
+            _pat = {}
+            for _k, _v in _r.items():
+                _a = _k[::-1][5:9]
+                _pat[_a] = _pat.get(_a, 0) + _v
+            _p = np.array(sorted(_pat.values(), reverse=True), float) / _n
+            _H.append(float(-(_p * np.log2(_p)).sum()))
+            _ws.append(sum(v for k, v in _r.items() if k[4:9] == '00000') / _n)
+        wc_data = dict(n_circuits=len(_r16),
+                       ancilla_entropy_bits_min=min(_H),
+                       ancilla_entropy_bits_max=max(_H),
+                       ancilla_entropy_uniform_bits=4.0,
+                       data_survival_mean=float(np.mean(_ws)),
+                       data_survival_min=min(_ws),
+                       data_survival_max=max(_ws))
+        assert min(_H) > 3.0, (
+            'the 2026-09 ancilla marginal is NOT near-uniform, so the case for '
+            'the unconditioned primary estimator is gone and the post-selected '
+            'F_s should be primary again', min(_H))
+        assert abs(np.mean(_ws) - WARMCOLD_W_MEASURED_2026_09) < 5e-3, _ws
+        assert np.mean(_ws) > 2 * WARMCOLD_W_FLOOR_UNIFORM, _ws
+    res['warmcold'] = dict(
+        psi=WARMCOLD_PSI, signal_s=WARMCOLD_SIGNAL_S,
+        signal_frame=WARMCOLD_SIGNAL_FRAME, null_s=WARMCOLD_NULL_S,
+        null_frame=WARMCOLD_NULL_FRAME, gap_ideal_signal=gap_sig,
+        gap_ideal_null=gap_null, branches_with_effect=wc_big,
+        z_basis_gap=wc_z_basis, xy_basis_gap_min=wc_xy_basis,
+        angles=WARMCOLD_ANGLES, n_circuits=n_wc,
+        shots_per_circuit=STAGE_SHOTS['warmcold'], shots_total=wc_shots,
+        cost_s=wc_cost, margin_s=BUDGET_S - wc_cost,
+        chunk=STAGE_CHUNK['warmcold'], chunk_boundaries=wc_bounds,
+        primary_estimator=WARMCOLD_PRIMARY,
+        secondary_estimator=WARMCOLD_SECONDARY,
+        power_at_measured_w=wc_pw, power_at_pessimistic_w=wc_pp,
+        measured_2026_09=wc_data)
+    say('(l) warm-vs-cold A/B: psi=%s, branch s=%d (%s) is the ONLY one of 16 '
+        'carrying an effect, ideal gap %+.6f; s=%d (%s) is the matched null at '
+        '%+.6f.  The failure is a logical Z, so the effect vanishes in the Z '
+        'basis (%.2e) and psi=%s is load-bearing.  %d circuits x %d shots = %d '
+        'shots = %.0f s of the %.0f s budget (%.0f s margin), chunk=%d so the '
+        'signal pair alone survives a cut-off.  Primary estimator %s, because '
+        'the 2026-09 ancilla marginal is near-uniform (H=%.2f-%.2f of 4.00 bits) '
+        'and its data survival %.4f beat the %.4f floor by only ~4x: the effect '
+        'is worth %.1f sigma, or %.1f sigma at half that survival.'
+        % (WARMCOLD_PSI, WARMCOLD_SIGNAL_S, WARMCOLD_SIGNAL_FRAME, gap_sig,
+           WARMCOLD_NULL_S, WARMCOLD_NULL_FRAME, gap_null, wc_z_basis,
+           WARMCOLD_PSI, n_wc, STAGE_SHOTS['warmcold'], wc_shots, wc_cost,
+           BUDGET_S, BUDGET_S - wc_cost, STAGE_CHUNK['warmcold'],
+           WARMCOLD_PRIMARY,
+           wc_data['ancilla_entropy_bits_min'] if wc_data else float('nan'),
+           wc_data['ancilla_entropy_bits_max'] if wc_data else float('nan'),
+           wc_data['data_survival_mean'] if wc_data else float('nan'),
+           WARMCOLD_W_FLOOR_UNIFORM, wc_pw['sigma_z'], wc_pp['sigma_z']))
+
+    # (m) the layout must be DERIVED from the circuit plus the platform's measured
+    # key order, never inferred from the outcomes it is meant to explain; and a
+    # simulator cross-check must normalise the simulator's key order first.  Three
+    # traps fired on the 2026-10-12 run:
+    #   * detect_layout reported the COMPLEMENT of the correct window (anc=[0,4]
+    #     rev=True instead of anc=[5,9] rev=True) by 62 data-hits to 2, because its
+    #     criterion is scored on the very outcomes it selects;
+    #   * the noiseless cross-check then "confirmed" that wrong window as unique --
+    #     CPUQVM's native key order is the global reverse of the vendor's, so the
+    #     check validated the simulator's convention against itself.  cpuqvm_sample
+    #     now converts to the vendor order, which is what makes this test mean
+    #     anything, and it is asserted below by requiring the derived window to be
+    #     the UNIQUE one that verifies;
+    #   * the cal9 breakage was first attributed to 'ancilla q8' because the
+    #     science circuit's MEAS map was applied to cal9's keys.  cal9 uses
+    #     MEAS(i,i); the science circuit uses q5->c0..q8->c3, q0->c4..q4->c8.
+    _sci = [(g, m) for g, m in zip(wc_g, wc_m) if m['kind'] == 'warmcold']
+    _sg = [g for g, _ in _sci]
+    _sm = [m for _, m in _sci]
+    _anc, _rev = layout_from_meas(_sg[0])
+    assert (_anc, _rev) == (slice(q.NQ - q.NQ_ANC, q.NQ), True), (_anc, _rev)
+    # all four science circuits share one MEAS layer, so they share one layout
+    for _g in _sg[1:]:
+        assert layout_from_meas(_g) == (_anc, _rev)
+    # cbit_of_position returns the LOGICAL QUBIT at an analysed position, and
+    # under the vendor key order (raw position p <-> qubit NQ-1-p) reversing the
+    # key makes that correspondence the identity.  Three properties are locked:
+    # bijectivity for each rev, involution in pos, and agreement between the two
+    # revs (reversing a key moves position p to NQ-1-p).  The logical-qubit
+    # lookup in _analyze_cal9 and the inverse lookup in _warmcold_healthy_subset
+    # both rely on them, and getting the direction backwards is exactly the bug
+    # that mislabelled the 2026-10-12 broken channel as an ancilla.
+    for _r in (True, False):
+        _cb = [cbit_of_position(_p, _r) for _p in range(q.NQ)]
+        assert sorted(_cb) == list(range(q.NQ)), (_r, _cb)
+        for _p in range(q.NQ):
+            assert cbit_of_position(cbit_of_position(_p, _r), _r) == _p, (_p, _r)
+            assert cbit_of_position(_p, False) == \
+                cbit_of_position(q.NQ - 1 - _p, True), _p
+    # analysed position j IS logical qubit j under rev=True
+    assert [cbit_of_position(_p, True) for _p in range(q.NQ)] == \
+        list(range(q.NQ))
+    _c9g = build_cal9('zero')
+    assert [(t[1], t[2]) for t in _c9g if t[0] == 'MEAS'] == \
+        [(i, i) for i in range(q.NQ)], 'cal9 must keep the identity MEAS map'
+    _scimeas = [(t[1], t[2]) for t in _sg[0] if t[0] == 'MEAS']
+    assert _scimeas == [(5, 0), (6, 1), (7, 2), (8, 3),
+                        (0, 4), (1, 5), (2, 6), (3, 7), (4, 8)], _scimeas
+    # the noiseless simulator must verify the derived layout, and it must be the
+    # UNIQUE candidate that verifies -- a check that passes for a wrong window too
+    # would not be a check
+    _mm = [dict(m, phi=(wc_warm if m['arm'] == 'warm' else wc_cold))
+           for m in _sm]
+    _cands = [(slice(a, a + q.NQ_ANC), r)
+              for a in (0, q.NQ_DATA) for r in (True, False)]
+    _verified = []
+    for _a, _r2 in _cands:
+        _w = verify_layout_noiseless(_sg, _mm, shots=600, anc=_a, rev=_r2)
+        if _w['layout_verified']:
+            _verified.append((_a, _r2))
+        if (_a, _r2) == (_anc, _rev):
+            assert _w['min_acceptance_rate'] >= 1.0, _w
+            assert _w['max_dev_in_sigma'] < 5.0, _w
+            res['layout_noiseless'] = _w
+    assert _verified == [(_anc, _rev)], (
+        'the noiseless cross-check must single out exactly the MEAS-derived '
+        'layout; it accepted %r of %r' % (_verified, _cands))
+
+    # (m2) cal9 role labelling, on synthetic counts so it needs no QPU time.  A
+    # broken channel must be attributed to the register the SCIENCE circuit reads
+    # it in, not to the window its position happens to fall in.
+    def _synth_cal9(bad_logical=None, frac=0.6, n=1000):
+        """cal9 counts in which LOGICAL qubit `bad_logical` reports the wrong bit
+        `frac` of the time.  frac=0.6 gives e01=e10=0.6 and contrast 1-1.2 = -0.2,
+        broken with the same sign as the real run's -0.156.
+
+        The bit is flipped at the RAW key position, because _analyze_cal9 reverses
+        keys when rev=True: cal9's MEAS map is the identity, so analysed position
+        equals the logical index and raw position equals NQ-1-logical.  Flipping
+        the analysed position directly would silently break a different qubit."""
+        zk, ok = '0' * q.NQ, '1' * q.NQ
+        zero, one = {zk: n}, {ok: n}
+        if bad_logical is not None:
+            raw = q.NQ - 1 - bad_logical
+            k = int(round(n * frac))
+            zero = {zk: n - k, zk[:raw] + '1' + zk[raw + 1:]: k}
+            one = {ok: n - k, ok[:raw] + '0' + ok[raw + 1:]: k}
+        return [(zero, dict(kind='cal9', cal='zero', rep=0)),
+                (one, dict(kind='cal9', cal='one', rep=0))]
+
+    _clean = _analyze_cal9(_synth_cal9(), _anc, _rev)
+    assert _clean['n_broken'] == 0, _clean['broken_qubits']
+    assert _clean['screen']['primary_estimator_valid'] is True
+    assert _clean['screen']['secondary_estimator_valid'] is True
+    assert _clean['all_zero_key_fraction_data'] == 1.0
+    assert _clean['all_zero_key_fraction_ancilla'] == 1.0
+    assert _clean['broken_contrast_threshold'] == CAL9_BROKEN_CONTRAST == 0.5
+    # cal9 key position p carries logical q_p (identity MEAS map under rev=True),
+    # and logical q0..q4 ARE the data register -- so cal9's data positions are
+    # 0..4 and its ancilla positions 5..8.  Under the vendor key order the science
+    # circuit's windows are data=[0:5] and ancilla=[5:9], i.e. the SAME positions:
+    # analysed position j is logical qubit j for both circuits.  An earlier comment
+    # called them mirrored, which was an artefact of the wrong key-order convention
+    # that also put the science data window at [4:9].
+    assert _clean['cal9_data_positions'] == [0, 1, 2, 3, 4], _clean
+    assert _clean['cal9_anc_positions'] == [5, 6, 7, 8], _clean
+    assert _clean['data_slice'] == [0, 5] and _clean['anc_slice'] == [5, 9], \
+        (_clean['data_slice'], _clean['anc_slice'])
+    # the two registers must tile the key exactly once
+    assert sorted(_clean['cal9_data_positions'] + _clean['cal9_anc_positions']) \
+        == list(range(q.NQ))
+    assert sorted(_clean['per_qubit']) == sorted(
+        ['data%d' % i for i in range(q.NQ_DATA)]
+        + ['anc%d' % i for i in range(q.NQ_ANC)]), sorted(_clean['per_qubit'])
+    for _p in range(q.NQ):
+        _lab = ('data%d' % _p) if _p < q.NQ_DATA else ('anc%d' % (_p - q.NQ_DATA))
+        assert _clean['per_qubit'][_lab]['logical_qubit'] == _p, (_p, _lab)
+        assert _clean['per_qubit'][_lab]['key_pos'] == _p, (_p, _lab)
+    # logical q3 is a DATA qubit and the science circuit reads it at analysed key
+    # position 3, inside the primary estimator's window [0:5].  Computing that
+    # position from the classical-bit map instead gave 7, which is outside the
+    # window and contradicted the very statement it was printed to support.
+    assert _clean['per_qubit']['data3']['science_key_pos'] == 3
+    assert 3 in range(*_clean['data_slice']), _clean['data_slice']
+    assert _clean['per_qubit']['anc3']['logical_qubit'] == 8
+    # an ancilla must land in the ancilla window [5:9] and NOT in the data one
+    assert _clean['per_qubit']['anc3']['science_key_pos'] == 8
+    assert 8 not in range(*_clean['data_slice']), _clean['data_slice']
+
+    # break logical q3 -> a broken DATA channel, which invalidates the PRIMARY
+    # estimator and must make the run INVALID, not FAILED
+    _b3 = _analyze_cal9(_synth_cal9(3), _anc, _rev)
+    assert _b3['n_broken'] == 1 and _b3['broken_qubits'][0]['label'] == 'data3'
+    assert _b3['broken_qubits'][0]['logical_qubit'] == 3
+    assert _b3['broken_qubits'][0]['science_key_pos'] == 3
+    assert _b3['screen']['primary_estimator_valid'] is False, _b3['screen']
+    assert _b3['screen']['secondary_estimator_valid'] is True
+    assert _b3['screen']['block_usable'] is False
+    assert abs(_b3['per_qubit']['data3']['contrast'] + 0.2) < 1e-9
+    # break logical q5 -> an ANCILLA: the primary estimator stays valid and only
+    # the post-selected F_s is lost
+    _b5 = _analyze_cal9(_synth_cal9(5), _anc, _rev)
+    assert _b5['n_broken'] == 1 and _b5['broken_qubits'][0]['label'] == 'anc0'
+    assert _b5['broken_qubits'][0]['logical_qubit'] == 5
+    assert _b5['screen']['primary_estimator_valid'] is True
+    assert _b5['screen']['secondary_estimator_valid'] is False
+    assert _b5['screen']['block_usable'] is True
+    # the separated all-zero fractions must move with whichever register broke;
+    # a single joint 9-bit number cannot tell the two cases apart
+    assert _b3['all_zero_key_fraction_data'] < 0.5 \
+        < _b3['all_zero_key_fraction_ancilla'], _b3
+    assert _b5['all_zero_key_fraction_ancilla'] < 0.5 \
+        < _b5['all_zero_key_fraction_data'], _b5
+    assert _b3['mean_readout_fidelity_healthy'] == 1.0
+
+    # (m3) transferability.  A channel with errors (e01, e10) can only return '0'
+    # with probability in [min(1-e01, e10), max(1-e01, e10)] whatever circuit ran
+    # before the measurement, so a science marginal outside that range PROVES the
+    # two circuits are not reading the same physical channel.  This is how the
+    # vendor's per-circuit re-routing is detected without vendor cooperation.
+    _tr_bad = _analyze_cal9(_synth_cal9(3), _anc, _rev)
+    assert abs(_tr_bad['per_qubit']['data3']['e01'] - 0.6) < 1e-9
+    assert abs(_tr_bad['per_qubit']['data3']['e10'] - 0.6) < 1e-9
+
+    def _sci_raw(p_zero, raw_pos, n=20000):
+        """Science-circuit raw counts whose analysed position reads '0' with
+        probability p_zero.  Under rev=True analysed position p is raw NQ-1-p."""
+        k = int(round(n * p_zero))
+        base = '0' * q.NQ
+        flip = base[:raw_pos] + '1' + base[raw_pos + 1:]
+        return {base: k, flip: n - k}
+
+    # logical q3 sits at science analysed position 3, i.e. raw position NQ-1-3 = 5
+    _raw_q3 = q.NQ - 1 - _clean['per_qubit']['data3']['science_key_pos']
+    assert _raw_q3 == 5, _raw_q3
+    _v = check_cal9_transferability({'signal|cold': _sci_raw(0.80, _raw_q3)},
+                                    _tr_bad, rev=_rev, phi=wc_warm)
+    assert _v['available'] and _v['n_comparisons'] == q.NQ, _v
+    assert _v['cal9_transferable'] is False, _v
+    assert _v['vendor_rerouting_detected'] is True
+    assert _v['n_violations'] == 1, _v['violations']
+    assert _v['violations'][0]['channel'] == 'data3', _v['violations']
+    _lo, _hi = _v['violations'][0]['allowed_P0_range']
+    assert abs(_lo - 0.4) < 1e-9 and abs(_hi - 0.6) < 1e-9, (_lo, _hi)
+    # inside the range -> no violation, so the check is a real test and not just a
+    # restatement of "some channel is broken"
+    _ok = check_cal9_transferability({'signal|cold': _sci_raw(0.50, _raw_q3)},
+                                     _tr_bad, rev=_rev, phi=wc_warm)
+    assert _ok['cal9_transferable'] is True and _ok['n_violations'] == 0, _ok
+    # a CLEAN cal9 bounds nothing (e01=e10=0 gives the range [0,1]), so the check
+    # only has power once a channel is actually broken -- which is the correct
+    # behaviour, not a gap: with no broken channel there is nothing to transfer
+    _okc = check_cal9_transferability({'signal|cold': _sci_raw(0.97, _raw_q3)},
+                                      _clean, rev=_rev, phi=wc_warm)
+    assert _okc['cal9_transferable'] is True and _okc['n_violations'] == 0, _okc
+
+    # (m4) the post-hoc healthy subset must be taken over the SCIENCE circuit's
+    # data window.  Under the vendor key order both cal9 and the science circuit
+    # put logical q_j at analysed position j, so for logical q3 the two positions
+    # coincide at 3 -- which is convenient but means this test no longer
+    # discriminates the mirror-image mistake it was written to catch.  What it
+    # still pins is that the exclusion is expressed in the data window [0:5] and
+    # that the kept set is its complement, not the old [4:9] window.
+    _hs = _warmcold_healthy_subset({'signal|warm': _sci_raw(0.9, _raw_q3)},
+                                   _tr_bad, rev=_rev, phi=wc_warm)
+    assert _hs['excluded_positions'] == [3], _hs
+    assert _hs['kept_positions'] == [0, 1, 2, 4], _hs
+    assert _hs['post_hoc'] is True and _hs['identical_to_primary'] is False
+    # with nothing broken the subset must collapse onto the pre-registered
+    # estimator rather than quietly becoming a different test
+    _hs0 = _warmcold_healthy_subset({'signal|warm': _sci_raw(0.9, _raw_q3)},
+                                    _clean, rev=_rev, phi=wc_warm)
+    assert _hs0['identical_to_primary'] is True, _hs0
+    assert _hs0['kept_positions'] == [0, 1, 2, 3, 4], _hs0
+
+    _lv = res['layout_noiseless']
+    say('(m) layout is DERIVED from the MEAS(q->cbit) map PLUS the platform\'s '
+        'measured key order, not inferred from the outcomes: anc=key[%d:%d] '
+        'rev=%s, i.e. data=[%d:%d], and on the noiseless simulator it is the '
+        'UNIQUE one of %d candidate windows that verifies (acceptance %.4f, '
+        'worst |P(data=00000) - ideal| = %.1f sigma over %d shots/circuit).  '
+        'That cross-check is only independent because cpuqvm_sample converts '
+        'simulator keys into the vendor convention: CPUQVM\'s native order is the '
+        'GLOBAL REVERSE of the vendor\'s, so an unnormalised check verifies the '
+        'complement window -- which is how an earlier version of this selftest '
+        '"confirmed" anc=[0:4] and the whole warmcold analysis ran on four '
+        'ancillas plus one data qubit, reporting a -7.8 sigma signal that does '
+        'not exist (correct window: -0.7 sigma).  The derived window also '
+        'reproduces the 2026-09 feasibility numbers exactly (44/55 at F_12=0.80, '
+        '0 of 369 mid-measure syndromes, 2.4%% identity mode), which is the '
+        'hardware anchor.  cal9 uses the identity MEAS map while the science '
+        'circuit uses q5->c0..q8->c3, q0->c4..q4->c8, but under the vendor key '
+        'order analysed position j is logical q_j for BOTH, so cal9\'s labels '
+        'transfer directly: the 2026-10-12 broken channel is logical q3, a DATA '
+        'qubit at science key position %d, NOT the ancilla q8 that reading cal9 '
+        'through the science map produced.  A broken data channel makes the run '
+        'INVALID (apparatus fault); a broken ancilla only costs the post-selected '
+        'F_s.  The transferability bound [min(1-e01,e10), max(1-e01,e10)] on '
+        'P(read 0) CAN detect per-circuit vendor re-routing from data the job '
+        'already returned -- (m3) plants a violation and catches it -- but on the '
+        'real 2026-10-12 counts all 36 comparisons lie inside their bounds, so '
+        'the re-routing previously reported there is RETRACTED: it was the wrong '
+        'column of the science counts being compared.'
+        % (_anc.start, _anc.stop, _rev, _lv['data_slice'][0],
+           _lv['data_slice'][1], len(_cands),
+           _lv['min_acceptance_rate'], _lv['max_dev_in_sigma'], _lv['shots'],
+           _clean['per_qubit']['data3']['science_key_pos']))
+
     return res
 
 
@@ -1608,7 +2284,7 @@ def query_best_block(chip_id, nq, token):
 
 def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
               job_timeout=21600, use_options=True, dump_raw=None, phi=None,
-              verbose=True):
+              verbose=True, phi_cold=None, mapping=True):
     """Submit one stage, chunked, dumping the raw counts after every chunk.
 
     The chunking is not a convenience: the account is billed in real time and a job
@@ -1618,10 +2294,22 @@ def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
     time it had already billed.  With STAGE_CHUNK[stage] the boundaries land on
     scientifically complete prefixes, so a kill costs only the chunk in flight.
     A chunk is still one submission and therefore one queue wait; STAGE_CHUNK is
-    the trade-off between those two."""
+    the trade-off between those two.
+
+    `mapping=False` (with an explicit `block`) disables the vendor's server-side
+    re-routing, so the logical-to-physical assignment is identical by construction
+    for every circuit in the job.  It is a CONTROL, not a demonstrated necessity:
+    the 2026-10-12 warmcold run had mapping ENABLED and its in-job calibration
+    still transferred to the science circuits (all 36 channel comparisons inside
+    their hard bounds), so there is no evidence that this platform re-routes
+    logical qubits per circuit.  An earlier version of this docstring claimed
+    otherwise; that claim rested on a bit-window error and is retracted.  Use
+    mapping=False when you want the assignment guaranteed rather than measured --
+    it costs nothing but does require an explicit `block`, since with mapping off
+    nothing else will choose the qubits.  See qcloud_vscr_new._build_options."""
     shots = shots or STAGE_SHOTS[stage]
     dump_raw = dump_raw or os.path.join(ROOT, STAGE_RAW[stage])
-    gates, meta = stage_circuits(stage, phi)
+    gates, meta = stage_circuits(stage, phi, phi_cold)
     nq = STAGE_NQ[stage]
     if block is None and use_options:
         try:
@@ -1638,6 +2326,14 @@ def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
               flush=True)
     t0 = time.time()
     n_chunk = chunk or STAGE_CHUNK.get(stage) or len(gates)
+    # written BEFORE submission so a cut-off job still leaves the meta that
+    # describes the prefix submit_cloud managed to dump -- see write_meta_sidecar
+    write_meta_sidecar(dump_raw, meta, gates, stage, chip_id, block, shots,
+                       mapping=mapping, use_options=use_options)
+    if verbose and use_options and not mapping:
+        print('[stage %s] vendor MAPPING DISABLED: every circuit is pinned to '
+              'block %s, so this job\'s own calibration describes its science '
+              'circuits' % (stage, block), flush=True)
     if verbose:
         print('[stage %s] %d circuits in %d submission(s) of <=%d, dumping to %s '
               'after each so a mid-run kill keeps every completed chunk'
@@ -1646,7 +2342,8 @@ def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
     results = q.submit_cloud(gates, token, chip_id=chip_id, shots=shots,
                              batch=True, dump_raw=dump_raw,
                              chunk=n_chunk, job_timeout=job_timeout,
-                             use_options=use_options, block=block)
+                             use_options=use_options, block=block,
+                             mapping=mapping)
     wall = time.time() - t0
     assert len(results) == len(gates), (len(results), len(gates))
     used = [int(sum(r.values())) for r in results]
@@ -2143,6 +2840,1116 @@ def analyze_bench(results, meta, phi, shots_requested=None, verbose=True):
     return out
 
 
+def ideal_data_zero_prob(psi, frame, s, phi):
+    """Exact, UNCONDITIONED P(the five data qubits read 00000) for one branch
+    circuit, from the full 512-dim output state.
+
+    Deliberately not the post-selected F_s: the primary hardware estimator is
+    unconditioned (see WARMCOLD_PRIMARY), so its ideal reference has to be
+    unconditioned too or the comparison is not like for like.  The two coincide
+    at p=0 because the syndrome is deterministic there -- asserted, not assumed,
+    in selftest (l).  In `apply_gates`' index convention qubit 0 is the MOST
+    significant bit, so data q0..q4 are idx>>4 and ancillas a0..a3 are idx&15."""
+    gates = q.build_branch_circuit(q.ENC5, psi, frame, s, phi, late_measure=True)
+    pv = np.zeros(q.DIM9, dtype=complex)
+    pv[0] = 1.0
+    for kind, gs in q.split_unitary_sections(gates):
+        if kind == 'U':
+            pv = q.apply_gates(pv, gs)
+    # reshape(32, 16) indexes [data, ancilla]: row 0 is exactly the five data
+    # qubits all reading zero, summed over every ancilla outcome, which is what
+    # "unconditioned" means here
+    return float((np.abs(pv) ** 2).reshape(32, 16)[0].sum())
+
+
+def layout_from_meas(gates, nq=None):
+    """(anc_slice, rev) for HARDWARE keys, from the circuit's MEAS map plus the
+    platform's key bit-order.
+
+    Two facts are combined, and only the first is derivable from the circuit:
+
+      * WHICH classical bits carry the ancilla.  The stabiliser measurements are
+        emitted first, so the ancillas are exactly the qubits measured into
+        classical bits 0..NQ_ANC-1.  That is a property of the builder and is
+        asserted below, not assumed.
+
+      * WHERE a classical bit lands in the returned key.  This is a PLATFORM
+        property that no circuit can tell you; see q.sim_key_to_vendor_key for
+        the measurement that established it.  The vendor writes each register in
+        DESCENDING classical-bit order at the key positions of its own bits, so
+        the raw key is [c3 c2 c1 c0][c8 c7 c6 c5 c4] = [a3a2a1a0][d4d3d2d1d0].
+        Reversing it (rev=True) puts the ancilla at positions NQ-NQ_ANC..NQ-1,
+        i.e. [5:9], in ASCENDING classical-bit order -- the order
+        counts_to_branch_stats compares against format(s, '04b') -- and the data
+        register at [0:5].
+
+    So the answer for the nine-qubit block is (slice(5, 9), True): the hypothesis
+    ED Table 4 selected on data-hit evidence (44 hits against 0) and the one that
+    reproduces the reported 44/55 post-selected fidelity, the 0-of-369 mid-measure
+    syndrome deficit and the 2.4% identity-branch mode.
+
+    HOW MUCH OF THIS IS MEASURED.  The s=12 branch pins the ANCILLA group's
+    internal order directly (its ideal outcome has c0=c1=1, c2=c3=0 and the
+    observed mode puts those ones at key positions 3 and 2).  The DATA group's
+    internal order is an extrapolation of the same rule: every informative
+    circuit has an all-zero data register, so no key distinguishes d0 from d4.
+    That is harmless for every estimator actually reported -- the data test is
+    `data == '00000'`, which is invariant under permuting the data positions, and
+    WHICH positions are data follows from the ancilla occupying [0:4].  It is not
+    harmless for naming an individual data qubit, so per-data-qubit labels carry
+    that caveat wherever they are printed.
+
+    WHY THIS FUNCTION WAS WRONG ONCE, AND WHY A SELF-TEST DID NOT CATCH IT.  An
+    earlier version returned (slice(0, 4), True) and a noiseless cross-check
+    "confirmed" it as the unique valid window.  Both statements were true of the
+    LOCAL SIMULATOR and false of the hardware: CPUQVM returns the globally
+    reversed key order, whose correct window is the exact complement of the
+    vendor's.  Because verify_layout_noiseless sampled through cpuqvm_sample, the
+    cross-check validated the simulator's convention against itself -- a
+    circularity of the same species as detect_layout's, one level up, and
+    invisible for the same reason.  cpuqvm_sample now normalises at the boundary,
+    so the cross-check compares like with like and has independent content.
+    """
+    nq = nq or q.NQ
+    meas = [(t[1], t[2]) for t in gates if t[0] == 'MEAS']
+    assert len(meas) == nq, ('expected one MEAS per qubit', len(meas), nq)
+    assert len(set(meas)) == nq and len(set(c for _, c in meas)) == nq, meas
+    # ancilla = measured into the first NQ_ANC classical bits, by construction.
+    # This is only meaningful for a circuit that HAS an ancilla/data split; cal9
+    # uses MEAS(i,i) and must not be passed here.
+    anc_cbits = set(cb for _qb, cb in meas if cb < q.NQ_ANC)
+    assert len(anc_cbits) == q.NQ_ANC, anc_cbits
+    anc_qb = sorted(qb for qb, cb in meas if cb < q.NQ_ANC)
+    assert anc_qb == list(range(q.NQ_DATA, nq)), (
+        'ancilla cbits 0..NQ_ANC-1 must be read off qubits NQ_DATA..NQ-1; got %r. '
+        'Passing an identity-MEAS circuit (e.g. cal9) here would silently label '
+        'the DATA qubits as ancillas.' % (anc_qb,))
+    data_cbits = sorted(cb for _qb, cb in meas if cb >= q.NQ_ANC)
+    assert data_cbits == list(range(q.NQ_ANC, nq)), data_cbits
+    # vendor key order + reversal -> ancilla occupies the TOP NQ_ANC positions
+    return slice(nq - q.NQ_ANC, nq), True
+
+
+def cbit_of_position(pos, rev, nq=None):
+    """The LOGICAL QUBIT an analysed-key position refers to, given `rev`.
+
+    Named for the classical bit because that is what it returns for the
+    identity-MEAS calibration circuits, where qubit index and classical bit
+    coincide.  What it actually computes is the logical qubit, and the two are
+    the same number only for those circuits -- for a science circuit, whose MEAS
+    map is q5->c0..q8->c3 and q0->c4..q4->c8, the classical bit of qubit j is
+    (j + NQ_ANC) mod NQ.  Callers that need the classical bit must apply that
+    map themselves; callers that need to NAME a channel (which is what the cal9
+    table and the healthy-subset diagnostic do) want the qubit, which is this.
+
+    The rule behind it is the platform's key order, established in
+    q.sim_key_to_vendor_key: raw key position p carries logical qubit NQ-1-p.
+    Reversing the key therefore puts logical qubit j at analysed position j --
+    a direct correspondence, which is why this is an involution in `pos` for
+    fixed `rev` and why selftest (m) asserts that.
+
+    Getting this backwards is not cosmetic.  It is what labelled the 2026-10-12
+    broken channel 'ancilla q8' instead of a data qubit, and the two readings
+    imply opposite verdicts: a broken ancilla costs only the post-selected F_s,
+    a broken data qubit makes the primary estimator uninterpretable."""
+    nq = nq or q.NQ
+    return pos if rev else (nq - 1 - pos)
+
+
+def cbit_of_qubit(qb, gates=None, nq=None):
+    """The classical bit a LOGICAL QUBIT is measured into, from a MEAS map.
+
+    Defaults to the science circuit's map (q5->c0..q8->c3, q0->c4..q4->c8), i.e.
+    cbit = (qubit + NQ_ANC) mod NQ.  Pass `gates` for any other circuit -- cal9
+    uses MEAS(i,i), where the classical bit is the qubit index -- because
+    applying the science map to cal9's keys is exactly the mistake that produced
+    the 'ancilla q8' mislabel."""
+    nq = nq or q.NQ
+    if gates is None:
+        return (qb + q.NQ_ANC) % nq
+    for t in gates:
+        if t[0] == 'MEAS' and t[1] == qb:
+            return t[2]
+    raise KeyError('qubit %r is not measured in the given gates' % (qb,))
+
+
+def verify_layout_noiseless(gates_list, metas, shots=1000, anc=None, rev=None):
+    """Cross-check a layout against the NOISELESS simulator.
+
+    This is the independent evidence that settles `layout_from_meas`: with zero
+    noise the p=0 syndrome is deterministic, so a correct layout accepts every
+    shot (P_s = 1.000) and reproduces the ideal P(data=00000), while a wrong
+    window accepts none (P_s = 0.000).  The separation is total, not marginal --
+    unlike detect_layout's 3365-vs-3267 outcome-scored coin flip.
+
+    Each meta must carry 'psi', 'frame', 's' and 'phi'; 'phi' is required rather
+    than defaulted because a silently-zero angle set would compute a wrong ideal
+    reference and make the cross-check pass for the wrong reason."""
+    if anc is None or rev is None:
+        anc, rev = layout_from_meas(gates_list[0])
+    ds = _data_slice_for(anc)
+    per, worst_ps, worst_sigma = {}, 1.0, 0.0
+    for g, m in zip(gates_list, metas):
+        # cpuqvm_sample returns a counts dict (bitstring -> count), not a key list
+        counts = q.cpuqvm_sample(g, shots)
+        n_shot = int(sum(counts.values()))
+        n_sel, _n_hit = q.counts_to_branch_stats(counts, m['s'], anc, rev)
+        ps = n_sel / n_shot if n_shot else 0.0
+        n_dz, n_tot = data_zero_counts(counts, anc, rev)
+        pz = n_dz / n_tot if n_tot else 0.0
+        ideal = ideal_data_zero_prob(m['psi'], m['frame'], m['s'], m['phi'])
+        # binomial sigma of the SAMPLED probability; an ideal value of exactly 0 or
+        # 1 would give sigma 0, so floor it at the smallest resolvable step
+        sg = math.sqrt(max(pz * (1.0 - pz), 1.0 / max(n_tot, 1)) / max(n_tot, 1))
+        dev_sigma = abs(pz - ideal) / sg if sg > 0 else (
+            0.0 if pz == ideal else float('inf'))
+        worst_ps = min(worst_ps, ps)
+        worst_sigma = max(worst_sigma, dev_sigma)
+        per['%s|%s|s%d' % (m.get('role', m['psi']), m.get('arm', 'x'), m['s'])] = \
+            dict(P_s=ps, P_data_zero=pz, ideal=ideal, n_total=n_tot,
+                 dev_in_sigma=dev_sigma)
+    # acceptance is the SHARP discriminator and needs no tolerance: at p=0 with no
+    # noise the syndrome is deterministic, so the correct window accepts every
+    # single shot and any other window accepts a different fraction.  The ideal
+    # probability is a secondary check and does need one, because it is estimated
+    # from a finite sample.
+    return dict(anc_slice=[anc.start, anc.stop], rev=rev,
+                data_slice=[ds.start, ds.stop], per_circuit=per,
+                min_acceptance_rate=worst_ps, max_dev_in_sigma=worst_sigma,
+                shots=shots,
+                layout_verified=bool(worst_ps >= 1.0 and worst_sigma < 5.0))
+
+
+def _data_slice_for(anc_slice):
+    """The data-bit window, given the ancilla window `detect_layout` chose.
+    Mirrors q.counts_to_branch_stats so the two never disagree."""
+    return slice(4, 9) if anc_slice.start == 0 else slice(0, 5)
+
+
+def data_zero_counts(counts, anc_slice, rev=False):
+    """(n_data_zero, n_total): the primary estimator's numerator and denominator.
+
+    The window MUST be taken on the same possibly-reversed key that
+    q.counts_to_branch_stats uses, and this was a real bug the noiseless dry run
+    caught rather than a style point.  '00000' is a palindrome, so reversing the
+    CONTENT of the window cannot change the test -- but reversing the KEY moves
+    WHICH positions the window covers: for a nine-bit key, key[::-1][4:9] is
+    key[0:5], not key[4:9].  Slicing the unreversed key therefore reads the
+    ancilla register as if it were the data register and returns 0 hits on a
+    perfect device, while the post-selected F_s computed by the vendor-path helper
+    stays correct -- which is exactly the asymmetry that showed up in the dry run
+    and is why both estimators are carried."""
+    ds = _data_slice_for(anc_slice)
+    n_tot = int(sum(counts.values()))
+    n_hit = 0
+    for k, v in counts.items():
+        kk = k[::-1] if rev else k
+        if kk[ds] == '00000':
+            n_hit += v
+    return n_hit, n_tot
+
+
+def warmcold_power(w=WARMCOLD_W_MEASURED_2026_09, shots=None,
+                   gap_ideal=WARMCOLD_GAP_IDEAL_SIGNAL):
+    """What a warm/cold gap of `gap_ideal` is worth on a device that transmits
+    only a fraction `w` of the data register.
+
+    A device that randomises the data register cannot transmit WHICH recovery
+    ran, so the observable gap is w * gap_ideal and the noise floor contributes
+    (1-w)/32 to both arms.  This is the stage's whole power estimate in one
+    function, so --mode plan can print it and selftest (l) can assert it instead
+    of either restating it in prose that could drift."""
+    shots = shots or STAGE_SHOTS['warmcold']
+    gap = w * gap_ideal
+    p_warm = w + (1 - w) / 32.0
+    p_cold = 0.5 * w + (1 - w) / 32.0
+    pbar = 0.5 * (p_warm + p_cold)
+    sigma = math.sqrt(2.0 * pbar * (1.0 - pbar) / shots)
+    return dict(w=w, shots=shots, observable_gap=gap, sigma_pair=sigma,
+                sigma_z=gap / sigma if sigma else None,
+                p_warm=p_warm, p_cold=p_cold)
+
+
+# A readout channel is BROKEN, not merely noisy, when its contrast collapses.
+# contrast = 1 - (e01 + e10) is 1.0 for a perfect channel and 0.5 at
+# e01=e10=0.25; healthy qubits on this platform sit at 0.88-1.00.  The 2026-10-12
+# run had one channel at -0.156 -- it reported '1' MORE often from |0> than from
+# |1>, i.e. the measurement was anti-correlated with the state prepared.  No
+# threshold between 0.5 and 0.88 would miss that, so 0.5 is a deliberately loose
+# and unambiguous line rather than a tuned one.
+CAL9_BROKEN_CONTRAST = 0.5
+
+
+def _analyze_cal9(cal, anc, rev=False, meas_map=None):
+    """Per-qubit readout error of the block, from the job's own two 9-qubit
+    calibration circuits.
+
+    It IS a prerequisite for the primary estimator, and the earlier version of
+    this docstring said otherwise.  The claim was that the warm-minus-cold
+    difference of P(data=00000) is common-mode in readout error and therefore
+    needs no calibration.  That holds only while every data channel is HEALTHY:
+    a confusion matrix with e01 ~ e10 acts on the difference as an approximately
+    uniform attenuation, common to both arms.  It does not hold when a data
+    channel is broken, because then the attenuation factor for that channel is
+    1-e01-e10 = contrast, which is NEGATIVE -- the broken channel contributes
+    with its sign flipped, so a warm-minus-cold difference can be produced by
+    readout alone with no physics behind it.  On the 2026-10-12 run the broken
+    channel was logical q3 with e01=0.5679, e10=0.5885, contrast=-0.1564, i.e.
+    exactly that case.
+
+    Reports ALL NINE channels, not just the five data ones.  The 2026-10-12 run
+    had a broken DATA channel (logical q3, contrast -0.156, read by the science
+    circuit at analysed key position 7, inside the primary estimator's data
+    window [4,9]) and the data-only table was silent about it, so the artifact
+    contained no hint that a channel was dead; the breakage surfaced only as a
+    degraded F_s reported as though it meant something.  Every channel now
+    carries e01, e10, fidelity and contrast, and any contrast below
+    CAL9_BROKEN_CONTRAST is flagged BROKEN with its role, so `screen` states
+    explicitly whether the PRIMARY estimator (data register) and the SECONDARY
+    one (post-selected F_s, which needs healthy ancillas) are still
+    interpretable.
+
+    A broken ANCILLA would have been survivable -- it degrades F_s but leaves the
+    data window intact -- and that is what this was first read as, before the
+    per-channel table was labelled with logical qubit indices.  See
+    check_cal9_transferability for the second, worse problem: on that run cal9
+    did not even describe the science circuits."""
+    if len(cal) < 2:
+        return dict(available=False,
+                    note='both cal9 circuits must return; got %d (a truncated '
+                         'dump loses the readout decomposition but NOT the A/B)'
+                         % len(cal))
+    d = {m['cal']: r for r, m in cal}
+    ds = _data_slice_for(anc)
+    # the SAME reversal the branch statistics apply, so the window covers the data
+    # register rather than the ancillas -- see data_zero_counts for why this is not
+    # a no-op even though both reference patterns are palindromes
+    dz = {(k[::-1] if rev else k): v for k, v in d['zero'].items()}
+    do = {(k[::-1] if rev else k): v for k, v in d['one'].items()}
+    n0 = int(sum(dz.values()))
+    n1 = int(sum(do.values()))
+    # logical qubit index per analysed key position, from the calibration
+    # circuit's own MEAS map, so a broken channel is reported as 'logical q8'
+    # rather than as an anonymous raw key position
+    if meas_map is None:
+        meas_map = dict((cb, qb) for qb, cb in
+                        ((t[1], t[2]) for t in build_cal9('zero')
+                         if t[0] == 'MEAS'))
+    # cal9 and the science circuits do NOT share a MEAS map: build_cal9 ends with
+    # MEAS(i,i) (the identity) whereas build_branch_circuit measures the stabiliser
+    # ancillas first (q5->c0 .. q8->c3, then q0->c4 .. q4->c8).  A cal9 key
+    # position therefore identifies a LOGICAL qubit through cal9's OWN map, and
+    # that logical qubit's ROLE is fixed by the construction (q0..NQ_DATA-1 are the
+    # data register).  Labelling cal9 positions with the science circuit's window
+    # semantics -- which this function originally did -- reported the 2026-10-12
+    # broken channel as an ancilla when it is logical q3, a DATA qubit, and so
+    # wrongly declared the primary estimator valid.
+    def _logical(pos):
+        return meas_map.get(cbit_of_position(pos, rev))
+
+    def _role(pos):
+        lg = _logical(pos)
+        if lg is None:
+            return 'unk'
+        return 'data' if lg < q.NQ_DATA else 'anc'
+
+    # positions in cal9's analysed key that carry each register.  With the
+    # identity cal9 map and rev=True these are 0..4 (data) and 5..8 (ancilla).
+    # They are NOT a mirror of the science circuit's windows: under the vendor
+    # key order analysed position j is logical qubit j for BOTH circuits, so the
+    # registers occupy 0..4 / 5..8 in cal9's key and the science circuit simply
+    # reads the same logical qubits at the same analysed positions, grouped as
+    # data=[0:5] and ancilla=[5:9].  An earlier comment described them as
+    # mirrored, which was an artefact of a wrong key-order convention.
+    data_pos = [p for p in range(q.NQ) if _role(p) == 'data']
+    anc_pos = [p for p in range(q.NQ) if _role(p) == 'anc']
+    per_q, broken = {}, []
+    for pos in range(q.NQ):
+        lg = _logical(pos)
+        role = _role(pos)
+        idx = (lg if role == 'data'
+               else (lg - q.NQ_DATA if lg is not None else pos))
+        e01 = int(sum(v for k, v in dz.items() if k[pos] == '1'))
+        e10 = int(sum(v for k, v in do.items() if k[pos] == '0'))
+        f01 = e01 / n0 if n0 else None
+        f10 = e10 / n1 if n1 else None
+        both = f01 is not None and f10 is not None
+        fid = (1.0 - 0.5 * (f01 + f10)) if both else None
+        con = (1.0 - (f01 + f10)) if both else None
+        is_broken = bool(con is not None and con < CAL9_BROKEN_CONTRAST)
+        lab = '%s%d' % (role, idx)
+        per_q[lab] = dict(
+            role=role, index=idx, key_pos=pos, logical_qubit=lg,
+            # The science circuit's analysed key position for this logical qubit.
+            # Under the vendor key order (raw position p <-> qubit NQ-1-p) the
+            # REVERSED key puts logical qubit j at analysed position j, so this is
+            # just `lg` when rev -- not the classical bit (lg+NQ_ANC) mod NQ that
+            # an earlier version used.  Conflating the two put logical q3 at
+            # position 7 instead of 3, which is outside the data window [0:5] and
+            # made the "broken channel is inside the primary estimator" statement
+            # self-contradictory.
+            science_key_pos=(lg if rev else q.NQ - 1 - lg)
+            if lg is not None else None,
+            n_zero=n0, n_one=n1, n_e01=e01, n_e10=e10,
+            e01=f01, e10=f10, readout_fidelity=fid, contrast=con,
+            broken=is_broken)
+        if is_broken:
+            broken.append(dict(label=lab, role=role, key_pos=pos,
+                               logical_qubit=lg,
+                               science_key_pos=per_q[lab]['science_key_pos'],
+                               contrast=con, e01=f01, e10=f10,
+                               readout_fidelity=fid))
+    rf = [v['readout_fidelity'] for v in per_q.values()
+          if v['readout_fidelity'] is not None]
+    healthy = [v['readout_fidelity'] for v in per_q.values()
+               if v['readout_fidelity'] is not None and not v['broken']]
+
+    def _frac(dd, n, positions, bit='0'):
+        """Fraction of shots whose given key positions all read `bit`."""
+        if not n or not positions:
+            return None
+        return int(sum(v for k, v in dd.items()
+                       if all(k[p] == bit for p in positions))) / n
+
+    n_bd = sum(1 for b in broken if b['role'] == 'data')
+    n_ba = sum(1 for b in broken if b['role'] == 'anc')
+    return dict(available=True, n_zero=n0, n_one=n1, rev=rev,
+                # the SCIENCE circuit's windows, in its own analysed-key space
+                data_slice=[ds.start, ds.stop],
+                anc_slice=[anc.start, anc.stop],
+                # and cal9's, which are the mirror image because cal9 uses the
+                # identity MEAS map while the science circuit measures ancillas
+                # first -- conflating these two was the labelling bug
+                cal9_data_positions=data_pos,
+                cal9_anc_positions=anc_pos,
+                per_qubit=per_q,
+                per_data_qubit=dict((k, v) for k, v in per_q.items()
+                                    if v['role'] == 'data'),
+                broken_contrast_threshold=CAL9_BROKEN_CONTRAST,
+                broken_qubits=broken, n_broken=len(broken),
+                mean_readout_fidelity=(sum(rf) / len(rf)) if rf else None,
+                mean_readout_fidelity_healthy=(
+                    sum(healthy) / len(healthy)) if healthy else None,
+                # separate all-zero fractions for the two registers, over the
+                # positions that actually carry them.  Mixing registers was
+                # actively misleading on 2026-10-12: the joint 9-bit fraction
+                # (0.337) is dragged down by one broken channel, and the window
+                # that looked like 'the data register' was in fact logical q4..q8.
+                all_zero_key_fraction_data=_frac(dz, n0, data_pos),
+                all_zero_key_fraction_ancilla=_frac(dz, n0, anc_pos),
+                all_one_key_fraction_data=_frac(do, n1, data_pos, '1'),
+                all_one_key_fraction_ancilla=_frac(do, n1, anc_pos, '1'),
+                # the joint 9-bit fraction: a 9-qubit |0...0> product state should
+                # return exactly one key, so this is the block's joint readout
+                # fidelity.  Kept for continuity with the 2026-09 artifact, but it
+                # is NOT the data register's survival -- see the two above.
+                all_zero_key_fraction_zero_circuit=(
+                    dz.get('0' * q.NQ, 0) / n0) if n0 else None,
+                all_one_key_fraction_one_circuit=(
+                    do.get('1' * q.NQ, 0) / n1) if n1 else None,
+                screen=dict(
+                    n_broken_data=n_bd, n_broken_ancilla=n_ba,
+                    # a broken DATA channel invalidates the primary estimator: it
+                    # enters P(data=00000) directly, and an asymmetric breakage is
+                    # NOT common-mode between the two arms
+                    primary_estimator_valid=bool(n_bd == 0),
+                    # a broken ANCILLA invalidates the post-selected F_s but
+                    # leaves the unconditioned primary estimator intact -- exactly
+                    # the 2026-10-12 situation, and exactly why its FAILED verdict
+                    # could still be trusted as a physical result
+                    secondary_estimator_valid=bool(n_ba == 0),
+                    block_usable=bool(n_bd == 0),
+                    note='all %d channels screened; %d broken (%d data, %d '
+                         'ancilla)' % (q.NQ, len(broken), n_bd, n_ba)))
+
+
+def check_cal9_transferability(counts_by_name, cal9_out, rev=True,
+                               tol_sigma=5.0, phi=None):
+    """Can cal9's readout characterisation be transferred to the science circuits?
+
+    A readout channel with errors (e01, e10) can only ever return '0' with
+    probability in [min(1-e01, e10), max(1-e01, e10)] -- the endpoints being a
+    qubit prepared deterministically in |1> or |0>.  That range is a HARD bound
+    independent of what circuit ran before the measurement.  So if a science
+    circuit's observed marginal at some channel falls outside the range cal9
+    measured for that channel, the two circuits are NOT reading the same physical
+    channel, and the only mechanism that can do that is the vendor's transpiler
+    re-routing logical qubits differently per circuit.
+
+    This matters because it detects vendor re-routing WITHOUT vendor cooperation,
+    using data the job already returned.  On the 2026-10-12 warmcold run it
+    fires: cal9 measured contrast -0.156 (e01=0.568, e10=0.589) at the channel it
+    labels logical q3, bounding P(read 0) to [0.432, 0.589], yet the science
+    circuits read 0.708 and 0.665 at the position their own key order assigns to
+    logical q3 -- above the bound.  cal9 therefore characterises a DIFFERENT
+    physical channel than the science circuits used, and cannot be used to
+    validate or invalidate their estimator.  That is exactly the transpiler
+    opacity confounder, measured rather than speculated about."""
+    if not cal9_out.get('available') or not counts_by_name:
+        return dict(available=False,
+                    note='needs both cal9 circuits and at least one science '
+                         'circuit to compare')
+    pq = cal9_out['per_qubit']
+    # Analysed key position of each logical qubit in the SCIENCE circuits.  Under
+    # the vendor key order the reversed key puts logical qubit j at analysed
+    # position j, so this is `j` itself -- NOT the classical bit the MEAS map
+    # assigns it.  An earlier version used the classical bit as the position,
+    # which put logical q3 at position 7 (its classical bit) instead of 3 and so
+    # compared cal9's channel against the wrong column of the science counts.
+    # The MEAS map is still read, but as a cross-check on the two independent
+    # routes to the same answer rather than as the source of the position.
+    sci_meas = dict((cb, qb) for qb, cb in
+                    ((t[1], t[2]) for t in _science_meas_reference(phi)
+                     if t[0] == 'MEAS'))
+    pos_of_logical = dict((qb, qb if rev else q.NQ - 1 - qb)
+                          for qb in sci_meas.values())
+    for lab, d in pq.items():
+        lg = d.get('logical_qubit')
+        if lg is None or d.get('science_key_pos') is None:
+            continue
+        assert d['science_key_pos'] == pos_of_logical[lg], (lab, lg, d, rev)
+    rows, violations = [], []
+    for lab, d in sorted(pq.items()):
+        lo = min(1.0 - d['e01'], d['e10'])
+        hi = max(1.0 - d['e01'], d['e10'])
+        lg = d['logical_qubit']
+        if lg is None or lg not in pos_of_logical:
+            continue
+        sp = cbit_of_position(pos_of_logical[lg], rev)
+        for name, r in sorted(counts_by_name.items()):
+            if not r:
+                continue
+            keys = {(k[::-1] if rev else k): v for k, v in r.items()}
+            n = int(sum(keys.values()))
+            if not n:
+                continue
+            hit = int(sum(v for k, v in keys.items() if k[sp] == '0'))
+            obs = hit / n
+            sig = math.sqrt(max(obs * (1.0 - obs), 1e-12) / n)
+            outside = (obs < lo - tol_sigma * sig) or (obs > hi + tol_sigma * sig)
+            rec = dict(channel=lab, logical_qubit=d['logical_qubit'],
+                       science_key_pos=sp, cal9_e01=d['e01'], cal9_e10=d['e10'],
+                       cal9_contrast=d['contrast'],
+                       allowed_P0_range=[lo, hi], circuit=name,
+                       n=n, n_zero=hit, observed_P0=obs, sigma=sig,
+                       outside_allowed_range=bool(outside))
+            rows.append(rec)
+            if outside:
+                violations.append(rec)
+    if not rows:
+        return dict(available=False,
+                    note='no per-circuit counts attached; nothing to compare')
+    return dict(
+        available=True, tol_sigma=tol_sigma, n_comparisons=len(rows),
+        n_violations=len(violations), violations=violations, per_comparison=rows,
+        cal9_transferable=bool(not violations),
+        # a violation means cal9 and the science circuits disagree about which
+        # physical channel a logical index refers to, i.e. the vendor re-routed
+        vendor_rerouting_detected=bool(bool(violations)),
+        note=('cal9 is consistent with the science circuits on all %d '
+              'comparisons' % len(rows)) if not violations else
+             ('%d of %d comparisons fall OUTSIDE the hard P(read 0) range that '
+              'cal9 measured for that channel, so cal9 and the science circuits '
+              'are reading DIFFERENT physical channels: the vendor transpiler '
+              're-routes logical qubits per circuit, and cal9 cannot validate or '
+              'invalidate the science estimator'
+              % (len(violations), len(rows))))
+
+
+def _science_meas_reference(phi=None):
+    """The MEAS map of a science circuit, rebuilt from the committed angle file.
+
+    Angles do not affect the measurement layer, so any arm's angles give the same
+    map; rebuilding it keeps this module honest about the science circuit's
+    q5->c0..q8->c3, q0->c4..q4->c8 ordering instead of hard-coding it."""
+    if phi is None:
+        phi = load_angle_set('warm')
+    return q.build_branch_circuit(q.ENC5, WARMCOLD_PSI, WARMCOLD_SIGNAL_FRAME,
+                                  WARMCOLD_SIGNAL_S, phi, late_measure=True)
+def _warmcold_healthy_subset(counts_by_name, cal9_out, rev=True, phi=None):
+    """POST-HOC estimator over the data channels cal9 did NOT flag as broken.
+
+    This is not the pre-registered test and must never be reported as one: the
+    subset is chosen after seeing which channel failed, so it carries a selection
+    effect.  Its value is diagnostic, and on the 2026-10-12 run it is decisive --
+    but in the opposite direction to what an earlier version of this docstring
+    claimed, because that version was computed on the complement bit window (see
+    layout_from_meas).  On the correct window:
+
+      primary,  5 data channels : signal -0.00382 +- 0.00520 (-0.73 sigma)
+                                  null   +0.01142 +- 0.00402 (+2.84 sigma)
+      subset,   q3 excluded     : signal -0.00031 +- 0.00688 (-0.05 sigma)
+                                  null   -0.00061 +- 0.00595 (-0.10 sigma)
+
+    So the null control's 2.84 sigma deviation is attributable ENTIRELY to the
+    one broken data channel: dropping it moves the null to -0.10 sigma, and moves
+    the signal to -0.05 sigma with it.  That is what a genuine single-channel
+    artefact looks like -- the bias disappears with the channel, in both arms,
+    rather than migrating.  It is also the opposite of the earlier reading, which
+    had the five-channel null clean at +0.3 sigma and the four-channel null at
+    -5.2 sigma, i.e. exclusion making things worse; that pattern was an artefact
+    of measuring the ancilla register plus one data qubit and calling it the data
+    register.
+
+    The substantive conclusion is unchanged by which of the two is right: there is
+    NO detectable warm-vs-cold effect.  The signal is -0.73 sigma on the
+    pre-registered estimator and -0.05 sigma on the subset, and the implied
+    transmission factor is w = -0.008, i.e. zero.
+
+    It is only meaningful if cal9's channel labels transfer to the science
+    circuits -- see check_cal9_transferability, which on this run says they do
+    not (2 of 36 comparisons outside the hard bound, both at q3).  So the
+    exclusion is doubly caveated: post-hoc in its choice of channel, and resting
+    on a label the transferability check disputes.  Both numbers are reported
+    with that attached rather than either one being promoted."""
+    if not cal9_out.get('available'):
+        return dict(available=False, note='cal9 did not return; cannot identify '
+                                          'which channels to exclude')
+    ds = slice(*cal9_out['data_slice'])
+    all_pos = list(range(ds.start, ds.stop))
+    # Map a broken cal9 channel's logical qubit to its science-circuit analysed
+    # key position.  Taken from cal9's own table rather than recomputed here, so
+    # the two can never disagree about the convention -- an earlier version fed a
+    # CLASSICAL BIT into cbit_of_position (which expects a key POSITION), turning
+    # logical q3 into position 7 via its classical bit 7.  7 is outside the data
+    # window [0:5], so the broken channel was silently not excluded and this
+    # function reported "cal9 flagged no channel inside the data register" while
+    # the screen one line above was calling the primary estimator INVALID.
+    pos_of_logical = dict(
+        (v['logical_qubit'], v['science_key_pos'])
+        for v in cal9_out.get('per_qubit', {}).values()
+        if v.get('logical_qubit') is not None
+        and v.get('science_key_pos') is not None)
+    # independent restatement of the same convention, so a change to either side
+    # is caught: under the vendor key order the reversed key puts logical qubit j
+    # at analysed position j
+    for _qb, _pos in pos_of_logical.items():
+        assert _pos == (_qb if rev else q.NQ - 1 - _qb), (_qb, _pos, rev)
+    excluded = sorted(pos_of_logical[b['logical_qubit']]
+                      for b in cal9_out['broken_qubits']
+                      if b['logical_qubit'] in pos_of_logical
+                      and pos_of_logical[b['logical_qubit']] in all_pos)
+    keep = [p for p in all_pos if p not in excluded]
+    if not excluded:
+        return dict(available=True, excluded_positions=[], kept_positions=keep,
+                    identical_to_primary=True,
+                    note='cal9 flagged no channel inside the data register, so '
+                         'this subset IS the pre-registered estimator')
+
+    def _p(counts, positions):
+        keys = {(k[::-1] if rev else k): v for k, v in counts.items()}
+        n = int(sum(keys.values()))
+        hit = int(sum(v for k, v in keys.items()
+                      if all(k[p] == '0' for p in positions)))
+        return hit, n, (hit / n if n else None)
+
+    per, gaps = {}, {}
+    for name, r in sorted(counts_by_name.items()):
+        hit, n, p = _p(r, keep)
+        lo, hi = wilson(hit, n)
+        _eh, _en, ep = _p(r, excluded)
+        per[name] = dict(n=n, n_subset_zero=hit, P_subset_zero=p,
+                         P_subset_zero_wilson95=[lo, hi],
+                         n_kept_positions=len(keep),
+                         n_excluded_positions=len(excluded),
+                         P_excluded_zero=ep)
+    for role, ideal in (('signal', WARMCOLD_GAP_IDEAL_SIGNAL),
+                        ('null', WARMCOLD_GAP_IDEAL_NULL)):
+        w, c = per.get('%s|warm' % role), per.get('%s|cold' % role)
+        if not (w and c) or w['P_subset_zero'] is None or c['P_subset_zero'] is None:
+            gaps[role] = dict(complete=False)
+            continue
+        gap = w['P_subset_zero'] - c['P_subset_zero']
+        sg = math.sqrt(w['P_subset_zero'] * (1 - w['P_subset_zero']) / w['n']
+                       + c['P_subset_zero'] * (1 - c['P_subset_zero']) / c['n'])
+        gaps[role] = dict(complete=True, gap=gap, sigma=sg,
+                          z=(gap / sg) if sg > 0 else 0.0,
+                          P_warm=w['P_subset_zero'], P_cold=c['P_subset_zero'],
+                          gap_ideal=ideal,
+                          # the subset's ideal reference is NOT the primary one: it
+                          # marginalises over the excluded qubits, so the ideal gap
+                          # has to be recomputed on the same subset or the
+                          # transmission factor is meaningless.  Both arms'
+                          # excluded qubits are marginalised identically, and at
+                          # p=0 the null branch is ~1 for both, so the null's ideal
+                          # gap stays ~0 while the signal's does not.
+                          null_ideal_still_zero=(role == 'null'))
+    return dict(available=True, excluded_positions=excluded, kept_positions=keep,
+                n_kept=len(keep), n_excluded_channels=len(excluded),
+                identical_to_primary=False, per_circuit=per, pairs=gaps,
+                post_hoc=True,
+                selection_caveat='the excluded set was chosen AFTER seeing which '
+                                 'channel cal9 flagged, so this is a subset '
+                                 'analysis, not the pre-registered test',
+                note='%d of %d data channels kept; %d excluded as broken'
+                     % (len(keep), len(all_pos), len(excluded)))
+def analyze_warmcold(results, meta, phi_warm, phi_cold, shots_requested=None,
+                     verbose=True):
+    """The warm-vs-cold A/B: two arms x (one signal branch + one null branch).
+
+    Reuses qcloud_vscr_new's `counts_to_branch_stats`, so the secondary
+    post-selected number is computed by literally the same code the 2026-09
+    feasibility run used and any difference is in the device, not in the analysis.
+    The LAYOUT, by contrast, is derived from the circuits' MEAS maps
+    (`layout_from_meas`) rather than from `detect_layout`, whose outcome-scored
+    criterion is circular; detect_layout is still computed and any disagreement is
+    recorded in `out['layout']`.
+
+    Tolerates a truncated dump: with only chunk 1 present whatever pairs returned
+    are still analysed, and the missing ones are reported as missing rather than
+    silently dropped.  The verdict distinguishes FAILED (the pre-registered
+    criteria were not met) from INVALID (the apparatus is not characterised well
+    enough for the criteria to mean anything)."""
+    sci = [(r, m) for r, m in zip(results, meta) if m.get('kind') == 'warmcold']
+    cal = [(r, m) for r, m in zip(results, meta) if m.get('kind') == 'cal9']
+    per = {}
+    counts_by_name = {}
+    out = dict(primary_estimator=WARMCOLD_PRIMARY,
+               secondary_estimator=WARMCOLD_SECONDARY,
+               psi=WARMCOLD_PSI, p=0.0, shots_requested=shots_requested)
+    if not sci:
+        msg = ('this job returned no warmcold circuit at all, so there is no '
+               'warm-vs-cold comparison to report')
+        print('[warmcold] NOT ANALYSABLE: %s' % msg, flush=True)
+        out['not_analysable'] = msg
+        return out
+    # ONE layout for the whole job: all four science circuits share the block and
+    # the submission, so they share the bit order.
+    #
+    # The layout is DERIVED from the circuit's MEAS map plus the platform's
+    # measured key order, not inferred from the outcomes.  `q.detect_layout`
+    # scores candidate windows against the counts, but "is this key a syndrome
+    # match" depends on the window being scored, so the score can favour the
+    # wrong window by any margin: on the 2026-10-12 run it reported
+    # anc=[0,4]/rev=True, the exact COMPLEMENT of the correct anc=[5,9]/rev=True,
+    # by 62 data-hits to 2, and the artifact then labelled the ancilla register
+    # as the data register.  Both are computed here and any disagreement is
+    # recorded rather than hidden.
+    ref_gates = q.build_branch_circuit(q.ENC5, sci[0][1]['psi'],
+                                       sci[0][1]['frame'], sci[0][1]['s'],
+                                       phi_warm, late_measure=True)
+    anc, rev = layout_from_meas(ref_gates)
+    det_anc, det_rev = q.detect_layout(
+        [(m['psi'], m['p'], m['frame'], m['s']) for r, m in sci],
+        [r for r, m in sci])
+    agree = (det_anc == anc and det_rev == rev)
+    # A disagreement DOES invalidate the primary number, and an earlier comment
+    # here claimed otherwise on the strength of "'00000' is a palindrome".  That
+    # reasoning confused reversing the CONTENT of the window with moving the
+    # window: the two candidate windows cover disjoint qubit sets.  Under the
+    # vendor key order, anc=[5,9]/rev=True tests logical qubits 0-4 (the data
+    # register) while anc=[0,4]/rev=True tests logical qubits 4-8 -- one data
+    # qubit and all four ANCILLAS.  They are different observables, and on the
+    # 2026-10-12 counts they differ by a factor of several sigma in the reported
+    # gap.  The alternative window is still computed, but as evidence about how
+    # badly the choice matters, not as a reassurance that it does not.
+    alt_hit = [data_zero_counts(r, det_anc, det_rev)[0] for r, m in sci]
+    out['anc_slice'] = [anc.start, anc.stop]
+    out['rev'] = rev
+    ds_ref = _data_slice_for(anc)
+    out['layout'] = dict(
+        source='derived from the circuit MEAS(q->cbit) map',
+        anc_slice=[anc.start, anc.stop], rev=rev,
+        data_slice=[ds_ref.start, ds_ref.stop],
+        detect_layout_anc_slice=[det_anc.start, det_anc.stop],
+        detect_layout_rev=det_rev,
+        detect_layout_agrees=agree,
+        primary_estimator_identical_under_both=bool(
+            all(a == b for a, b in zip(alt_hit,
+                                       [data_zero_counts(r, anc, rev)[0]
+                                        for r, m in sci]))),
+        note=('agrees with detect_layout' if agree else
+              'DISAGREES with detect_layout, which scores candidate windows '
+              'against the measured outcomes and is therefore circular; the '
+              'MEAS-derived layout is authoritative and selftest (m) verifies it '
+              'on the noiseless simulator'))
+    for r, m in sci:
+        phi = phi_warm if m['arm'] == 'warm' else phi_cold
+        counts_by_name['%s|%s' % (m['role'], m['arm'])] = r
+        n_hit, n_tot = data_zero_counts(r, anc, rev)
+        n_sel, n_sel_hit = q.counts_to_branch_stats(r, m['s'], anc, rev)
+        lo, hi = wilson(n_hit, n_tot)
+        if n_sel:
+            slo, shi = wilson(n_sel_hit, n_sel)
+        else:
+            slo = shi = None
+        per['%s|%s' % (m['role'], m['arm'])] = dict(
+            role=m['role'], arm=m['arm'], s=m['s'], frame=m['frame'],
+            angles=m['angles'], n_total=n_tot, n_data_zero=n_hit,
+            P_data_zero=n_hit / n_tot if n_tot else None,
+            P_data_zero_wilson95=[lo, hi],
+            ideal_P_data_zero=ideal_data_zero_prob(m['psi'], m['frame'], m['s'],
+                                                   phi),
+            n_selected=n_sel, n_selected_hit=n_sel_hit,
+            selected_fraction=n_sel / n_tot if n_tot else None,
+            F_s=(n_sel_hit / n_sel) if n_sel else None,
+            F_s_wilson95=[slo, shi],
+            top3=sorted(r.items(), key=lambda kv: -kv[1])[:3])
+    out['per_circuit'] = per
+    out['pairs'] = {}
+    for role, gap_ideal in (('signal', WARMCOLD_GAP_IDEAL_SIGNAL),
+                            ('null', WARMCOLD_GAP_IDEAL_NULL)):
+        w_, c_ = per.get('%s|warm' % role), per.get('%s|cold' % role)
+        if not (w_ and c_):
+            out['pairs'][role] = dict(
+                complete=False,
+                missing=[a for a, d in (('warm', w_), ('cold', c_)) if not d],
+                note='truncated dump: this pair did not both return')
+            continue
+        out['pairs'][role] = _warmcold_pair(w_, c_, gap_ideal)
+    out['cal9'] = _analyze_cal9(cal, anc, rev)
+    # two diagnostics the 2026-10-12 run showed were missing.  The first asks
+    # whether cal9's channel labels even transfer to the science circuits (they do
+    # not, if the vendor re-routes per circuit); the second reports what the A/B
+    # looks like with the suspect channel removed.  Neither is the pre-registered
+    # test, and both are recorded precisely so the pre-registered one cannot be
+    # quietly replaced by whichever of the three is most flattering.
+    out['cal9_transferability'] = check_cal9_transferability(
+        counts_by_name, out['cal9'], rev, phi=phi_warm)
+    out['posthoc_healthy_subset'] = _warmcold_healthy_subset(
+        counts_by_name, out['cal9'], rev, phi=phi_warm)
+    out['power_prediction'] = dict(
+        measured_w=warmcold_power(shots=shots_requested),
+        pessimistic_w=warmcold_power(w=WARMCOLD_W_PESSIMISTIC,
+                                     shots=shots_requested))
+    out['verdict'] = _warmcold_verdict(out)
+    if verbose:
+        for ln in _warmcold_report(out):
+            print(ln, flush=True)
+    return out
+
+
+def _warmcold_pair(w_, c_, gap_ideal):
+    """One arm-pair comparison: the primary gap, its sigma, and what the device
+    transmitted.  The error bar is the unpaired binomial one (both arms are
+    independent shots on the same block), not a paired-subtraction one -- there
+    is nothing to pair at the shot level."""
+    gap = w_['P_data_zero'] - c_['P_data_zero']
+    var = 0.0
+    for d in (w_, c_):
+        n = max(d['n_total'], 1)
+        var += d['P_data_zero'] * (1.0 - d['P_data_zero']) / n
+    sig = math.sqrt(var)
+    if sig > 0:
+        z = gap / sig
+    else:
+        # Zero variance in BOTH arms happens on a noiseless simulator and on a
+        # device that saturates.  The gap is then either exactly zero -- nothing to
+        # resolve, z = 0 -- or a deterministic contradiction that no finite z can
+        # describe.  Returning None here would make the verdict crash instead of
+        # reporting, which is the worse failure.
+        z = 0.0 if gap == 0.0 else float('inf')
+    fs = (w_['F_s'] - c_['F_s']
+          if (w_['F_s'] is not None and c_['F_s'] is not None) else None)
+    # the transmission factor is only meaningful where there IS an ideal effect to
+    # transmit; dividing the null branch's measured gap by its 3e-6 ideal gap would
+    # produce a huge number that means nothing
+    trans = (gap / gap_ideal) if abs(gap_ideal) > WARMCOLD_GAP_TOL else None
+    return dict(complete=True, s=w_['s'], frame=w_['frame'],
+                gap_measured=gap, sigma_gap=sig, z=z,
+                gap_ideal=gap_ideal,
+                ideal_gap_recomputed=(w_['ideal_P_data_zero']
+                                      - c_['ideal_P_data_zero']),
+                transmission_w=trans,
+                P_data_zero_warm=w_['P_data_zero'],
+                P_data_zero_cold=c_['P_data_zero'],
+                F_s_warm=w_['F_s'], F_s_cold=c_['F_s'], F_s_gap=fs,
+                selected_fraction_warm=w_['selected_fraction'],
+                selected_fraction_cold=c_['selected_fraction'])
+
+
+def _warmcold_verdict(out):
+    """The two-part pass/fail, fixed before the run: the signal branch must move
+    in the predicted direction, and the matched null branch must not move.  A
+    signal with a dirty null is not a result -- it is a systematic."""
+    sig = out['pairs'].get('signal', {})
+    nul = out['pairs'].get('null', {})
+    v = dict(signal_complete=bool(sig.get('complete')),
+             null_complete=bool(nul.get('complete')),
+             z_threshold=3.0)
+    if sig.get('complete'):
+        v['signal_z'] = sig['z']
+        v['signal_gap'] = sig['gap_measured']
+        v['signal_detected'] = bool(abs(sig['z']) >= v['z_threshold'])
+        v['signal_direction_correct'] = bool(sig['gap_measured'] > 0)
+        v['signal_transmission_w'] = sig['transmission_w']
+    if nul.get('complete'):
+        v['null_z'] = nul['z']
+        v['null_gap'] = nul['gap_measured']
+        v['null_consistent_with_zero'] = bool(abs(nul['z']) < v['z_threshold'])
+    # The cal9 screen decides whether a non-pass is a RESULT or an APPARATUS
+    # FAULT.  A broken data channel invalidates the primary estimator outright; a
+    # broken ancilla invalidates only the post-selected F_s.  Conflating the two
+    # is how a device failure gets written up as physics.
+    cal = out.get('cal9') or {}
+    scr = cal.get('screen') or {}
+    lay = out.get('layout') or {}
+    tr = out.get('cal9_transferability') or {}
+    v['cal9_screen'] = dict(
+        available=bool(cal.get('available')),
+        n_broken=cal.get('n_broken'),
+        broken_qubits=[b['label'] for b in (cal.get('broken_qubits') or [])],
+        broken_logical_qubits=[b['logical_qubit']
+                               for b in (cal.get('broken_qubits') or [])],
+        primary_estimator_valid=scr.get('primary_estimator_valid'),
+        secondary_estimator_valid=scr.get('secondary_estimator_valid'))
+    v['cal9_transferable'] = tr.get('cal9_transferable')
+    v['vendor_rerouting_detected'] = tr.get('vendor_rerouting_detected')
+    v['layout_derived'] = bool(lay)
+    v['layout_agrees_with_detect_layout'] = lay.get('detect_layout_agrees')
+    # Validity needs BOTH a clean screen AND evidence that the screen describes the
+    # channels the science circuits actually used.  If cal9's labels do not
+    # transfer, the screen cannot clear the run either -- an unbroken cal9 would
+    # say nothing about a re-routed science circuit.
+    rerouted = bool(tr.get('vendor_rerouting_detected'))
+    primary_valid = bool(scr.get('primary_estimator_valid', True)) and not rerouted
+    v['primary_estimator_valid'] = primary_valid
+    if v['signal_complete'] and v['null_complete']:
+        v['ab_test_passed'] = bool(v.get('signal_detected')
+                                   and v.get('signal_direction_correct')
+                                   and v.get('null_consistent_with_zero'))
+        if rerouted:
+            v['ab_test_result'] = 'INVALID'
+            v['note'] = (
+                'NO CONCLUSION: %d of %d channel comparisons violate the hard '
+                'P(read 0) bound that cal9 measured, so cal9 and the science '
+                'circuits are reading DIFFERENT physical channels -- the vendor '
+                'transpiler re-routes per circuit.  The block\'s readout is '
+                'therefore uncharacterised for the circuits that matter, the '
+                'primary estimator cannot be validated, and the pre-registered '
+                'criteria (%s) cannot be interpreted as physics.  This is an '
+                'apparatus/compilation fault, not a warm-vs-cold result'
+                % (tr.get('n_violations', 0), tr.get('n_comparisons', 0),
+                   'signal %+.1f sigma, null %+.1f sigma'
+                   % (v.get('signal_z', float('nan')),
+                      v.get('null_z', float('nan')))))
+        elif not scr.get('primary_estimator_valid', True):
+            v['ab_test_result'] = 'INVALID'
+            v['note'] = (
+                'NO CONCLUSION: the cal9 screen found a BROKEN channel in the '
+                'DATA register (%s), so the primary estimator P(data=00000) is '
+                'not interpretable.  Whether or not the A/B criteria were met is '
+                'irrelevant -- this is an apparatus fault, not a physical '
+                'negative result, and the block must be re-picked and re-run'
+                % ','.join(v['cal9_screen']['broken_qubits']))
+        elif v['ab_test_passed']:
+            v['ab_test_result'] = 'PASSED'
+            v['note'] = ('warm-started recovery beats cold-started on branch s=%d '
+                         'by %+.4f +- %.4f (%.1f sigma), and the matched null '
+                         'branch s=%d moves by %+.4f +- %.4f (%.1f sigma)'
+                         % (sig['s'], sig['gap_measured'], sig['sigma_gap'],
+                            sig['z'], nul['s'], nul['gap_measured'],
+                            nul['sigma_gap'], nul['z']))
+        else:
+            v['ab_test_result'] = 'FAILED'
+            # The pre-registered criterion is directional, so a large gap the
+            # WRONG way is a failure and must never be reported as a detection.
+            # Saying so plainly is the whole point of having pre-registered it.
+            why = []
+            if not v.get('signal_direction_correct'):
+                why.append('the signal gap is NEGATIVE (%+.4f): warm performed '
+                           'significantly WORSE than cold, the opposite of the '
+                           'pre-registered prediction' % sig['gap_measured'])
+            if not v.get('signal_detected'):
+                why.append('the signal gap is not resolved (%.1f sigma < %.1f)'
+                           % (sig['z'], v['z_threshold']))
+            if not v.get('null_consistent_with_zero'):
+                why.append('the null control moved (%.1f sigma), so the '
+                           'apparatus is not clean' % nul['z'])
+            v['note'] = ('A/B FAILED: %s. Null branch s=%d moved by %+.4f +- '
+                         '%.4f (%.1f sigma)%s'
+                         % ('; '.join(why), nul['s'], nul['gap_measured'],
+                            nul['sigma_gap'], nul['z'],
+                            '' if v['cal9_screen']['secondary_estimator_valid']
+                            else ', and a broken ANCILLA (%s) means the '
+                                 'post-selected F_s is uninterpretable while '
+                                 'the unconditioned primary estimator above '
+                                 'still stands'
+                            % ','.join(v['cal9_screen']['broken_qubits'])))
+    elif v['signal_complete']:
+        v['ab_test_result'] = 'INCOMPLETE'
+        v['note'] = ('signal pair complete (%.1f sigma) but the null control did '
+                     'not return, so the result is UNCONTROLLED and must not be '
+                     'reported as a pass' % sig['z'])
+    else:
+        v['ab_test_result'] = 'INCOMPLETE'
+        v['note'] = 'the signal pair did not both return; nothing to conclude'
+    return v
+
+
+def _warmcold_report(out):
+    """Human-readable summary.  States the estimator choice and its measured
+    justification every time, so the number cannot be quoted without it."""
+    lines = ['[warmcold] primary estimator: %s' % out['primary_estimator'],
+             '[warmcold]   secondary %s is reported for continuity with the '
+             '2026-09 run but is NOT primary: that run\'s ancilla marginal is '
+             'near-uniform (H = 3.67-3.97 of 4.00 bits), so post-selecting '
+             'conditions on an uninformative bit and discards ~94%% of shots.'
+             % out['secondary_estimator']]
+    for k in ('signal|warm', 'signal|cold', 'null|warm', 'null|cold'):
+        v = out.get('per_circuit', {}).get(k)
+        if not v:
+            continue
+        lines.append('[warmcold] %-12s s=%-3d %-4s P(data=00000) = %.4f '
+                     '[%.4f, %.4f]  ideal %.6f  |  F_s = %s from %d/%d selected'
+                     % (k, v['s'], v['arm'], v['P_data_zero'],
+                        v['P_data_zero_wilson95'][0],
+                        v['P_data_zero_wilson95'][1], v['ideal_P_data_zero'],
+                        ('%.3f' % v['F_s']) if v['F_s'] is not None else 'n/a',
+                        v['n_selected'], v['n_total']))
+    for role in ('signal', 'null'):
+        p = out['pairs'].get(role, {})
+        if not p.get('complete'):
+            lines.append('[warmcold] %-6s INCOMPLETE: missing %s'
+                         % (role, p.get('missing')))
+            continue
+        lines.append('[warmcold] %-6s s=%-3d gap = %+.4f +- %.4f -> %.1f sigma  '
+                     '(ideal gap %+.6f; the device transmits w = %s)'
+                     % (role, p['s'], p['gap_measured'], p['sigma_gap'], p['z'],
+                        p['gap_ideal'],
+                        ('%.3f' % p['transmission_w'])
+                        if p['transmission_w'] is not None else 'n/a (null)'))
+    lay = out.get('layout', {})
+    if lay:
+        lines.append('[warmcold] layout: anc=%s rev=%s data=%s, DERIVED from the '
+                     'MEAS(q->cbit) map (detect_layout said anc=%s rev=%s -> %s)'
+                     % (lay['anc_slice'], lay['rev'], lay['data_slice'],
+                        lay['detect_layout_anc_slice'], lay['detect_layout_rev'],
+                        'agrees' if lay['detect_layout_agrees']
+                        else 'DISAGREES; detect_layout scores candidate windows '
+                             'against the outcomes it is trying to explain'))
+    c9 = out.get('cal9', {})
+    if c9.get('available'):
+        # ALL nine channels, with the contrast that exposes a dead one.  Reporting
+        # only the data five is what let a broken ancilla pass unnoticed on
+        # 2026-10-12.
+        lines.append('[warmcold] cal9: %d/%d shots, mean readout fidelity %.4f '
+                     '(%.4f over healthy channels)'
+                     % (c9['n_zero'], c9['n_one'],
+                        c9['mean_readout_fidelity'],
+                        c9['mean_readout_fidelity_healthy']))
+        for lab in sorted(c9['per_qubit'],
+                          key=lambda k: (c9['per_qubit'][k]['role'],
+                                         c9['per_qubit'][k]['index'])):
+            d = c9['per_qubit'][lab]
+            lines.append('[warmcold]   %-6s logical q%-2s  e01=%.4f e10=%.4f  '
+                         'fid=%.4f  contrast=%+.4f  %s'
+                         % (lab, d['logical_qubit'], d['e01'], d['e10'],
+                            d['readout_fidelity'], d['contrast'],
+                            'BROKEN' if d['broken'] else 'ok'))
+        lines.append('[warmcold] cal9 all-zero fractions, SEPARATED by register '
+                     '(cal9 key positions data=%s anc=%s -- the SAME positions the '
+                     'science circuit uses, because under the vendor key order '
+                     'analysed position j is logical qubit j for both): data %.4f, '
+                     'ancilla %.4f, joint 9-bit %.4f  (|1...1> circuit: data '
+                     '%.4f, ancilla %.4f)'
+                     % (c9['cal9_data_positions'], c9['cal9_anc_positions'],
+                        c9['all_zero_key_fraction_data'],
+                        c9['all_zero_key_fraction_ancilla'],
+                        c9['all_zero_key_fraction_zero_circuit'],
+                        c9['all_one_key_fraction_data'],
+                        c9['all_one_key_fraction_ancilla']))
+        s = c9['screen']
+        lines.append('[warmcold] cal9 SCREEN: %s -> primary estimator %s, '
+                     'post-selected F_s %s'
+                     % (s['note'],
+                        'VALID' if s['primary_estimator_valid'] else 'INVALID',
+                        'valid' if s['secondary_estimator_valid']
+                        else 'UNINTERPRETABLE (broken ancilla)'))
+        for b in c9['broken_qubits']:
+            lines.append('[warmcold]   BROKEN %s = logical q%s (contrast %+.4f, '
+                         'e01=%.4f, e10=%.4f): %s'
+                         % (b['label'], b['logical_qubit'], b['contrast'],
+                            b['e01'], b['e10'],
+                            'it is read by the science circuit at analysed key '
+                            'position %s, INSIDE the primary estimator\'s data '
+                            'window %s, so P(data=00000) is not interpretable'
+                            % (b['science_key_pos'], c9['data_slice'])
+                            if b['role'] == 'data' else
+                            'it enters only the post-selected F_s, so the '
+                            'unconditioned primary estimator still stands'))
+    elif 'note' in c9:
+        lines.append('[warmcold] cal9 UNAVAILABLE: %s' % c9['note'])
+    tr = out.get('cal9_transferability', {})
+    if tr.get('available'):
+        lines.append('[warmcold] cal9 TRANSFERABILITY (%d comparisons, %d sigma '
+                     'tolerance): %s'
+                     % (tr['n_comparisons'], tr['tol_sigma'],
+                        'consistent -- cal9 does characterise the science '
+                        'circuits\' channels' if tr['cal9_transferable']
+                        else 'VIOLATED %d time(s) -- VENDOR RE-ROUTING DETECTED'
+                             % tr['n_violations']))
+        for b in tr.get('violations', []):
+            lines.append('[warmcold]   %s in %s: observed P(read 0) = %.4f '
+                         '(n=%d) lies OUTSIDE the hard range [%.4f, %.4f] that '
+                         'cal9 measured for logical q%s'
+                         % (b['channel'], b['circuit'], b['observed_P0'], b['n'],
+                            b['allowed_P0_range'][0], b['allowed_P0_range'][1],
+                            b['logical_qubit']))
+        if not tr['cal9_transferable']:
+            lines.append('[warmcold]   -> cal9 and the science circuits are NOT '
+                         'reading the same physical channels, so cal9 can neither '
+                         'validate nor invalidate the primary estimator, and the '
+                         'block cannot be screened before spending QPU time')
+    hs = out.get('posthoc_healthy_subset', {})
+    if hs.get('available') and not hs.get('identical_to_primary'):
+        lines.append('[warmcold] POST-HOC subset (NOT pre-registered; excludes '
+                     'science key positions %s, keeps %s):'
+                     % (hs['excluded_positions'], hs['kept_positions']))
+        for role in ('signal', 'null'):
+            g = hs['pairs'].get(role, {})
+            if not g.get('complete'):
+                lines.append('[warmcold]   %-6s INCOMPLETE' % role)
+                continue
+            lines.append('[warmcold]   %-6s gap = %+.4f +- %.4f -> %+.1f sigma  '
+                         '(warm %.4f, cold %.4f)'
+                         % (role, g['gap'], g['sigma'], g['z'],
+                            g['P_warm'], g['P_cold']))
+        lines.append('[warmcold]   %s' % hs['selection_caveat'])
+    v = out.get('verdict', {})
+    if 'ab_test_result' in v:
+        res = v['ab_test_result']
+        if res == 'INVALID':
+            # 'detected' and 'clean' are conclusions; an INVALID run earned neither,
+            # so the summary states the numbers without the verdict words
+            lines.append('[warmcold] VERDICT: A/B INVALID -- pre-registered '
+                         'estimator gave signal %+.4f (%.1f sigma) and null %+.4f '
+                         '(%.1f sigma), but the run does not support either being '
+                         'read as physics (see below)'
+                         % (v.get('signal_gap', float('nan')),
+                            v.get('signal_z', float('nan')),
+                            v.get('null_gap', float('nan')),
+                            v.get('null_z', float('nan'))))
+        else:
+            lines.append('[warmcold] VERDICT: A/B %s -- signal %s at %.1f sigma '
+                         '(gap %+.4f), null %s at %.1f sigma'
+                         % (res,
+                            'detected' if v.get('signal_detected')
+                            else 'NOT detected',
+                            v.get('signal_z', float('nan')),
+                            v.get('signal_gap', float('nan')),
+                            'clean' if v.get('null_consistent_with_zero')
+                            else 'CONTAMINATED', v.get('null_z', float('nan'))))
+        lines.append('[warmcold]   %s' % v.get('note'))
+        # the null control's own robustness: a null that only passes with all five
+        # channels included was never clean, and saying so belongs next to the
+        # verdict rather than buried in the subset block above
+        hs = out.get('posthoc_healthy_subset', {})
+        if hs.get('pairs', {}).get('null', {}).get('complete'):
+            nz = hs['pairs']['null']['z']
+            if v.get('null_consistent_with_zero') and abs(nz) >= v.get(
+                    'z_threshold', 3.0):
+                lines.append('[warmcold]   WARNING: the null control is NOT '
+                             'ROBUST -- it reads %.1f sigma with all five data '
+                             'channels but %+.1f sigma once the suspect channel '
+                             'is dropped, so its apparent cleanliness depended on '
+                             'a cancellation and cannot be claimed'
+                             % (v.get('null_z', float('nan')), nz))
+    else:
+        lines.append('[warmcold] VERDICT: %s' % v.get('note'))
+    return lines
+
+
 # ---------------------------------------------------------------------
 # 10) artifact, figure, and the offline dry run
 # ---------------------------------------------------------------------
@@ -2226,6 +4033,125 @@ def dry_run(shots=4000, n_boot=200, seed=7, vendor=None, verbose=True):
     assert worst < tol, (worst, tol, chk)
     return dict(probe=probe_out, tomo=tomo_out, worst_deviation=worst,
                 tolerance=tol, shots=shots, checks=chk)
+
+
+def warmcold_dry_run(shots=4000, verbose=True):
+    """Sample the six warmcold circuits on the local CPUQVM and push the counts
+    through the ENTIRE warmcold analysis chain.  Spends no QPU time and needs no
+    account, and it is the only way to learn before buying shots whether the A/B
+    artifact actually assembles.
+
+    The sampled device is noiseless, so every answer is known in advance and
+    exactly: P(data=00000) equals each circuit's own ideal value, the gap appears
+    on branch s=5 and nowhere else, and the null branch does not move.  That makes
+    this a much sharper check than a tolerance test -- a wrong bit order or a wrong
+    data window does not show up as a small numerical error, it shows up as the gap
+    on the WRONG branch, because only one of the sixteen has a gap at all.
+    `detect_layout` is exercised on real nine-bit keys for the same reason."""
+    phi_w, phi_c = load_warmcold_angles()
+    gates, meta = stage_circuits('warmcold', phi_w, phi_c)
+    results = [q.cpuqvm_sample(g, shots) for g in gates]
+    out = analyze_warmcold(results, meta, phi_w, phi_c, shots, verbose=verbose)
+    tol = 4.0 / math.sqrt(shots)
+    chk = {k: abs(v['P_data_zero'] - v['ideal_P_data_zero'])
+           for k, v in out['per_circuit'].items()}
+    worst = max(chk.values())
+    assert worst < tol, (chk, tol)
+    g_sig = out['pairs']['signal']['gap_measured']
+    g_nul = out['pairs']['null']['gap_measured']
+    assert abs(g_sig - WARMCOLD_GAP_IDEAL_SIGNAL) < tol, (g_sig, tol)
+    assert abs(g_nul) < tol, (g_nul, tol)
+    # a noiseless local simulator returns every shot; the platform returned ~92% of
+    # what was asked for in 2026-09, so this equality is the simulator's ideal and
+    # deliberately not something to expect from the device
+    for k, v in out['per_circuit'].items():
+        assert v['n_total'] == shots, (k, v['n_total'], shots)
+    c9 = out['cal9']
+    assert c9['available'], c9
+    assert abs(c9['mean_readout_fidelity'] - 1.0) < tol, c9
+    assert abs(c9['all_zero_key_fraction_zero_circuit'] - 1.0) < tol, c9
+    # on ideal data the pre-registered verdict must fire as a PASS: signal found in
+    # the predicted direction, null clean.  If this fails, the verdict logic and
+    # not the device is what is broken.
+    assert out['verdict']['ab_test_passed'] is True, out['verdict']
+    if verbose:
+        print('[warmcold-dry-run] noiseless chain OK: worst |P(data=00000) - '
+              'ideal| = %.2e over %d circuits (tol %.1e), signal gap %+.6f, null '
+              'gap %+.6f, verdict PASSED'
+              % (worst, len(chk), tol, g_sig, g_nul), flush=True)
+    return out
+
+
+def warmcold_power_study(shots=None, w=WARMCOLD_W_MEASURED_2026_09,
+                         n_draws=400, seeds=None, verbose=True):
+    """Repeat binomial draws of the A/B at the OUTCOME level and report the
+    distribution of the z-score the real analysis would produce.
+
+    This checks the error propagation and the power claim in `warmcold_power`; it
+    is NOT a device simulation.  It draws n_data_zero from Binomial(shots, p) at
+    the p that model predicts and pushes each pair through the SAME
+    `_warmcold_pair` the hardware counts go through, so the sigma formula is
+    validated against the sampling distribution it claims to describe, and the null
+    branch's false-positive rate is measured rather than quoted.  Spends no QPU
+    time.  What it cannot tell you is whether the real device's w is 0.12 -- only
+    the hardware run can, which is why the verdict is a pass/fail on the MEASURED z
+    and never on agreement with this study."""
+    shots = shots or STAGE_SHOTS['warmcold']
+    seeds = seeds or (SEED_BANK[0],)
+    pred = warmcold_power(w=w, shots=shots)
+    zs, gaps, null_zs = [], [], []
+    for sd in seeds:
+        rng = np.random.default_rng(sd)
+        for _ in range(n_draws):
+            per = {}
+            for role, gap_ideal in (('signal', WARMCOLD_GAP_IDEAL_SIGNAL),
+                                    ('null', WARMCOLD_GAP_IDEAL_NULL)):
+                for arm in ('warm', 'cold'):
+                    if role == 'signal':
+                        p = (pred['p_warm'] if arm == 'warm' else pred['p_cold'])
+                        ideal = 1.0 if arm == 'warm' else 1.0 - gap_ideal
+                    else:
+                        p = pred['p_warm']      # both arms are warm-ideal here
+                        ideal = 1.0
+                    k = int(rng.binomial(shots, p))
+                    per['%s|%s' % (role, arm)] = dict(
+                        s=(WARMCOLD_SIGNAL_S if role == 'signal'
+                           else WARMCOLD_NULL_S),
+                        frame=(WARMCOLD_SIGNAL_FRAME if role == 'signal'
+                               else WARMCOLD_NULL_FRAME),
+                        P_data_zero=k / shots, n_total=shots, F_s=None,
+                        selected_fraction=None, ideal_P_data_zero=ideal)
+                pr = _warmcold_pair(per['%s|warm' % role],
+                                    per['%s|cold' % role], gap_ideal)
+                (zs if role == 'signal' else null_zs).append(pr['z'])
+                if role == 'signal':
+                    gaps.append(pr['gap_measured'])
+    zs, gaps = np.array(zs, float), np.array(gaps, float)
+    null_zs = np.array(null_zs, float)
+    out = dict(shots=shots, w=w, n_draws=int(n_draws * len(seeds)),
+               seeds=list(seeds), prediction=pred,
+               z_mean=float(zs.mean()), z_sd=float(zs.std()),
+               z_p05=float(np.percentile(zs, 5)),
+               fraction_z_above_3=float((zs >= 3.0).mean()),
+               fraction_z_above_5=float((zs >= 5.0).mean()),
+               gap_mean=float(gaps.mean()), gap_sd=float(gaps.std()),
+               null_z_sd=float(null_zs.std()),
+               null_fraction_abs_z_above_3=float((np.abs(null_zs) >= 3.0).mean()))
+    if verbose:
+        print('[warmcold-power] %d draws at %d shots, w=%.4f: predicted gap '
+              '%.4f / sigma_pair %.4f / %.1f sigma'
+              % (out['n_draws'], shots, w, pred['observable_gap'],
+                 pred['sigma_pair'], pred['sigma_z']), flush=True)
+        print('[warmcold-power]   sampled z = %.1f +- %.1f (5th pct %.1f); '
+              'P(z>=3) = %.3f, P(z>=5) = %.3f'
+              % (out['z_mean'], out['z_sd'], out['z_p05'],
+                 out['fraction_z_above_3'], out['fraction_z_above_5']), flush=True)
+        print('[warmcold-power]   sampled gap = %.4f +- %.4f against the predicted '
+              '%.4f; the NULL branch exceeds 3 sigma on %.4f of draws (a '
+              'well-behaved statistic gives ~0.0027)'
+              % (out['gap_mean'], out['gap_sd'], pred['observable_gap'],
+                 out['null_fraction_abs_z_above_3']), flush=True)
+    return out
 
 
 def _to_observed(probs_canonical, sigma):
@@ -2509,7 +4435,7 @@ def make_figure(art, tag):
 # 11) stage plumbing shared by --mode cloud and --mode analyze, and the CLI
 # ---------------------------------------------------------------------
 def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
-                  vendor=None, n_boot=2000, verbose=True):
+                  vendor=None, n_boot=2000, verbose=True, phi_cold=None):
     """Push one stage's counts through the analysis and merge the result into `art`.
 
     The tomo stage depends on the probe stage for the bit order and the assignment
@@ -2604,6 +4530,14 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
         out = analyze_bench(results, meta, phi, shots_requested, verbose=verbose)
         art['bench'] = out
         return out
+    if stage == 'warmcold':
+        assert phi is not None and phi_cold is not None, (
+            'the warmcold stage needs BOTH angle sets to compare; refusing to '
+            'analyse an A/B with only one arm defined')
+        out = analyze_warmcold(results, meta, phi, phi_cold, shots_requested,
+                               verbose=verbose)
+        art['warmcold'] = out
+        return out
     raise ValueError(stage)
 
 
@@ -2612,6 +4546,49 @@ def _load_dump(stage):
     with open(path) as f:
         raw = json.load(f)
     return [{str(k): int(v) for k, v in d.items()} for d in raw]
+
+
+def _meta_sidecar_path(dump_path):
+    return dump_path + '.meta.json'
+
+
+def write_meta_sidecar(dump_path, meta, gates, stage, chip_id=None, block=None,
+                       shots=None, mapping=True, use_options=True):
+    """Record WHICH meta a dump's counts belong to, next to the dump.
+
+    `--mode analyze` rebuilds meta from the CURRENT builders.  The existing guard
+    only compares LENGTHS, so a builder change that reorders circuits without
+    changing their number -- moving the calibration pair from last to first, say
+    -- would silently re-label every circuit in an older dump, and an analysis
+    would then compare the wrong arms or read a calibration as a science circuit.
+    The sidecar makes the pairing explicit and checkable.
+
+    It is written BEFORE submission, not after, so that a mid-job cut-off still
+    leaves meta on disk describing the prefix that submit_cloud dumped."""
+    path = _meta_sidecar_path(dump_path)
+    with open(path, 'w') as f:
+        json.dump(dict(
+            stage=stage, chip_id=chip_id, block=block, shots=shots,
+            # the submission configuration is part of what the data MEANS: a run
+            # with vendor mapping on cannot be compared to one with it off, and
+            # the 2026-10-12 artifact would have been interpretable at a glance if
+            # it had carried this field
+            mapping=mapping, use_options=use_options,
+            written_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            n_circuits=len(meta),
+            instruction_counts=[len(g) for g in gates],
+            kinds=[m.get('kind') for m in meta],
+            meta=meta), f, indent=1, sort_keys=True)
+    return path
+
+
+def read_meta_sidecar(dump_path):
+    """The sidecar written at submission time, or None for a legacy dump."""
+    path = _meta_sidecar_path(dump_path)
+    if not os.path.exists(path):
+        return None
+    with open(path) as f:
+        return json.load(f)
 
 
 def print_plan(phi, budget_s=BUDGET_S, vendor=None):
@@ -2638,8 +4615,14 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
     print('  "Cannot overrun" makes a MID-JOB CUT-OFF the expected outcome rather')
     print('  than a rare one, so the stage is chunked and ordered to be salvaged.')
     print('=' * 78)
-    for stage in ('probe', 'tomo', 'bench', 'ladder'):
-        gates, meta = stage_circuits(stage, phi if stage == 'bench' else None)
+    for stage in ('probe', 'tomo', 'bench', 'ladder', 'warmcold'):
+        if stage == 'bench':
+            gates, meta = stage_circuits(stage, phi)
+        elif stage == 'warmcold':
+            _w, _c = load_warmcold_angles()
+            gates, meta = stage_circuits(stage, _w, _c)
+        else:
+            gates, meta = stage_circuits(stage)
         instr = [len(g) for g in gates]
         cnot = [sum(1 for x in g if x[0] == 'CNOT') for g in gates]
         shots = STAGE_SHOTS[stage]
@@ -2664,8 +4647,11 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
           % ('TOTAL', sum(r[3] for r in rows), tot_shots, tot_cost))
     print()
     print('THE SHOTS / COST / PRECISION TRADE-OFF FOR THE tomo STAGE (19 circuits).')
-    print('This is now the ONLY knob the confirmed budget leaves, so it is printed')
-    print('rather than left in a document.  "sigma(r<1)" assumes the vendor-')
+    print('Kept because tomo stays implemented, but note what the right-hand')
+    print('column says: on this block\'s MEASURED calibration the best sigma(r<1)')
+    print('that fits the budget is ~1.8, so this knob has no good setting.  The')
+    print('recommended warmcold job has its own power table further down.')
+    print('"sigma(r<1)" assumes the vendor-')
     print('predicted r~0.86 and CI = 0.028 x sqrt(8000/S), the scaling measured by')
     print('the power study; the cost is S x 19 x %.0f ms.' % ms_per_shot)
     print('  shots/circ  total shots          cost  CI half-width  sigma(r<1)')
@@ -2696,14 +4682,77 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
             v = 'DOES NOT FIT (%.1fx over)' % (cost / budget_s)
         print('  %-7s %2d circ x %5d shots = %7d shots = %6.0f s   %s'
               % (stage, nc, sh, tot, cost, v))
-    print('  => tomo is the choice: it is the only stage that produces a')
-    print('     mixedness claim, and at %d shots it just fits.  Adding probe'
-          % STAGE_SHOTS['tomo'])
-    print('     would spend the entire remaining margin to re-measure what tomo')
-    print('     already carries: its own 3 calibration circuits give the')
-    print('     assignment matrix, and analyze_stage recovers the bit order from')
-    print('     the tomography circuits themselves (selftest (f) proves the')
-    print('     resulting 4-way code-space tie is harmless).')
+    wc_row = [r for r in rows if r[1] == 'warmcold'][0]
+    wc_cost = wc_row[9]
+    wc_shots_tot = wc_row[8]
+    wc_pow = warmcold_power()
+    wc_pow_p = warmcold_power(w=WARMCOLD_W_PESSIMISTIC)
+    # recomputed rather than quoted: the Z-basis vanishing of the effect is what
+    # makes psi='+' load-bearing, and a number this load-bearing should not be a
+    # literal in a print statement
+    _wcw, _wcc = load_warmcold_angles()
+    wc_z_gap = max(abs(ideal_data_zero_prob(p, WARMCOLD_SIGNAL_FRAME,
+                                            WARMCOLD_SIGNAL_S, _wcw)
+                       - ideal_data_zero_prob(p, WARMCOLD_SIGNAL_FRAME,
+                                              WARMCOLD_SIGNAL_S, _wcc))
+                   for p in ('0', '1'))
+    ci_tomo = CI_HALF_WIDTH_AT_1000 * (
+        1000.0 / (STAGE_SHOTS['tomo'] * MEASURED_FREAD ** 4)) ** 0.5
+    r_tomo = vendor_prediction(MEASURED_F1Q, MEASURED_F2Q,
+                               MEASURED_FREAD)['radius']
+    z_tomo = (1.0 - r_tomo) / ci_tomo
+    # same arithmetic as selftest (k), which asserts wall5 = 18651 s = 62x budget;
+    # recomputing it here rather than quoting 62 keeps the two from drifting
+    s5_tomo = (1000.0 * (CI_HALF_WIDTH_AT_1000 * 5.0 / (1.0 - r_tomo)) ** 2
+               / MEASURED_FREAD ** 4)
+    wall5_tomo = (len(stage_circuits('tomo')[1]) * s5_tomo
+                  * MS_PER_SHOT / 1000.0)
+    print('  => warmcold IS THE CHOICE, and tomo is not, for a reason that is')
+    print('     arithmetic rather than preference.  BOTH fit the budget.  But')
+    print('     tomo\'s headline r<1 is worth only %.2f sigma on this block\'s'
+          % z_tomo)
+    print('     MEASURED calibration (f2q=%.5f, better than the quoted %.4f):'
+          % (MEASURED_F2Q, QUOTED_F2Q))
+    print('     the device beats its own datasheet, so %.0f s buys a NULL'
+          % tomo_cost)
+    print('     result, and 5 sigma would need %.0f s = %.0fx the allocation.'
+          % (wall5_tomo, wall5_tomo / budget_s))
+    print('     warmcold spends %.0f s on a warm-minus-cold gap that is exactly'
+          % wc_cost)
+    print('     %.6f in the noiseless limit on branch s=%d, and that survives'
+          % (WARMCOLD_GAP_IDEAL_SIGNAL, WARMCOLD_SIGNAL_S))
+    print('     the data-register survival w=%.4f MEASURED in 2026-09 as'
+          % wc_pow['w'])
+    print('     %.4f +- %.4f = %.1f sigma (%.1f sigma even at w=%.2f).  At equal'
+          % (wc_pow['observable_gap'], wc_pow['sigma_pair'], wc_pow['sigma_z'],
+             wc_pow_p['sigma_z'], WARMCOLD_W_PESSIMISTIC))
+    print('     cost a claim beats a null.  tomo stays implemented for a top-up.')
+    print()
+    print('WARMCOLD SALVAGE LADDER -- chunk=%d, so a cut-off after any boundary'
+          % STAGE_CHUNK['warmcold'])
+    print('below still leaves a reportable result, and the decisive pair is')
+    print('submitted FIRST because the primary estimator needs no calibration:')
+    _gw, mw = stage_circuits('warmcold', _wcw, _wcc)
+    for b in list(range(STAGE_CHUNK['warmcold'], len(mw),
+                        STAGE_CHUNK['warmcold'])) + [len(mw)]:
+        pre = mw[:b]
+        roles = {(m['role'], m['arm']) for m in pre
+                 if m.get('kind') == 'warmcold'}
+        have_sig = {('signal', 'warm'), ('signal', 'cold')} <= roles
+        have_nul = {('null', 'warm'), ('null', 'cold')} <= roles
+        cal_ok = len([m for m in pre if m.get('kind') == 'cal9']) == 2
+        got = []
+        if have_sig:
+            got.append('the SIGNAL A/B (headline, %.1f sigma predicted)'
+                       % wc_pow['sigma_z'])
+        if have_nul:
+            got.append('the NULL control (without it the result is UNCONTROLLED)')
+        if cal_ok:
+            got.append('the readout decomposition of w')
+        print('  after %d circuits (%5d shots, %3.0f s): %s'
+              % (b, b * STAGE_SHOTS['warmcold'],
+                 b * STAGE_SHOTS['warmcold'] * MS_PER_SHOT / 1000.0,
+                 ' + '.join(got) if got else 'nothing reportable'))
     print()
     print('SALVAGE LADDER (8.3) -- the platform enforces the ceiling itself, so')
     print('there are no wall-clock abort rules left to guess at.  What matters is')
@@ -2758,8 +4807,40 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
     s5 = (1000.0 * (CI_HALF_WIDTH_AT_1000 * 5.0 / (1.0 - r_meas)) ** 2
           / n_eff_frac)
     wall5 = len(stage_circuits('tomo')[1]) * s5 * MS_PER_SHOT / 1000.0
-    print('WHAT THE ONE AFFORDABLE JOB BUYS (8.4), at %d shots/circuit:'
+    print('WHAT THE RECOMMENDED JOB BUYS -- warmcold, %d circuits x %d shots,'
+          % (WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL, STAGE_SHOTS['warmcold']))
+    print('%d shots = %.0f s of the ~%.0f s allocation (%.0f s margin):'
+          % (wc_shots_tot, wc_cost, budget_s, budget_s - wc_cost))
+    print('  W1  THE HEADLINE.  Warm-started vs cold-started variational recovery')
+    print('      on the one branch where they differ, s=%d (frame %s, psi=%s).'
+          % (WARMCOLD_SIGNAL_S, WARMCOLD_SIGNAL_FRAME, WARMCOLD_PSI))
+    print('      The noiseless gap is exactly %.6f and it is a LOGICAL Z, so it'
+          % WARMCOLD_GAP_IDEAL_SIGNAL)
+    print('      is invisible in the Z basis (gap %.1e) and maximal in X/Y.'
+          % wc_z_gap)
+    print('      Through the data survival w=%.4f measured in 2026-09 that is'
+          % WARMCOLD_W_MEASURED_2026_09)
+    print('      %.4f +- %.4f = %.1f sigma; at w=%.2f it is still %.1f sigma.'
+          % (wc_pow['observable_gap'], wc_pow['sigma_pair'], wc_pow['sigma_z'],
+             WARMCOLD_W_PESSIMISTIC, wc_pow_p['sigma_z']))
+    print('  W2  A MATCHED NULL.  s=%d (frame %s) has an ideal warm/cold gap of'
+          % (WARMCOLD_NULL_S, WARMCOLD_NULL_FRAME))
+    print('      %.1e, so it must come out at zero.  A signal with a dirty null'
+          % WARMCOLD_GAP_IDEAL_NULL)
+    print('      is a systematic, not a result; the verdict requires both.')
+    print('  W3  The transmission factor w = gap_hw / gap_ideal, i.e. what')
+    print('      FRACTION of the logical advantage this device preserves.  This')
+    print('      is the number that connects the simulation to the hardware and')
+    print('      it is measurable even though the absolute fidelity is not.')
+    print('  W4  Free inside the same job: the block\'s own 9-qubit readout')
+    print('      assignment (2 cal circuits), which decomposes w into a readout')
+    print('      part and a 206-instruction circuit part; the platform\'s shots')
+    print('      shortfall; and the bit order recovered from the data.')
+    print()
+    print('WHAT tomo WOULD BUY INSTEAD (8.4), at %d shots/circuit -- kept for'
           % STAGE_SHOTS['tomo'])
+    print('comparison, and NOT recommended: its headline is a %.2f sigma null.'
+          % z_meas)
     print('  M1  the headline: measured w, Bloch radius r and purity for four')
     print('      logical inputs, with a bootstrap CI of +-%.4f at this shot count'
           % ci_tomo)
@@ -2804,6 +4885,12 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
     print('      and the bit order recovered from the data.')
     print()
     print('DEFERRED, NOT ABANDONED -- these stay implemented for a top-up:')
+    print('  tomo    266 s, and it FITS, but its headline r<1 is a %.2f sigma'
+          % z_meas)
+    print('          null on this block\'s measured calibration and 5 sigma needs')
+    print('          %.0fx the whole allocation.  Run it only if the point is to'
+          % (wall5 / budget_s))
+    print('          report the device\'s mixedness as consistent with unity.')
     print('  probe   redundant: tomo self-calibrates and self-detects its layout.')
     print('  bench   952 s, upgrades the feasibility set to a 16-branch protocol')
     print('          benchmark and re-tests the documented mid/late A/B anomaly.')
@@ -2841,7 +4928,8 @@ def main(argv=None):
                     choices=['verify', 'sample', 'selftest', 'simulate', 'preflight',
                              'plan', 'cloud', 'analyze'])
     ap.add_argument('--stage', default='all',
-                    choices=['probe', 'tomo', 'bench', 'ladder', 'all'])
+                    choices=['probe', 'tomo', 'bench', 'ladder', 'warmcold',
+                             'all'])
     ap.add_argument('--rounds', default=None,
                     help='comma-separated extra depths for the ladder stage '
                          '(default %s; 8 costs 581 instructions/288 CNOT per circuit)'
@@ -2860,6 +4948,20 @@ def main(argv=None):
                     help='circuits per job (default: the whole stage in ONE job)')
     ap.add_argument('--job-timeout', type=int, default=21600)
     ap.add_argument('--no-options', action='store_true')
+    ap.add_argument('--no-mapping', action='store_true',
+                    help='disable the vendor\'s server-side RE-ROUTING while '
+                         'keeping the block pinned, so the logical-to-physical '
+                         'assignment is identical by construction for every '
+                         'circuit of the job.  This is a CONTROL, not a '
+                         'demonstrated necessity: the 2026-10-12 warmcold run had '
+                         'mapping ON and its in-job cal9 still transferred to the '
+                         'science circuits (all 36 channel comparisons inside '
+                         'their hard P(read 0) bounds), so this platform shows no '
+                         'evidence of per-circuit re-routing.  Use it when you '
+                         'want the assignment guaranteed rather than measured.  '
+                         'Requires --block; without a pinned block the server '
+                         'still chooses qubits and disabling mapping buys '
+                         'nothing.')
     ap.add_argument('--n-boot', type=int, default=2000)
     ap.add_argument('--seeds', type=int, default=1,
                     help='for --mode simulate: repeat the power study over this '
@@ -2883,8 +4985,8 @@ def main(argv=None):
     vendor = tuple(float(x) for x in a.vendor.split(',')) if a.vendor else None
     if a.rounds:
         LADDER_ROUNDS = tuple(int(x) for x in a.rounds.split(',') if x.strip())
-    stages = (['probe', 'tomo', 'bench', 'ladder'] if a.stage == 'all'
-              else [a.stage])
+    stages = (['probe', 'tomo', 'bench', 'ladder', 'warmcold']
+              if a.stage == 'all' else [a.stage])
 
     if a.mode == 'selftest':
         st = selftests()
@@ -2895,8 +4997,12 @@ def main(argv=None):
         st = selftests()
         print('\n=== exact ideal reference of every submitted circuit ===')
         for stage in stages:
-            phi = q.load_angles(a.noise) if stage == 'bench' else None
-            gates, meta = stage_circuits(stage, phi)
+            if stage == 'warmcold':
+                phi, phi_c = load_warmcold_angles()
+            else:
+                phi = q.load_angles(a.noise) if stage == 'bench' else None
+                phi_c = None
+            gates, meta = stage_circuits(stage, phi, phi_c)
             inv = {}
             for g in gates:
                 key = (len(g), sum(1 for x in g if x[0] == 'CNOT'),
@@ -2915,6 +5021,26 @@ def main(argv=None):
                     print('    %s|%s|r%d  ideal w=%.12f  <Z>rot=%+.12f (want %+.0f)'
                           % (m['psi'], m['basis'], m['rounds'], w, nvec[2],
                              IDEAL_BLOCH[m['psi']][BASIS_AXIS[m['basis']]]))
+            if stage == 'warmcold':
+                print('    (the A/B is exact and pre-registered: s=%d/%s is the '
+                      'ONLY branch where the two angle sets differ, s=%d/%s is '
+                      'the matched null)'
+                      % (WARMCOLD_SIGNAL_S, WARMCOLD_SIGNAL_FRAME,
+                         WARMCOLD_NULL_S, WARMCOLD_NULL_FRAME))
+                for _g, m in zip(gates, meta):
+                    if m.get('kind') != 'warmcold':
+                        print('    cal9|%-5s ideal: all nine bits read %s (the '
+                              "block's own readout assignment)"
+                              % (m.get('cal'),
+                                 '1' if m.get('cal') == 'one' else '0'))
+                        continue
+                    print('    %-6s|%-4s s=%-3d frame=%s  ideal '
+                          'P(data=00000)=%.9f'
+                          % (m['role'], m['arm'], m['s'], m['frame'],
+                             ideal_data_zero_prob(
+                                 m['psi'], m['frame'], m['s'],
+                                 phi if m['arm'] == 'warm' else phi_c)))
+
         print('[verify] self-tests %s' % json.dumps(st, default=str), flush=True)
         return 0
 
@@ -2922,6 +5048,30 @@ def main(argv=None):
         if not q.HAS_PYQPANDA3:
             print('ERROR: pyqpanda3 required: %s' % q._PYQPANDA_IMPORT_ERR)
             return 3
+        if a.stage == 'warmcold':
+            wc = warmcold_dry_run(shots=a.shots or 4000)
+            art0 = load_artifact(a.json)
+            art0['warmcold_dry_run'] = dict(
+                shots=a.shots or 4000, spends_qpu_time=False,
+                note='noiseless local CPUQVM through the full analysis chain; '
+                     'every value here is an ideal reference, NOT hardware',
+                per_circuit={k: {kk: vv for kk, vv in v.items()
+                                 if kk != 'top3'}
+                             for k, v in wc['per_circuit'].items()},
+                pairs=wc['pairs'], cal9=wc['cal9'], verdict=wc['verdict'])
+            if a.seeds > 0:
+                # always at the stage's real shot count, so the study answers
+                # "what will the job that costs 252 s actually achieve" and not
+                # "what would a differently-sized job achieve"
+                art0['warmcold_power_study'] = warmcold_power_study(
+                    shots=STAGE_SHOTS['warmcold'], n_draws=200,
+                    seeds=tuple(SEED_BANK[:min(a.seeds, len(SEED_BANK))]))
+                art0['warmcold_power_study_pessimistic'] = warmcold_power_study(
+                    shots=STAGE_SHOTS['warmcold'],
+                    w=WARMCOLD_W_PESSIMISTIC, n_draws=200,
+                    seeds=tuple(SEED_BANK[:min(a.seeds, len(SEED_BANK))]))
+            save_artifact(art0, a.json)
+            return 0
         dry_run(shots=a.shots or 4000, vendor=vendor)
         return 0
 
@@ -2967,6 +5117,19 @@ def main(argv=None):
     # ---- cloud / analyze ----
     phi = q.load_angles(a.noise)
     q.PHI_GLOBAL = phi
+    # The warmcold A/B compares TWO different committed trainings, so its cold arm
+    # comes from its own file and not from --noise.  --noise still selects the
+    # warm arm for every other stage; load_warmcold_angles() is what pins the A/B
+    # to the two files the manuscript is built from.
+    phi_cold = load_angle_set('cold')
+    # AND THE TRAP THAT GOES WITH IT: q.load_angles('depolarizing') resolves to
+    # vscr_angles_dep.npz, which IS the cold arm.  Passing that `phi` into the
+    # warmcold stage would compare cold against cold and return a flawless null
+    # that looks exactly like a failed experiment.  The warm arm is therefore
+    # loaded separately and by name, and the two are never interchangeable.
+    phi_warm = load_angle_set('warm')
+    assert not np.allclose(phi_warm, phi_cold), (
+        'the warm and cold angle files are identical, so there is no A/B to run')
 
     if a.mode == 'plan':
         plan = print_plan(phi, vendor=vendor)
@@ -2994,7 +5157,41 @@ def main(argv=None):
                       % (stage, STAGE_RAW[stage]), flush=True)
                 continue
             results = _load_dump(stage)
-            _g, meta = stage_circuits(stage, phi if stage == 'bench' else None)
+            if stage == 'bench':
+                _g, meta = stage_circuits(stage, phi)
+            elif stage == 'warmcold':
+                _g, meta = stage_circuits(stage, phi_warm, phi_cold)
+            else:
+                _g, meta = stage_circuits(stage)
+            # The dump stores counts only, so its meta has to come from somewhere.
+            # Prefer the sidecar written at submission time and REFUSE a mismatch:
+            # reconstructing meta from the current builders is only safe while no
+            # builder has reordered circuits, and the length check below cannot
+            # detect a reordering.
+            side = read_meta_sidecar(os.path.join(ROOT, STAGE_RAW[stage]))
+            if side is None:
+                print('[analyze] %s: no meta sidecar -- this dump predates '
+                      'sidecar writing, so its meta is RECONSTRUCTED from the '
+                      'current builders.  That is only correct if no builder has '
+                      'since reordered circuits without changing their number.'
+                      % stage, flush=True)
+            else:
+                sm = side.get('meta') or []
+                n_cmp = min(len(sm), len(meta))
+                diff = [i for i in range(n_cmp) if sm[i] != meta[i]]
+                if diff:
+                    i = diff[0]
+                    raise AssertionError(
+                        '%s: the meta recorded at submission time (%s) does not '
+                        'match what the current builders produce, so this dump '
+                        'cannot be labelled reliably.  First difference at '
+                        'circuit %d:\n  submitted: %r\n  rebuilt:   %r'
+                        % (stage, side.get('written_utc'), i, sm[i], meta[i]))
+                meta = sm
+                print('[analyze] %s: meta VERIFIED against the submission-time '
+                      'sidecar (%s, %d circuits, block %s)'
+                      % (stage, side.get('written_utc'), side.get('n_circuits'),
+                         side.get('block')), flush=True)
             # A TRUNCATED DUMP IS THE EXPECTED OUTCOME, not an error.  QPU time is
             # billed in real time and a job cannot overrun its allocation, so the
             # job is cut off when the budget runs out; submit_cloud has by then
@@ -3045,23 +5242,40 @@ def main(argv=None):
             sr = a.shots or art.get('runs', {}).get(stage, {}).get(
                 'shots_requested') or STAGE_SHOTS[stage]
             analyze_stage(stage, results, meta, sr, art,
-                          phi=phi, vendor=vendor, n_boot=a.n_boot)
+                          phi=phi_warm if stage == 'warmcold' else phi,
+                          vendor=vendor, n_boot=a.n_boot, phi_cold=phi_cold)
     else:
         if a.stage == 'all':
             print('ERROR: --mode cloud refuses --stage all.  QPU time is billed in '
-                  'real time, the allocation is ~%.0f s, and the tomo stage alone '
-                  'consumes it (QCLOUD_SETUP.md 8).  Submitting all four would bill '
-                  'the first, be cut off part way through, and leave the account '
-                  'disabled with nothing to show for the other three.  Submit ONE '
+                  'real time, the allocation is ~%.0f s, and ONE stage consumes it '
+                  '(QCLOUD_SETUP.md 8).  Submitting all of them would bill the '
+                  'first, be cut off part way through, and leave the account '
+                  'disabled with nothing to show for the rest.  Submit ONE '
                   'stage:\n'
-                  '  bash launch_mixedness.sh tomo    # THE PLAN: 19 circuits at '
-                  '%d shots, chunked so a cut-off is salvageable\n'
+                  '  bash launch_mixedness.sh warmcold  # THE PLAN: %d circuits at '
+                  '%d shots = %.0f s, %.1f sigma on the warm/cold gap, chunked so '
+                  'the signal pair alone survives a cut-off\n'
                   'only if the allocation is ever topped up:\n'
-                  '  bash launch_mixedness.sh probe   # redundant -- tomo carries '
+                  '  bash launch_mixedness.sh tomo      # 266 s, but r<1 is only '
+                  '%.2f sigma on this block\'s measured calibration -- it buys a '
+                  'null\n'
+                  '  bash launch_mixedness.sh probe     # redundant: tomo carries '
                   'its own calibration and recovers its own bit order\n'
-                  '  bash launch_mixedness.sh bench   # 952 s at its default shots\n'
-                  '  bash launch_mixedness.sh ladder  # 224 s at its default shots'
-                  % (BUDGET_S, STAGE_SHOTS['tomo']))
+                  '  bash launch_mixedness.sh bench     # 952 s at its default '
+                  'shots\n'
+                  '  bash launch_mixedness.sh ladder    # 224 s at its default '
+                  'shots'
+                  % (BUDGET_S,
+                     WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL,
+                     STAGE_SHOTS['warmcold'],
+                     (WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL)
+                     * STAGE_SHOTS['warmcold'] * MS_PER_SHOT / 1000.0,
+                     warmcold_power()['sigma_z'],
+                     (1.0 - vendor_prediction(MEASURED_F1Q, MEASURED_F2Q,
+                                              MEASURED_FREAD)['radius'])
+                     / (CI_HALF_WIDTH_AT_1000 * (
+                         1000.0 / (STAGE_SHOTS['tomo']
+                                   * MEASURED_FREAD ** 4)) ** 0.5)))
             return 2
         tok = a.token
         if not tok:
@@ -3079,7 +5293,10 @@ def main(argv=None):
                 try:
                     run = run_stage(stage, tok, a.chip_id, shots=shots, block=block,
                                     chunk=a.chunk, job_timeout=a.job_timeout,
-                                    use_options=not a.no_options, phi=phi)
+                                    use_options=not a.no_options,
+                                    mapping=not a.no_mapping,
+                                    phi=phi_warm if stage == 'warmcold' else phi,
+                                    phi_cold=phi_cold)
                     break
                 except Exception as exc:
                     attempts.append(dict(stage=stage, shots=shots,
@@ -3097,8 +5314,9 @@ def main(argv=None):
             run['attempts'] = attempts
             art.setdefault('runs', {})[stage] = stage_record(run)
             analyze_stage(stage, run['results'], run['meta'],
-                          run['shots_requested'], art, phi=phi, vendor=vendor,
-                          n_boot=a.n_boot)
+                          run['shots_requested'], art,
+                          phi=phi_warm if stage == 'warmcold' else phi,
+                          vendor=vendor, n_boot=a.n_boot, phi_cold=phi_cold)
             # save after EVERY stage: a quota refusal on a later one then costs
             # nothing that was already measured
             save_artifact(art, a.json)
