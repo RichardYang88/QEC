@@ -678,7 +678,7 @@ def build_warmcold(phi_warm, phi_cold):
     return out, meta
 
 
-def stage_circuits(stage, phi=None, phi_cold=None):
+def stage_circuits(stage, phi=None, phi_cold=None, cal_first=False):
     """(gate_lists, meta) for one cloud job.  meta entries are plain dicts so they
     survive the JSON dump and can be rebuilt identically in --mode analyze."""
     if stage == 'probe':
@@ -747,7 +747,37 @@ def stage_circuits(stage, phi=None, phi_cold=None):
             'the warmcold stage needs BOTH angle sets: the warm arm is the file '
             'the manuscript reports (%s) and the cold arm is the from-zero '
             'control (%s)' % (WARMCOLD_ANGLES['warm'], WARMCOLD_ANGLES['cold']))
-        return build_warmcold(phi, phi_cold)
+        gates, meta = build_warmcold(phi, phi_cold)
+        if not cal_first:
+            return gates, meta
+        # CAL-FIRST ORDER.  Puts the two nine-qubit readout-calibration circuits
+        # ahead of the four science circuits, which with chunk = WARMCOLD_N_CAL
+        # makes the calibration exactly submission 1.
+        #
+        # Why this is now available and was not before: cal9's channel labels were
+        # believed not to transfer to the science circuits, so screening on cal9
+        # would have said nothing about the block the science circuits land on.
+        # That belief is retracted -- the apparent violations were an artefact of a
+        # wrong key-position lookup, and all 36 comparisons lie inside their bounds
+        # (see check_cal9_transferability).  cal9 therefore DOES characterise the
+        # science block, and the 2026-10-12 run's dead data channel (logical q3,
+        # contrast -0.156) would have been visible before any science circuit was
+        # paid for.
+        #
+        # What cal-first does NOT do is make the calibration cheap.  Billing is per
+        # SHOT, not per instruction, so at a common shot count the two 9- and
+        # 18-instruction calibration circuits cost exactly what two 206-instruction
+        # science circuits cost.  Their advantage is that they are interpretable on
+        # their own and decide whether the block is usable at all.  A genuinely
+        # cheap screen needs cal9 submitted as its own job at reduced shots
+        # (1000/circuit is ample for e01/e10), which is a separate submission
+        # rather than a reordering of this one.
+        #
+        # The default stays science-first so the 2026-10-12 artifact remains
+        # reproducible from the same command line that produced it.
+        order = sorted(range(len(meta)),
+                       key=lambda i: (0 if meta[i].get('kind') == 'cal9' else 1, i))
+        return ([gates[i] for i in order], [meta[i] for i in order])
     raise ValueError(stage)
 
 
@@ -1806,6 +1836,31 @@ def selftests(verbose=True):
            wc_data['ancilla_entropy_bits_max'] if wc_data else float('nan'),
            wc_data['data_survival_mean'] if wc_data else float('nan'),
            WARMCOLD_W_FLOOR_UNIFORM, wc_pw['sigma_z'], wc_pp['sigma_z']))
+    # (l2) --cal-first reordering.  cal9's labels DO transfer to the science
+    # circuits (see check_cal9_transferability), so putting the calibration pair
+    # first is what lets a hard-budget kill still leave the block's readout screen
+    # on disk.  The reordering must be a PERMUTATION, not a rebuild: same circuits,
+    # same meta, only the order differs.  If it ever stopped being a permutation the
+    # cal-first job would silently measure something other than the pre-registered
+    # stage, and the artifact would not be comparable with the science-first one.
+    _cf_g, _cf_m = stage_circuits('warmcold', wc_warm, wc_cold, cal_first=True)
+    assert [x['kind'] for x in _cf_m[:WARMCOLD_N_CAL]] == ['cal9'] * WARMCOLD_N_CAL
+    assert [x['kind'] for x in wc_m[:WARMCOLD_N_SCIENCE]] == \
+        ['warmcold'] * WARMCOLD_N_SCIENCE, 'the default must stay science-first so ' \
+        'the 2026-10-12 artifact remains reproducible from its own command line'
+    assert sorted(str(x) for x in _cf_m) == sorted(str(x) for x in wc_m)
+    assert sorted(len(g) for g in _cf_g) == sorted(len(g) for g in wc_g)
+    assert [len(g) for g in _cf_g[:WARMCOLD_N_CAL]] == [9, 18]
+    # every science circuit must survive the reordering unchanged, not merely in
+    # count: match them by (kind, arm, s) so a swap between the two arms is caught
+    _key = lambda m: (m['kind'], m.get('arm'), m.get('s'), m.get('cal'))
+    assert sorted(map(_key, _cf_m)) == sorted(map(_key, wc_m))
+    for _k in set(_key(x) for x in wc_m):
+        _a = [g for g, m in zip(wc_g, wc_m) if _key(m) == _k]
+        _b = [g for g, m in zip(_cf_g, _cf_m) if _key(m) == _k]
+        assert _a == _b, ('cal-first must not alter any circuit', _k)
+
+
 
     # (m) the layout must be DERIVED from the circuit plus the platform's measured
     # key order, never inferred from the outcomes it is meant to explain; and a
@@ -2284,7 +2339,7 @@ def query_best_block(chip_id, nq, token):
 
 def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
               job_timeout=21600, use_options=True, dump_raw=None, phi=None,
-              verbose=True, phi_cold=None, mapping=True):
+              verbose=True, phi_cold=None, mapping=True, cal_first=False):
     """Submit one stage, chunked, dumping the raw counts after every chunk.
 
     The chunking is not a convenience: the account is billed in real time and a job
@@ -2306,10 +2361,20 @@ def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
     otherwise; that claim rested on a bit-window error and is retracted.  Use
     mapping=False when you want the assignment guaranteed rather than measured --
     it costs nothing but does require an explicit `block`, since with mapping off
-    nothing else will choose the qubits.  See qcloud_vscr_new._build_options."""
+    nothing else will choose the qubits.  See qcloud_vscr_new._build_options.
+
+    `cal_first=True` (warmcold only) reorders the stage so the two calibration
+    circuits are submission 1 and forces chunk = WARMCOLD_N_CAL.  It exists
+    because cal9's labels DO transfer to the science circuits -- the contrary
+    finding is retracted in check_cal9_transferability -- so the calibration can
+    decide whether the block is usable before the science circuits are bought.
+    It does not make the calibration cheaper: billing is per shot, not per
+    instruction, so at a common shot count cal9 costs what any other circuit
+    costs.  The default is False so the 2026-10-12 artifact stays reproducible
+    from the command line that produced it."""
     shots = shots or STAGE_SHOTS[stage]
     dump_raw = dump_raw or os.path.join(ROOT, STAGE_RAW[stage])
-    gates, meta = stage_circuits(stage, phi, phi_cold)
+    gates, meta = stage_circuits(stage, phi, phi_cold, cal_first=cal_first)
     nq = STAGE_NQ[stage]
     if block is None and use_options:
         try:
@@ -2325,7 +2390,19 @@ def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
               'instruction counts %s' % (stage, len(gates), nq, shots, block, inv),
               flush=True)
     t0 = time.time()
-    n_chunk = chunk or STAGE_CHUNK.get(stage) or len(gates)
+    if cal_first and chunk is None and stage == 'warmcold':
+        # Make the calibration pair EXACTLY submission 1.  Under a hard real-time
+        # budget a kill costs the chunk in flight, so with cal9 first a cut-off job
+        # still leaves the block's readout screen on disk -- which is the one piece
+        # of information that decides whether the science circuits were worth
+        # buying, and the piece the 2026-10-12 run put last.
+        n_chunk = WARMCOLD_N_CAL
+        if verbose:
+            print('[stage %s] cal-first: submission 1 is the %d calibration '
+                  'circuit(s), so a budget kill still leaves the block screen'
+                  % (stage, n_chunk), flush=True)
+    else:
+        n_chunk = chunk or STAGE_CHUNK.get(stage) or len(gates)
     # written BEFORE submission so a cut-off job still leaves the meta that
     # describes the prefix submit_cloud managed to dump -- see write_meta_sidecar
     write_meta_sidecar(dump_raw, meta, gates, stage, chip_id, block, shots,
@@ -4962,6 +5039,20 @@ def main(argv=None):
                          'Requires --block; without a pinned block the server '
                          'still chooses qubits and disabling mapping buys '
                          'nothing.')
+    ap.add_argument('--cal-first', action='store_true',
+                    help='warmcold only: submit the two nine-qubit readout '
+                         'calibration circuits FIRST and force chunk=%d, so '
+                         'submission 1 is exactly the calibration.  cal9\'s '
+                         'channel labels DO transfer to the science circuits (the '
+                         'contrary finding is retracted in '
+                         'check_cal9_transferability), so this is what lets a '
+                         'cut-off job still leave the block\'s readout screen on '
+                         'disk -- the 2026-10-12 run put calibration last and a '
+                         'dead data channel went unnoticed until after all four '
+                         'science circuits were paid for.  NOTE it does not make '
+                         'the calibration cheap: billing is per shot, not per '
+                         'instruction.  A cheap screen is cal9 alone as its own '
+                         'job at ~1000 shots/circuit.' % WARMCOLD_N_CAL)
     ap.add_argument('--n-boot', type=int, default=2000)
     ap.add_argument('--seeds', type=int, default=1,
                     help='for --mode simulate: repeat the power study over this '
@@ -5295,6 +5386,7 @@ def main(argv=None):
                                     chunk=a.chunk, job_timeout=a.job_timeout,
                                     use_options=not a.no_options,
                                     mapping=not a.no_mapping,
+                                    cal_first=a.cal_first,
                                     phi=phi_warm if stage == 'warmcold' else phi,
                                     phi_cold=phi_cold)
                     break
