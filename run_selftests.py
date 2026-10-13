@@ -295,6 +295,24 @@ def _t_hwmixedness():
                 > 2 * hm.WARMCOLD_W_FLOOR_UNIFORM), wc
 
 
+def _t_envelope():
+    """T5 operational envelope: the criterion that prices the hardware section.
+
+    Runs all of `operational_envelope`'s own self-tests.  Each is anchored to a
+    route that shares nothing with the one being checked: the half-advantage
+    budgets against their closed form ln2/(R N_rec) rather than against the
+    bisection that also produces them, the bisection against a monotone-survival
+    bracket, the arm-difference break-even against the advantage it must
+    reproduce at equality, the shot budget against a hand-computed Bernoulli
+    variance, the Wilson half-width against the interval it must contain, and
+    both verdict strings against the inequalities that imply them.  Section 18 of
+    `paper/audit_numbers.py` re-derives the same numbers a second time from the
+    artifact, so a stale `operational_envelope.json` fails either gate.
+    """
+    import operational_envelope as oe
+    assert oe.main(['--selftest']) == 0
+
+
 # name -> (callable, slow?, description)
 TESTS = [
     ('gates',       m._selftest_gates, False,
@@ -373,6 +391,15 @@ TESTS = [
      '(1-eta)^(mR) while the learned recovery violates it only at 1e-11, and the '
      'reduced map tracks the full density matrix over 12 rounds with leakage '
      'that saturates rather than compounds'),
+    ('envelope',    _t_envelope, False,
+     'T5 operational envelope: the module passes all 17 of its own self-tests, so '
+     'the per-instruction budgets the hardware verdict is priced on are derived '
+     'twice by independent routes (closed form ln2/(R N_rec) against bisection, '
+     'bisection against a monotone bracket, break-even against the advantage it '
+     'must reproduce, shot budget against a hand-computed Bernoulli variance, '
+     'Wilson half-width against the interval it must contain), and both verdict '
+     'strings follow from the inequalities that imply them rather than being '
+     'asserted in prose'),
 ]
 
 

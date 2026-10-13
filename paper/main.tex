@@ -801,6 +801,73 @@ advantage is zero at $\lambda=0$, and the scan records that explicitly instead o
 bisecting round-off into a number. The full $\lambda$ grid, per-row $q_\mathrm{esc}$
 and per-row full-space checks are in ED Table~14f.
 
+\subsubsection*{The operational envelope: what the certified headroom costs}
+
+A ceiling and a threshold are both stated in units no device quotes: a fidelity
+difference at $\lambda=0$, and a depolarizing strength on one whole recovery layer.
+Converting them into a per-instruction error and a shot budget is what turns the
+certified headroom into an \emph{operational envelope}, and it is the step that
+decides whether the hardware section below could have shown an advantage at all
+(ED Table~15, Fig.~\ref{fig:envelope}).
+
+The compiled branch recovery is $90$ instructions long out of $204$ in the full
+benchmark circuit, against $0$ for a frame-tracked Pauli lookup, so the learned arm
+pays $\Delta N=90$ instructions the decoder arm does not. Two conversions follow and
+they are conservative in \emph{opposite} directions, which is why both are reported
+rather than the more flattering one. Charging every instruction fault in the recovery
+section as one full-register depolarizing event, $\lambda=N_{\rm rec}\,
+\epsilon_{\rm instr}$, turns the universal rule $\lambda_{1/2}\simeq\ln2/R$ into
+$\epsilon_{1/2}(R)=\ln2/(R\,N_{\rm rec})$: $7.70\times10^{-3}$ at $R=1$ and
+$1.93\times10^{-4}$ at $R=40$, with the sign-change budget
+$\epsilon^*=\lambda^*/N_{\rm rec}$ between $1.34\times10^{-3}$ and
+$2.81\times10^{-3}$. Independently of the $\lambda$ model, a plain independent-error
+model puts the two arms $\Delta N\,\epsilon_{\rm instr}$ apart, so break-even needs
+$\epsilon_{\rm be}=\Delta_{R=1}/N_{\rm rec}$, which is $1.78\times10^{-5}$ on
+amplitude damping at $p=0.10$ and $2.88\times10^{-8}$ on coherent noise at $p=0.05$.
+The first bound is optimistic about the device, because a distance-$3$ code corrects
+most single-qubit faults inside the recovery and the dictionary charges them as if
+none were corrected; the second is pessimistic, because it charges the learned arm
+for all $90$ instructions although most of the circuit is shared with the decoder
+arm and cancels to first order. A circuit-level fault-tolerance analysis would sit
+between them and needs a calibrated noise model this platform does not supply, so we
+report the bracket and take the verdict against its \emph{loose} end.
+
+The platform measures $\epsilon_{\rm instr}=1.04\times10^{-2}$ from its own run
+(ED Table~3d), not from a vendor datasheet. That is $1.35\times$ above the loose end
+at $R=1$, $54\times$ above the $R=40$ half-advantage budget, and $584\times$ above
+break-even at the amplitude-damping operating point. Uncorrected, the recovery
+section alone transmits $(1-\epsilon)^{90}=0.39$ of a branch and the whole circuit
+$(1-\epsilon)^{204}=0.12$. The verdict is therefore not that the device is marginal
+but that it is outside the envelope even where the envelope is drawn most
+favourably---and it is computed from those ratios rather than asserted:
+\texttt{operational\_envelope.py} returns it as a string derived from its own
+factors, and a self-test fails if the string and the factors ever disagree.
+
+The second half of the envelope is statistical, and it is tighter still. Resolving
+$\Delta=1.6\times10^{-3}$ at $3\sigma$ with a Bernoulli estimator of variance
+$\le1/4$ needs $8.8\times10^{5}$ shots per arm, and at the end-to-end yield the
+feasibility run measured ($3.31\%$: $53$ data hits from $1600$ requested shots)
+that is $5.3\times10^{7}$ requested shots; on coherent noise, where
+$\Delta=4.1\times10^{-5}$, it is $1.4\times10^{9}$ per arm. The executed run
+requested $1600$, post-selected $124$, and its Wilson half-width on the headline
+branch is $0.104$---$65\times$ the signal it would have had to resolve. No
+re-analysis of those data can yield a hardware advantage, because the uncertainty
+exceeds the effect by nearly two orders of magnitude; that is the quantitative form
+of the statement in Layer~4 that the run is a characterization rather than a
+comparison, and it is why the shot budget is published instead of being quietly
+increased.
+
+What \emph{would} sit inside the envelope: a single-round sign-change claim needs
+$\epsilon_{\rm instr}\lesssim1.3\times10^{-3}$, a memory claim at $R=40$ needs
+$\lesssim1.9\times10^{-4}$, and either needs of order $10^{6}$ shots per arm.
+Readout error tightens all three, because the headroom carries the exact
+$(1-\eta)^{n-k}$ factor while the instruction cost does not: at $\eta=0.02$ the
+$R=40$ budget falls to $1.78\times10^{-4}$, and at $\eta=0.25$---nearer to what the
+feasibility run's ancilla actually does---to $6.1\times10^{-5}$ (ED Table~15c).
+These are the two numbers a device has to beat for the certified headroom to be
+worth capturing on it, and they are the reason this paper reports a criterion rather
+than a hardware demonstration.
+
 \subsection*{Layer 4. Hardware: exact compilation, protocol, and the measured
 operational envelope}
 
@@ -1931,6 +1998,25 @@ $\min_s\mathrm{cf}_s$.}
 \end{figure}
 
 \begin{figure}[ht]
+\centering\includegraphics[width=\textwidth]{fig_operational_envelope.pdf}
+\caption{\textbf{The operational envelope.} (a) Net advantage of the learned
+recovery over the Pauli decoder against per-instruction error, obtained from the
+measured erosion law $\mathrm{adv}(\lambda)/\mathrm{adv}(0)\simeq e^{-\lambda R}$
+with $\lambda=N_{\rm rec}\,\epsilon_{\rm instr}$ and $N_{\rm rec}=90$ the compiled
+recovery's own instruction count, on the two channels that have certified headroom
+at $p=0.10$, for a single round (solid) and $R=40$ (dashed). The dotted vertical
+line is the $1.04\times10^{-2}$ the platform measures from its own run: at that
+error rate every curve is at or below zero, which is the whole hardware conclusion
+on one axis. (b) The statistical half: the $95\%$ half-width of a Bernoulli
+estimator against shots per arm, the amplitude-damping signal
+$\Delta=1.6\times10^{-3}$ it would have to resolve, the $8.8\times10^{5}$ shots per
+arm that requires at $3\sigma$, and the executed run's own point ($55$
+post-selected shots, half-width $0.104$, i.e.\ $65\times$ the signal). Source:
+\texttt{operational\_envelope.py}; ED Table~15.}
+\label{fig:envelope}
+\end{figure}
+
+\begin{figure}[ht]
 \centering\includegraphics[width=\textwidth]{fig_hw_feasibility.pdf}
 \caption{\textbf{Hardware feasibility on OriginQ Wukong \texttt{WK\_C180}.}
 (a) Syndrome distribution for the late-measure circuit with injected $X_2$
@@ -1952,8 +2038,11 @@ will be deposited in a persistent archive (Zenodo) and cited by DOI at acceptanc
 and that deposit is the version of record for the data.
 \texttt{paper/audit\_numbers.py} in the same tree re-derives each number quoted in
 the manuscript and in the Extended Data from those artifacts and fails on any
-mismatch, so the data are not merely available but machine-checked against the
-text.
+mismatch; it verifies 1271 assertions across the artifacts, the figures, the
+manuscript text, the Extended Data tables and the reference list, and it is the
+last step of the build, so the data are not merely available but machine-checked
+against the text. That count is itself one of the assertions, which is why it
+cannot go stale.
 
 \emph{Simulation data.} Trained angle sets and per-branch conditional fidelities
 (\texttt{vscr\_angles\_*.npz}, \texttt{vscr\_paper\_results.npz},

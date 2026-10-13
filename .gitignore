@@ -29,3 +29,7 @@ build/
 # generated reports (kept locally, not committed)
 report/
 supplement.md
+
+# downloaded TeX distribution used to compile the manuscript locally: a vendor
+# tarball from CTAN, not source (8.4 MB, regenerable)
+paper/revtex-tds/

@@ -79,6 +79,17 @@ It asserts, over `paper_numbers.json`, `paper/main.tex`,
       mantissa quoted in Results, Discussion, Methods and ED Tables 10c-10e is
       re-derived here.
 
+  18. the operational envelope: the module passes all of its own self-tests, the
+      instruction cost it prices is the compiled circuit's own inventory, both ends
+      of the bracket are re-derived here (ln2/N_rec and ln2/(40 N_rec) exactly, the
+      arm-difference break-even the strict end), the headroom it is priced on is the
+      paper's own single-round number to 1%, the device sits above the LOOSE end so
+      the verdict does not depend on which end is right, every mantissa main.tex
+      quotes -- thresholds, factors, shot budget, yields, Wilson half-width, readout
+      erosion -- is re-derived from the artifact, ED Tables 15/15a-15c render it row
+      for row including the rows where no envelope exists at all, and the figure is
+      on disk, labelled and included.
+
 Exit status is 0 iff all checks pass, so it composes with `&&` in CI.
 """
 import json
@@ -92,10 +103,12 @@ REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(REPO)
 BS = chr(92)          # backslash, kept out of f-strings
 ok = True
+n_checks = 0          # every assertion counts itself, so the total is quotable
 
 
 def chk(cond, msg):
-    global ok
+    global ok, n_checks
+    n_checks += 1
     print(('  OK   ' if cond else '  FAIL ') + msg)
     ok = ok and bool(cond)
 
@@ -114,7 +127,8 @@ for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.p
           'mixed_input_boundary.json',
           'ancilla_recovery.json', 'multiseed_results.json',
           'storage_rounds.json', 'hw_feasibility_numbers.json',
-          'hw_error_budget.json', 'refs_verification5.json'):
+          'hw_error_budget.json', 'refs_verification5.json',
+          'operational_envelope.py', 'operational_envelope.json'):
     chk(os.path.getsize(f) > 0, f + ' present')
 
 P = json.load(open('paper_numbers.json'))
@@ -2307,6 +2321,195 @@ for _tab, _spec, _nm, _nrow in ((_tb10c, _spec10c, '10c', len(_mrows) + 1),
         'ED Table %s: every body row has the %d columns its preamble declares'
         % (_nm, len(_spec)))
 
-print('=== OVERALL:', 'ALL CHECKS PASSED' if ok else 'FAILURES PRESENT', '===')
+# ---- 18. the operational envelope -------------------------------------------
+# operational_envelope.json is what turns the hardware section from a claim into a
+# computation: it prices the paper's own single-round headroom against the
+# platform's own measured per-instruction error, and it reports the shot budget the
+# executed run would have needed.  Audited here so that the verdict string, both
+# ends of the bracket, every mantissa main.tex quotes and every row of ED Tables
+# 15/15a-15c are re-derived from the artifact rather than trusted from the prose.
+# The module also carries its own self-tests; passing them is the first check.
+def _mn_sci(x, d=2):
+    """main.tex's inline scientific notation: $7.70\\times10^{-3}$, no thin space."""
+    mnt, ex = ('%.*e' % (d, abs(float(x)))).split('e')
+    return '$' + mnt + BS + 'times10^{' + str(int(ex)) + '}$'
+
+
+try:
+    _oe = json.load(open('operational_envelope.json'))
+except Exception as _ex:                                        # noqa: BLE001
+    _oe = None
+    chk(False, 'operational_envelope.json loads (%r)' % (_ex,))
+if _oe is not None:
+    _oei, _oed = _oe['inventory'], _oe['device']
+    _oes, _oer = _oe['shot_budget'], _oe['readout_erosion']
+    _oest, _oenv = _oe['selftests'], _oe['envelope']
+    _oelive = [r for r in _oenv if not r['degenerate']]
+    _nrec = _oei['n_recovery']
+    _eb = json.load(open('hw_error_budget.json'))
+    _gi, _hh = _eb['gate_inventory']['D'], _eb['headline']
+
+    chk(_oest['n_failures'] == 0,
+        'operational_envelope.py passes all %d of its own self-tests (found %d '
+        'failures)' % (_oest['n_checks'], _oest['n_failures']))
+
+    # 18a. the inventory is the compiled circuit's own, not a round number
+    chk(_nrec == _gi['by_section']['recovery'],
+        'the envelope prices the recovery at the %d instructions the gate '
+        'inventory reports' % _gi['by_section']['recovery'])
+    chk(_oei['instructions'] == _gi['instructions'],
+        'the envelope prices the whole circuit at the %d instructions the gate '
+        'inventory reports' % _gi['instructions'])
+
+    # 18b. the two ends of the bracket, recomputed here from the artifacts
+    chk(abs(_oed['eps_instr_measured_D']
+            - _hh['implied_mean_instruction_error_D']) < 1e-15,
+        "the measured per-instruction error is hw_error_budget.json's own")
+    chk(abs(_oed['eps_instr_half_R1_required'] * _nrec - math.log(2.0)) < 1e-12,
+        'eps_1/2(R=1) is ln2/N_rec as claimed, not a fitted number')
+    chk(abs(_oed['eps_instr_half_R40_required'] * 40 * _nrec
+            - math.log(2.0)) < 1e-12,
+        'eps_1/2(R=40) is ln2/(40 N_rec) as claimed')
+    chk(_oed['eps_instr_breakeven_required']
+        <= _oed['eps_instr_half_R1_required'],
+        'the bracket is ordered: the arm-difference break-even is the strict end')
+    chk(_oed['eps_instr_measured_D'] > _oed['eps_instr_half_R1_required'],
+        'the device is above the LOOSE end of the bracket, which is what makes the '
+        'verdict independent of which end is closer to the truth')
+    chk(_oed['verdict'] == 'outside_envelope_even_at_the_loose_end',
+        'the verdict string is the one the factors imply')
+
+    # 18c. the headroom the envelope is priced on is the paper's own
+    _pn = json.load(open('paper_numbers.json'))
+    _dpn = (_pn['ad_p010']['VSCR warm (ours)']
+            - _pn['ad_p010']['Perfect-code decoder'])
+    _dad = max(r['advantage_R1'] for r in _oelive)
+    chk(abs(_dad - _dpn) / _dpn < 1e-2,
+        'the single-round headroom the envelope uses (%.4e) is the one the paper '
+        'reports (%.4e) to 1%% relative' % (_dad, _dpn))
+
+    # 18d. main.tex quotes the envelope it is entitled to
+    _ad_row = max(_oelive, key=lambda r: r['eps_instr_breakeven'])
+    _be_min = min(_oelive, key=lambda r: r['eps_instr_breakeven'])
+    _eta = {r['eta']: r for r in _oer['eta_rows']}
+    for _q, _why in (
+        ('$%d$ instructions long out of $%d$' % (_nrec, _oei['instructions']),
+         'the instruction cost of one compiled branch'),
+        ('$\\epsilon_{\\rm instr}=' + _mn_sci(_oed['eps_instr_measured_D'])[1:]
+         + ' from its own run',
+         'the per-instruction error the platform measures'),
+        (_mn_sci(_oed['eps_instr_half_R1_required']) + ' at $R=1$',
+         'the loose end of the bracket at R=1'),
+        (_mn_sci(_oed['eps_instr_half_R40_required']) + ' at $R=40$',
+         'the R=40 half-advantage budget'),
+        ('between ' + _mn_sci(min(r['eps_instr_star'] for r in _oelive))
+         + ' and ' + _mn_sci(max(r['eps_instr_star'] for r in _oelive)),
+         'the sign-change budget range'),
+        (_mn_sci(_ad_row['eps_instr_breakeven']) + ' on amplitude damping',
+         'the strict end of the bracket at the operating point'),
+        (_mn_sci(_be_min['eps_instr_breakeven']) + ' on coherent noise',
+         'the tightest row of the bracket'),
+        ('$%.2f\\times$ above the loose end' % _oed['factor_above_half_R1'],
+         'how far the device is above the loose end'),
+        ('$%.0f\\times$ above the $R=40$ half-advantage budget'
+         % _oed['factor_above_half_R40'],
+         'how far the device is above the memory budget'),
+        ('$%.0f\\times$ above' % (_oed['eps_instr_measured_D']
+                                  / _ad_row['eps_instr_breakeven']),
+         'how far the device is above break-even at the operating point'),
+        ('$(1-\\epsilon)^{%d}=%.2f$' % (_nrec,
+                                        _oed['recovery_survival_at_measured']),
+         'what the recovery section alone transmits at the measured error'),
+        (_mn_sci(_oes['shots_per_arm_3sigma'], 1) + ' shots per arm',
+         'the shot budget per arm at 3 sigma'),
+        ('$%.2f\\%%$: $%d$ data hits from $%d$ requested shots'
+         % (100 * _oes['end_to_end_yield'], _oes['executed_data_hits'],
+            _oes['executed_shots_requested']),
+         'the measured end-to-end yield'),
+        ('requested $%d$, post-selected $%d$'
+         % (_oes['executed_shots_requested'], _oes['executed_post_selected']),
+         'what the executed run actually spent'),
+        ('$%.3f$---$%.0f\\times$ the signal'
+         % (_oes['executed_wilson_halfwidth'], _oes['halfwidth_over_delta']),
+         'the statistical floor against the signal'),
+        (_mn_sci(_eta[0.02]['eps_instr_half_R40_scaled']),
+         'the R=40 budget after 2% readout error'),
+        (_mn_sci(_eta[0.25]['eps_instr_half_R40_scaled'], 1),
+         'the R=40 budget after 25% readout error'),
+    ):
+        chk(' '.join(_q.split()) in _tfn15,
+            'main.tex quotes %s as %s' % (_why, ' '.join(_q.split())))
+
+    # 18e. ED Tables 15/15a/15b/15c exist and render the artifact
+    for _tag in ('ED Table 15:', 'ED Table 15a:', 'ED Table 15b:',
+                 'ED Table 15c:'):
+        chk(_tag in e, 'extended_data.tex renders %s' % _tag.rstrip(':'))
+    _tb15a, _spec15a = _body('ED Table 15a:')
+    _rows15a = [r for r in _tb15a.split(BS * 2)
+                if '&' in r and 'toprule' not in r]
+    _live15a = [r for r in _rows15a if 'multicolumn' not in r]
+    _deg15a = [r for r in _rows15a if 'multicolumn' in r]
+    chk(len(_rows15a) == len(_oenv),
+        'ED Table 15a renders exactly its %d rows (found %d), degenerate ones '
+        'included: dropping them would hide the channels where there is no '
+        'envelope to draw at all' % (len(_oenv), len(_rows15a)))
+    chk(len(_deg15a) == len(_oenv) - len(_oelive),
+        'ED Table 15a marks all %d degenerate rows as degenerate rather than '
+        'printing a threshold bisected out of round-off'
+        % (len(_oenv) - len(_oelive)))
+    chk(all(r.count('&') == len(_spec15a) - 1 for r in _live15a),
+        'ED Table 15a: every non-degenerate row has the %d columns its preamble '
+        'declares' % len(_spec15a))
+    for _r in _oelive:
+        _frag = (_ed_sci(_r['eps_instr_breakeven']) + ' & '
+                 + _ed_sci(_r['eps_instr_half_R1']) + ' & '
+                 + _ed_sci(_r['eps_instr_half_R40']) + ' & '
+                 + _ed_sci(_r['eps_instr_star']))
+        chk(_frag in _tb15a,
+            'ED Table 15a renders the %s %s p=%.2f %s envelope against the '
+            'artifact' % (_r['code'], _r['channel'], _r['p'], _r['recovery']))
+    _tb15b, _spec15b = _body('ED Table 15b:')
+    chk(_ed_sci(_oed['eps_instr_measured_D'], 4) in _tb15b,
+        'ED Table 15b renders the measured per-instruction error')
+    chk(_ed_sci(_oes['shots_per_arm_3sigma'], 3) in _tb15b,
+        'ED Table 15b renders the per-arm shot budget')
+    chk(('$%.2f' % _oed['factor_above_half_R1']) in _tb15b,
+        'ED Table 15b renders the factor above the loose end')
+    chk(_oed['verdict'].replace('_', ' ') in _tb15b,
+        'ED Table 15b prints the verdict string rather than leaving it to prose')
+    chk(_oes['verdict'] in _tb15b, 'ED Table 15b prints the shot-budget verdict')
+    _tb15c, _spec15c = _body('ED Table 15c:')
+    _rows15c = [r for r in _tb15c.split(BS * 2)
+                if '&' in r and 'toprule' not in r]
+    chk(len(_rows15c) == len(_oer['eta_rows']),
+        'ED Table 15c renders exactly its %d readout rows (found %d)'
+        % (len(_oer['eta_rows']), len(_rows15c)))
+    chk(all(r.count('&') == len(_spec15c) - 1 for r in _rows15c),
+        'ED Table 15c: every body row has the %d columns its preamble declares'
+        % len(_spec15c))
+    chk(not any(_pat in _tb15a + _tb15b + _tb15c
+                for _pat in ('e-0', 'e+0', 'e-1', 'e+1')),
+        'the envelope tables set every magnitude in ' + BS + 'times 10^{} form, '
+        'never in Python e-notation, which no typesetter sets as mathematics')
+
+    # 18f. the figure exists and is referenced
+    for _ext in ('pdf', 'png'):
+        chk(os.path.exists('paper/figures/fig_operational_envelope.' + _ext),
+            'fig_operational_envelope.%s exists on disk' % _ext)
+    chk(BS + 'label{fig:envelope}' in t and BS + 'ref{fig:envelope}' in t,
+        'the envelope figure is labelled and referenced from the text')
+    chk('fig_operational_envelope.pdf' in t,
+        'main.tex includes the envelope figure')
+
+# the paper quotes the size of this audit.  The check is self-referential by
+# construction, so it counts itself: `n_checks` assertions have run and this one
+# makes n_checks + 1, which is the total the manuscript must quote.
+_m_audit = re.search(r'verifies (\d+) assertions', _tfn15)
+chk(_m_audit is not None and int(_m_audit.group(1)) == n_checks + 1,
+    'main.tex quotes the number of assertions this audit actually runs (%d), so '
+    'the reproducibility claim cannot go stale' % (n_checks + 1))
+
+print('=== OVERALL:', 'ALL CHECKS PASSED' if ok else 'FAILURES PRESENT',
+      '(%d assertions)' % n_checks, '===')
 raise SystemExit(0 if ok else 1)
 

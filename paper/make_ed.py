@@ -1509,7 +1509,176 @@ is set by channel-specific subleading structure rather than by the decay rate.""
               + f"{sci(_fs['max_abs_affine_vs_full'], 1)} \\\\")
         A(r'\bottomrule\end{longtable}')
 
+# ---------------- ED Table 15: the operational envelope ---------------------
+# Every threshold above is quoted in lambda, the strength of ONE recovery layer.
+# A device quotes a per-INSTRUCTION error.  This table is the dictionary between
+# the two, and it is what decides whether the certified headroom is reachable at
+# all rather than merely certified.  Generated from operational_envelope.json,
+# which itself recomputes no physics: its inputs are the compiled circuit's own
+# gate inventory (hw_error_budget.json), the bisected erosion law
+# (storage_rounds.json) and the headroom (paper_numbers.json).
+_OE = os.path.join(ROOT, '..', 'operational_envelope.json')
+if os.path.exists(_OE):
+    _oe = json.load(open(_OE))
+    _inv, _dev, _sb = _oe['inventory'], _oe['device'], _oe['shot_budget']
+    _ro = _oe['readout_erosion']
+    _live = [r for r in _oe['envelope'] if not r['degenerate']]
+    _nrec = _inv['n_recovery']
+    A(r"""
+\subsection*{ED Table 15: the operational envelope --- what the certified headroom costs}
+The ceilings of ED Table~11 and the thresholds of ED Table~14f are exact, and both
+are stated in units an experiment does not quote: a fidelity difference at
+$\lambda=0$, and a depolarizing strength $\lambda$ on one whole recovery layer.  A
+device quotes a per-instruction error $\epsilon_{\rm instr}$ and a shot budget.
+This table is the dictionary, and it is the one that decides whether the certified
+headroom is \emph{reachable} rather than merely certified.
+
+The compiled branch recovery is $%d$ instructions long out of $%d$ in the full
+benchmark circuit, against $%d$ for a frame-tracked Pauli lookup, so the learned
+arm pays $\Delta N=%d$ instructions the decoder arm does not.  Two conversions
+follow, and they are conservative in \emph{opposite} directions, which is why both
+are reported rather than the more flattering one.  \textbf{(i)~The erosion
+dictionary.} ED Table~14f measures the advantage against a depolarizing layer of
+strength $\lambda$ composed with each recovery and finds the universal law
+$\mathrm{adv}(\lambda)/\mathrm{adv}(0)\simeq e^{-\lambda R}$, so
+$\lambda_{1/2}\simeq\ln2/R$.  Charging every instruction fault in the recovery
+section as one full-register depolarizing event, $\lambda=N_{\rm rec}\,
+\epsilon_{\rm instr}$, gives
+$\epsilon_{1/2}(R)=\ln2/(R\,N_{\rm rec})$: %s at $R=1$ and %s at $R=40$,
+with the sign-change budget $\epsilon^*=\lambda^*/N_{\rm rec}$ between %s and
+%s.  This end is \emph{optimistic} about the device, because a distance-$3$
+code corrects most single-qubit faults inside the recovery and the dictionary
+charges them as if none were corrected.  \textbf{(ii)~The arm-difference bound.}
+Under a plain independent-error model the two arms differ by
+$1-(1-\epsilon)^{\Delta N}\simeq\Delta N\,\epsilon$, so break-even needs
+$\epsilon_{\rm be}=\Delta_{R=1}/N_{\rm rec}$, which is %s on amplitude damping
+at $p=0.10$.  This end is \emph{pessimistic}, because it charges the learned arm
+for all $%d$ instructions even though most of the circuit is shared with the decoder
+arm and cancels to first order.  The truth requires a circuit-level fault-tolerance
+analysis with a calibrated noise model that this platform does not supply, so the
+bracket is reported and the verdict is taken against the \emph{loose} end: if the
+device fails the optimistic bound it fails all of them.""" % (
+        _nrec, _inv['instructions'], _inv['n_pauli_lookup'],
+        _inv['delta_instructions'],
+        sci(_live[0]['eps_instr_half_R1'], 2),
+        sci(_live[0]['eps_instr_half_R40'], 2),
+        sci(min(r['eps_instr_star'] for r in _live), 2),
+        sci(max(r['eps_instr_star'] for r in _live), 2),
+        sci(max(r['eps_instr_breakeven'] for r in _live), 2), _nrec))
+    A(r'\paragraph*{ED Table 15a: the envelope per configuration, in per-instruction units.}')
+    A(r'\begin{longtable}{llclcccccc}')
+    A(r'\toprule code & channel & $p$ & recov. & $\Delta_{R=1}$ & '
+      r'$\epsilon_{\rm be}$ & $\epsilon_{1/2}(R{=}1)$ & '
+      r'$\epsilon_{1/2}(R{=}40)$ & $\epsilon^*$ & '
+      r'$\epsilon_{\rm meas}/\epsilon_{\rm be}$ \\ \midrule')
+    for _r in _oe['envelope']:
+        if _r['degenerate']:
+            A(f"$[\\![{_r['code']}]\\!]$ & {_r['channel'].replace('_', ' ')} & "
+              f"${_r['p']:.2f}$ & {_r['recovery']} & "
+              r'$0$ & \multicolumn{5}{l}{degenerate: the decoder is already '
+              r'the family optimum, so there is no envelope to draw} \\')
+            continue
+        A(f"$[\\![{_r['code']}]\\!]$ & {_r['channel'].replace('_', ' ')} & "
+          f"${_r['p']:.2f}$ & {_r['recovery']} & "
+          + sci(_r['advantage_R1'], 2) + ' & '
+          + sci(_r['eps_instr_breakeven'], 2) + ' & '
+          + sci(_r['eps_instr_half_R1'], 2) + ' & '
+          + sci(_r['eps_instr_half_R40'], 2) + ' & '
+          + sci(_r['eps_instr_star'], 2) + ' & '
+          + ('$%.0f$' % (_dev['eps_instr_measured_D'] / _r['eps_instr_breakeven']))
+          + r' \\')
+    A(r'\bottomrule\end{longtable}')
+
+    A(r"""
+\paragraph*{ED Table 15b: the device point and the shot budget, against the envelope.}
+The measured per-instruction error is not a vendor figure: it is implied by the
+feasibility run itself under an independent-error model (ED Table~3d), because the
+\texttt{chip\_info} query for this chip was refused and that refusal is recorded with
+its timestamp rather than passed over.  The shot budget uses a Bernoulli variance
+bound of $1/4$---at the operating point $F_s=%.2f$ the true variance is $%.3f$, so
+the bound costs a factor $%.2f$ in shots, which is noise next to the orders of
+magnitude the answer spans---and divides by the end-to-end yield the same run
+measured, because on this protocol a shot counts only if its syndrome is read
+correctly \emph{and} its data register lands on the logical state.""" % (
+        _sb['executed_branch_D']['F_s'],
+        _sb['executed_branch_D']['F_s'] * (1 - _sb['executed_branch_D']['F_s']),
+        0.25 / (_sb['executed_branch_D']['F_s']
+                * (1 - _sb['executed_branch_D']['F_s']))))
+    A(r'\begin{longtable}{lll}')
+    A(r'\toprule quantity & value & source \\ \midrule')
+    _rows15b = [
+        ('recovery section, instructions', '$%d$' % _nrec,
+         'gate inventory, circuit %s' % _inv['circuit']),
+        ('whole benchmark circuit, instructions', '$%d$' % _inv['instructions'],
+         'gate inventory, circuit %s' % _inv['circuit']),
+        ('measured $\\epsilon_{\\rm instr}$ (circuit D)',
+         sci(_dev['eps_instr_measured_D'], 4), 'ED Table~3d, from the run'),
+        ('measured $\\epsilon_{\\rm instr}$ (circuit C)',
+         sci(_dev['eps_instr_measured_C'], 4), 'ED Table~3d, from the run'),
+        ('$\\epsilon_{1/2}$ required at $R=1$ (loose end)',
+         sci(_dev['eps_instr_half_R1_required']),
+         '$\\ln2/(R\\,N_{\\rm rec})$'),
+        ('$\\epsilon_{1/2}$ required at $R=40$',
+         sci(_dev['eps_instr_half_R40_required']),
+         '$\\ln2/(R\\,N_{\\rm rec})$'),
+        ('$\\epsilon_{\\rm be}$ required, tightest row (strict end)',
+         sci(_dev['eps_instr_breakeven_required']),
+         '$\\Delta_{R=1}/N_{\\rm rec}$'),
+        ('measured above the loose end',
+         '$%.2f\\times$' % _dev['factor_above_half_R1'],
+         'verdict: %s' % _dev['verdict'].replace('_', ' ')),
+        ('measured above $\\epsilon_{1/2}(R{=}40)$',
+         '$%.1f\\times$' % _dev['factor_above_half_R40'],
+         'the memory claim at $R=40$'),
+        ('recovery survival at the measured error',
+         '$%.3f$' % _dev['recovery_survival_at_measured'],
+         '$(1-\\epsilon)^{N_{\\rm rec}}$, uncorrected'),
+        ('shots per arm for $3\\sigma$ on $\\Delta$ (%s)'
+         % _sb['headline_channel'].replace('_', ' '),
+         sci(_sb['shots_per_arm_3sigma'], 3), '$z^2 v/\\Delta^2$, $v=1/4$'),
+        ('end-to-end yield of the executed run',
+         '$%.4f$' % _sb['end_to_end_yield'],
+         '%d data hits of %d requested'
+         % (_sb['executed_data_hits'], _sb['executed_shots_requested'])),
+        ('shots requested if the yield applies',
+         sci(_sb['shots_requested_if_yield_applies'], 3),
+         'both arms, at $3\\sigma$'),
+        ('executed shots requested', '$%d$' % _sb['executed_shots_requested'],
+         '%d used, %d post-selected'
+         % (_sb['executed_shots_used'], _sb['executed_post_selected'])),
+        ('executed Wilson half-width, headline branch',
+         '$%.4f$' % _sb['executed_wilson_halfwidth'],
+         '$%d/%d$ shots' % (_sb['executed_branch_D']['n_hit'],
+                            _sb['executed_branch_D']['n_sel'])),
+        ('half-width over the signal',
+         '$%.0f\\times$' % _sb['halfwidth_over_delta'],
+         'verdict: %s' % _sb['verdict']),
+    ]
+    for _q, _v, _s in _rows15b:
+        A(f'{_q} & {_v} & {_s} ' + r'\\')
+    A(r'\bottomrule\end{longtable}')
+
+    A(r"""
+\paragraph*{ED Table 15c: readout error tightens the same envelope.}
+The certified headroom is multiplied by $(1-\eta)^{n-k}$ per round---exactly for the
+Pauli decoder, whose cross-branch blocks vanish identically, and to $5\times10^{-11}$
+for the learned recovery---while the instruction cost does not move.  Readout error
+therefore shrinks the numerator of every row of ED Table~15a and tightens the
+envelope monotonically.  The $\eta$ values the storage grid scanned are the
+optimistic end of what a superconducting platform delivers; the ancilla of the
+feasibility run is far outside it (ED Table~3e).  The scaled break-even is quoted on
+amplitude damping at $p=0.10$, the operating point.""")
+    A(r'\begin{longtable}{cccc}')
+    A(r'\toprule $\eta$ & $(1-\eta)^{n-k}$ & $\epsilon_{\rm be}$ scaled & '
+      r'$\epsilon_{1/2}(R{=}40)$ scaled \\ \midrule')
+    for _e in _ro['eta_rows']:
+        A('$%.3f$ & $%.4f$ & ' % (_e['eta'], _e['headroom_factor'])
+          + sci(_e['eps_instr_breakeven_scaled'], 2) + ' & '
+          + sci(_e['eps_instr_half_R40_scaled'], 2) + r' \\')
+    A(r'\bottomrule\end{longtable}')
+
 A(r'\end{document}')
 
 open(os.path.join(ROOT, 'extended_data.tex'), 'w').write('\n'.join(lines))
 print('wrote paper/extended_data.tex,', len(lines), 'lines')
+
