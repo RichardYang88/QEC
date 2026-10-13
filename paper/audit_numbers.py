@@ -1874,7 +1874,7 @@ for _q, _why in (
                       _asy['per_bit']['a1']['bias_late'],
                       _asy['per_bit']['a0']['bias_late']),
          'the asymmetry swing that only a1 shows'),
-        ('No vendor calibration accompanies the run',
+        ('No vendor calibration accompanies that run',
          'the limitation that makes the budget effective rather than calibrated'),
         ('ED Table~3d', 'the pointer at the error-budget table')):
     chk(_q in _tfn15, 'main.tex quotes %s as %s' % (_why, _q))
