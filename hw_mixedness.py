@@ -325,6 +325,35 @@ MEASURED_FREAD = 0.95096
 QUOTED_F1Q, QUOTED_F2Q, QUOTED_FREAD = 0.9993, 0.9831, 0.9612
 CI_HALF_WIDTH_AT_1000 = 0.079      # bootstrap half-width, from the power study
 
+# The nine-qubit block the 2026-10-12 warmcold job ran on, as recorded in its
+# submission-time sidecar.  It is the vendor's own best_qubit_blocks(9) pick, and
+# it is REJECTED for any rerun: its own in-job calibration measured logical q3 --
+# a DATA qubit -- at e01=0.5679, e10=0.5885, contrast -0.156, i.e. worse than a
+# coin flip and negative.  A negative-contrast channel inside the data register
+# makes the primary estimator uninterpretable, and it biases a warm-minus-cold
+# difference with its sign flipped (the five-channel null reads +2.84 sigma and
+# drops to -0.10 sigma once q3 is excluded).  Re-running science circuits on this
+# block would reproduce that fault.
+#
+# It is recorded as a constant rather than re-derived because the rejection must
+# survive the vendor's ranking changing: best_qubit_blocks(9) may well return this
+# same block again, and ChipInfo cannot be used to rule it out -- on this block it
+# reported the channel that measured 0.4218 at 0.9612, and its own worst qubit
+# (0.9014) measured perfect.  Metadata quality and day-of readout are essentially
+# uncorrelated here, so the only gate that works is a paid cal9 screen.
+WARMCOLD_BLOCK_REJECTED_2026_10_12 = [39, 48, 49, 57, 58, 66, 67, 75, 85]
+# Cost of the screen itself.  Billing is per SHOT, not per instruction, so the two
+# calibration circuits cost what any two circuits cost at this shot count:
+# 2 x 1000 = 2000 shots = 28 s at the confirmed pessimistic 14 ms/shot.  That fits
+# inside even the pessimistic reading of the remaining allocation (~48 s after the
+# 252 s the 2026-10-12 run consumed of BUDGET_S), which is the property that makes
+# it safe to run before the remaining budget has been read off the dashboard.
+# 1000 shots is ample for e01/e10: the 2026-10-12 screen at 3000 shots resolved
+# the broken channel at contrast -0.156 against a 0.5 threshold, a margin no
+# plausible shot noise at 1000 closes.
+CAL9_SCREEN_SHOTS = 1000
+CAL9_SCREEN_RAW = 'qcloud_raw_cal9screen.json'
+
 # The block is the vendor's own best_qubit_blocks(5) pick and MUST stay that way.
 # Ranking all 96 connected 5-qubit sub-blocks of WK_C180_2 by the significance of
 # r<1 puts this block LAST, 96/96, and puts [40, 49, 50, 58, 68] first at 6.3
@@ -2335,6 +2364,187 @@ def query_best_block(chip_id, nq, token):
     bb = be.best_qubit_blocks(nq)
     blocks = list(bb.qubit_blocks) if bb.qubit_blocks else []
     return [int(x) for x in blocks[0]] if blocks else None
+
+
+def query_blocks(chip_id, nq, token):
+    """ALL ranked physical blocks of size nq on `chip_id`, best first (free query).
+
+    `query_best_block` returns only the top one, which stops being enough once a
+    block has to be REJECTED on measured grounds: the vendor's ranking knows
+    nothing about the day-of readout fault that disqualified
+    WARMCOLD_BLOCK_REJECTED_2026_10_12, and may hand it back unchanged."""
+    _svc, be = _backend(chip_id, token)
+    bb = be.best_qubit_blocks(nq)
+    blocks = list(bb.qubit_blocks) if bb.qubit_blocks else []
+    return [[int(x) for x in b] for b in blocks]
+
+
+def science_meas_layer():
+    """The science circuit's MEAS layer on its own, with no angles and no noise.
+
+    `layout_from_meas` inspects only the MEAS(q -> cbit) tuples, so the bit window
+    can be derived without building -- or loading the trained angles for -- a whole
+    206-instruction circuit.  Kept as a function so the screen and the full
+    analysis cannot drift onto different reference maps."""
+    return list(q.extraction_measures()) + list(q.data_measures())
+
+def run_cal9_screen(token, chip_id, shots=CAL9_SCREEN_SHOTS, block=None,
+                    exclude=(WARMCOLD_BLOCK_REJECTED_2026_10_12,),
+                    dump_raw=None, job_timeout=3600, use_options=True,
+                    mapping=True, verbose=True):
+    """Pay for the two calibration circuits ONLY and report whether the block is
+    usable -- before any science circuit is bought.
+
+    WHY THIS IS A SEPARATE JOB AND NOT `--cal-first`.  cal-first reorders a single
+    submission, so calibration and science are paid for together: under a hard
+    budget that saves the DATA if the job is killed, but not the MONEY, because the
+    science circuits are already in the queue.  Only a separate submission has a
+    real decision point between the screen and the spend.  Both exist because they
+    buy different things.
+
+    COST.  2 x `shots` = 2000 shots at the default, i.e. 28 s at the confirmed
+    pessimistic 14 ms/shot.  That is deliberately inside the worst-case reading of
+    the remaining allocation, because the remaining allocation CANNOT be read from
+    the API: QCloudService exposes backend/backends/best_qubit_blocks/setup_logging
+    and ChipInfo only topology and calibration, with no balance, quota or usage
+    query anywhere in the SDK.  The only offline figure is BUDGET_S less what the
+    2026-10-12 run consumed -- ~48 s at 14 ms/shot, ~282 s at the observed wall
+    rate.  A 6000-shot science job is 84 s and so is unsafe at the pessimistic end;
+    this screen is safe at both ends.
+
+    BLOCK CHOICE.  `block` if given, else the best-ranked block that is not in
+    `exclude`.  The exclusion is the whole point: the vendor's own top pick is the
+    block whose DATA qubit q3 measured contrast -0.156, nothing free predicts that
+    (ChipInfo reported the channel that measured 0.4218 at 0.9612, and its own worst
+    qubit at 0.9014 measured perfect), so a rerun on the vendor's pick reproduces
+    the fault.  If every ranked block is excluded this raises rather than silently
+    falling back to a known-bad one.
+
+    Returns the screen dict and what was submitted.  Submits NO science circuit and
+    makes no claim about warm versus cold."""
+    dump_raw = dump_raw or os.path.join(ROOT, CAL9_SCREEN_RAW)
+    nq = STAGE_NQ['warmcold']
+    if block is None:
+        if not use_options:
+            raise ValueError('cal9 screen needs a pinned block when vendor options '
+                             'are off: with no mapping and no block nothing chooses '
+                             'the qubits')
+        ranked = query_blocks(chip_id, nq, token)
+        banned = {tuple(sorted(b)) for b in exclude}
+        cand = [b for b in ranked if tuple(sorted(b)) not in banned]
+        if verbose:
+            print('[cal9screen] best_qubit_blocks(%d) returned %d block(s); %d '
+                  'excluded on measured grounds'
+                  % (nq, len(ranked), len(ranked) - len(cand)), flush=True)
+            for b in ranked[:5]:
+                print('[cal9screen]   %s%s'
+                      % (b, '   <-- REJECTED (2026-10-12 dead data channel q3)'
+                         if tuple(sorted(b)) in banned else ''), flush=True)
+        if not cand:
+            raise RuntimeError(
+                'every ranked %d-qubit block is on the exclusion list %r, so there '
+                'is no block to screen; pass --block explicitly rather than falling '
+                'back to a block already known to have a dead data channel'
+                % (nq, sorted(banned)))
+        block = cand[0]
+    if sorted(block) == sorted(WARMCOLD_BLOCK_REJECTED_2026_10_12):
+        # Printed regardless of `exclude`, so that allowing the rejected block is
+        # always visible in the log and can never happen silently.
+        print('[cal9screen] WARNING: block %s is the one the 2026-10-12 run was '
+              'REJECTED on (logical q3 / physical 85 measured contrast -0.156, a '
+              'dead DATA channel).  Screening it answers whether that fault is '
+              'persistent, NOT which block to use -- best_qubit_blocks(9) offers '
+              'no alternative and its record carries no per-qubit quality data.'
+              % (block,), flush=True)
+    gates = [build_cal9('zero'), build_cal9('one')]
+    meta = [dict(kind='cal9', cal='zero', rep=0),
+            dict(kind='cal9', cal='one', rep=0)]
+    # written BEFORE submission so a cut-off job still leaves the meta describing
+    # whatever prefix was dumped -- same reasoning as run_stage
+    write_meta_sidecar(dump_raw, meta, gates, 'cal9screen', chip_id, block, shots,
+                       mapping=mapping, use_options=use_options)
+    if verbose:
+        print('[cal9screen] chip=%s block=%s shots/circuit=%d -> %d shots = %.0f s '
+              'at the confirmed %.0f ms/shot (worst case); mapping=%s'
+              % (chip_id, block, shots, len(gates) * shots,
+                 len(gates) * shots * MS_PER_SHOT / 1000.0, MS_PER_SHOT, mapping),
+              flush=True)
+    return _finish_cal9_screen(token, chip_id, shots, block, gates, meta, dump_raw,
+                               job_timeout, use_options, mapping, verbose)
+
+
+def _finish_cal9_screen(token, chip_id, shots, block, gates, meta, dump_raw,
+                        job_timeout, use_options, mapping, verbose):
+    """Submit the screened calibration pair and report the block verdict.
+
+    Split out of run_cal9_screen only to keep that function readable; it is not
+    meant to be called on its own."""
+    t0 = time.time()
+    results = q.submit_cloud(gates, token, chip_id=chip_id, shots=shots, batch=True,
+                             dump_raw=dump_raw, chunk=len(gates),
+                             job_timeout=job_timeout, use_options=use_options,
+                             block=block, mapping=mapping)
+    wall = time.time() - t0
+    anc, rev = layout_from_meas(science_meas_layer())
+    got = [(r, m) for r, m in zip(results, meta) if r]
+    if len(got) < 2:
+        print('[cal9screen] INCONCLUSIVE: only %d of 2 calibration circuits '
+              'returned, so e01/e10 cannot be formed -- both a |0^9> and a |1^9> '
+              'preparation are needed.  The block is NOT cleared; an absent screen '
+              'is not a passing one.' % len(got), flush=True)
+        return dict(available=False, block=block, chip_id=chip_id, shots=shots,
+                    wall_s=wall, dump_raw=dump_raw, n_returned=len(got),
+                    cal9=None, screen=None, block_usable=False,
+                    note='truncated return; no screen, no clearance')
+    c9 = _analyze_cal9(got, anc, rev)
+    s = c9['screen']
+    if verbose:
+        print('[cal9screen] %d/%d and %d/%d shots; mean readout fidelity %.4f '
+              '(%.4f over healthy channels)'
+              % (int(sum(got[0][0].values())), shots,
+                 int(sum(got[1][0].values())), shots,
+                 c9['mean_readout_fidelity'],
+                 c9['mean_readout_fidelity_healthy']), flush=True)
+        for lab in (['data%d' % i for i in range(q.NQ_DATA)]
+                    + ['anc%d' % i for i in range(q.NQ_ANC)]):
+            d = c9['per_qubit'][lab]
+            print('[cal9screen]   %-6s logical q%-2d e01=%.4f e10=%.4f fid=%.4f '
+                  'contrast=%+.4f  %s'
+                  % (lab, d['logical_qubit'], d['e01'], d['e10'],
+                     d['readout_fidelity'], d['contrast'],
+                     'BROKEN' if d['broken'] else 'ok'), flush=True)
+        print('[cal9screen] SCREEN: %s' % s['note'], flush=True)
+        print('[cal9screen] VERDICT: block %s is %s -- primary estimator %s, '
+              'post-selected F_s %s'
+              % (block, 'USABLE' if s['block_usable'] else 'NOT USABLE',
+                 'valid' if s['primary_estimator_valid'] else 'INVALID',
+                 'valid' if s['secondary_estimator_valid'] else 'uninterpretable'),
+              flush=True)
+        n_all = WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL
+        if s['block_usable']:
+            print('[cal9screen] -> science circuits MAY be bought on this block.  '
+                  'Cost for the full warmcold stage at STAGE_SHOTS=%d: %d circuits '
+                  'x %d shots = %.0f s at %.0f ms/shot.  Read the dashboard '
+                  'remainder FIRST -- that figure is not obtainable from the API, '
+                  'and a job that overruns is killed and returns nothing.'
+                  % (STAGE_SHOTS['warmcold'], n_all, STAGE_SHOTS['warmcold'],
+                     n_all * STAGE_SHOTS['warmcold'] * MS_PER_SHOT / 1000.0,
+                     MS_PER_SHOT), flush=True)
+        else:
+            print('[cal9screen] -> DO NOT buy science circuits on this block.  '
+                  'Re-screen another ranked block (%d shots = %.0f s each).  A dead '
+                  'DATA channel makes the primary estimator uninterpretable '
+                  'however many shots are spent on it; a dead ANCILLA would only '
+                  'cost the post-selected F_s.'
+                  % (len(gates) * shots,
+                     len(gates) * shots * MS_PER_SHOT / 1000.0), flush=True)
+    return dict(available=True, block=block, chip_id=chip_id, shots=shots,
+                wall_s=wall, dump_raw=dump_raw, n_returned=len(got),
+                layout=dict(anc_slice=[anc.start, anc.stop], rev=rev),
+                cal9=c9, screen=s, block_usable=bool(s['block_usable']))
+
+
+
 
 
 def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
@@ -5053,6 +5263,37 @@ def main(argv=None):
                          'the calibration cheap: billing is per shot, not per '
                          'instruction.  A cheap screen is cal9 alone as its own '
                          'job at ~1000 shots/circuit.' % WARMCOLD_N_CAL)
+    ap.add_argument('--cal9-screen', action='store_true',
+                    help='SCREEN ONLY: submit just the two nine-qubit readout '
+                         'calibration circuits (%d shots/circuit by default = %d '
+                         'shots = %.0f s at the confirmed %.0f ms/shot) and report '
+                         'whether the block is usable, then STOP.  No science '
+                         'circuit is submitted, so this is the only path with a '
+                         'real decision point between the screen and the spend.  '
+                         'Picks the best ranked block that is not the one rejected '
+                         'on 2026-10-12 (dead data channel q3, contrast -0.156) '
+                         'unless --block is given.  Exit code 0 if the block is '
+                         'usable, 4 if not, so it can gate a script.  Safe at both '
+                         'ends of the unverified billing rate; a full warmcold '
+                         'stage is not (84 s against a possibly ~48 s remainder).'
+                         % (CAL9_SCREEN_SHOTS, 2 * CAL9_SCREEN_SHOTS,
+                            2 * CAL9_SCREEN_SHOTS * MS_PER_SHOT / 1000.0,
+                            MS_PER_SHOT))
+    ap.add_argument('--allow-rejected-block', action='store_true',
+                    help='with --cal9-screen: screen the block the 2026-10-12 run '
+                         'was rejected on instead of refusing it.  Needed because '
+                         'best_qubit_blocks(9) on WK_C180_2 returns exactly ONE '
+                         'block, [39,48,49,57,58,66,67,75,85], and its record '
+                         'carries no per-qubit quality data, so there is neither an '
+                         'alternative block nor any free way to pre-screen one.  '
+                         'The screen then answers a DIFFERENT question from block '
+                         'selection: is the dead data channel (logical q3, physical '
+                         '85, contrast -0.156) persistent, or was it transient?  '
+                         'Both answers are useful -- healthy means the A/B can be '
+                         'rerun on this block, still dead means a 9-qubit '
+                         'warm-vs-cold run is not purchasable on this chip at any '
+                         'shot count.  Deliberately not the default: it spends real '
+                         'money on a block this file declares unusable.')
     ap.add_argument('--n-boot', type=int, default=2000)
     ap.add_argument('--seeds', type=int, default=1,
                     help='for --mode simulate: repeat the power study over this '
@@ -5377,6 +5618,24 @@ def main(argv=None):
             return 3
         block = ([int(x) for x in a.block.split(',') if x.strip()]
                  if a.block else None)
+        if a.cal9_screen:
+            # SCREEN ONLY.  Deliberately short-circuits the stage loop: the whole
+            # point is that no science circuit is submitted until a human has read
+            # this verdict, so --cal9-screen must not be combinable with a stage run
+            # in the same process.  Cost is 2 x shots (28 s at the pessimistic rate
+            # for the default 1000), which is inside even the worst-case reading of
+            # the remaining allocation.
+            scr = run_cal9_screen(tok, a.chip_id,
+                                  shots=a.shots or CAL9_SCREEN_SHOTS,
+                                  block=block,
+                                  exclude=() if a.allow_rejected_block else
+                                  (WARMCOLD_BLOCK_REJECTED_2026_10_12,),
+                                  job_timeout=a.job_timeout,
+                                  use_options=not a.no_options,
+                                  mapping=not a.no_mapping, verbose=True)
+            print('[cal9screen] dump %s (screen only -- no warm-vs-cold claim is '
+                  'made or implied)' % os.path.basename(scr['dump_raw']), flush=True)
+            return 0 if scr.get('block_usable') else 4
         for stage in stages:
             shots = a.shots or STAGE_SHOTS[stage]
             attempts, run = [], None
