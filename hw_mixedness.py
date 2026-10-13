@@ -5577,7 +5577,10 @@ def main(argv=None):
                           phi=phi_warm if stage == 'warmcold' else phi,
                           vendor=vendor, n_boot=a.n_boot, phi_cold=phi_cold)
     else:
-        if a.stage == 'all':
+        # --cal9-screen submits no stage at all (it short-circuits below, before
+        # the stage loop), so the one-stage-only rule that protects the allocation
+        # from a four-stage sweep does not apply to it and must not swallow it.
+        if a.stage == 'all' and not a.cal9_screen:
             print('ERROR: --mode cloud refuses --stage all.  QPU time is billed in '
                   'real time, the allocation is ~%.0f s, and ONE stage consumes it '
                   '(QCLOUD_SETUP.md 8).  Submitting all of them would bill the '

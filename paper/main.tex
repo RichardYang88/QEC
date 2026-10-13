@@ -1027,6 +1027,34 @@ Until that is executed, the honest statement is that the comparison was not
 performed under characterized conditions---not that warm starting failed on this
 hardware, and not that it succeeded.
 
+That screening protocol was then carried out, and it produced a result worth
+stating because it constrains how any such fault should be interpreted. The two
+calibration circuits alone were submitted on 2026-10-13 at $1\,000$ shots
+each---$2\,000$ shots, about $28$~s at the pessimistic billing rate, against the
+$18\,000$ the full comparison costs---on the same physical block, with no science
+circuit in the job. All nine channels came back healthy: the worst contrast over
+the nine raw key positions is $+0.9910$, every $e_{01}$ is exactly $0.0000$, and
+the mean readout fidelity is $0.9993$ against the $0.9204$ measured on
+2026-10-12. The channel that was dead at contrast $-0.156$ now reads
+$e_{01}=0.0000$, $e_{10}=0.0020$, contrast $+0.9980$. Because an all-zeros and an
+all-ones preparation fix every position's error rates without reference to a bit
+window, a measurement map or a register label, this comparison is independent of
+the layout convention whose error is described above; it is a statement about nine
+raw key positions and nothing else.
+
+So the fault that invalidated the comparison was \emph{transient}, not a property
+of the block. Two consequences follow, and they cut in opposite directions. The
+invalidation stands: on the day the science circuits ran, the data register really
+did contain a channel with negative contrast, and no analysis can recover an
+estimator from that. But a block rejected on one day cannot stay rejected, so a
+readout screen is only valid for the run it immediately precedes and must be
+bought again each time---which is exactly what a $28$-second calibration-only
+submission makes affordable, and exactly why it has to be a separate submission
+rather than the first chunk of a larger one. The vendor's own ranking is no help
+here: \texttt{best\_qubit\_blocks(9)} returns one block for this chip and its
+record carries no per-qubit quality data, so there is neither an alternative to
+choose nor any free way to pre-screen one.
+
 \section*{Discussion}
 
 VSCR occupies a middle ground that previous work leaves empty: it keeps the
