@@ -715,9 +715,25 @@ def _run_job(backend, prog_or_list, shots, options=None):
         return backend.run(prog_or_list, shot=shots)
 
 
-def _wait_job(job, poll=5.0, timeout=7200):
-    """Block until job completes."""
+def _wait_job(job, poll=5.0, timeout=7200, report_every=60.0, verbose=True):
+    """Block until job completes -- SAYING SO WHILE IT WAITS.
+
+    WHY IT TALKS: on 2026-10-15 a 1000-shot probe sat in the vendor's execution
+    queue for over an hour and this loop printed nothing at all.  The only observable
+    evidence was a process sleeping in hrtimer_nanosleep, which is precisely what a
+    hung socket looks like as well, and the job was very nearly killed for one --
+    abandoning a submission the vendor may still execute and bill, i.e. paying for
+    counts and then throwing them away.  A free preflight query answered instantly at
+    the same moment, which is what proved the control plane was up and the queue was
+    merely congested.  The status this loop already polls is therefore written out the
+    first time it is seen and every `report_every` seconds afterwards, so a queue wait
+    becomes a recorded fact in hw_evidence/ instead of a guess made at the terminal.
+    Reporting is best-effort by construction: failing to render a status string must
+    never kill a job that is about to deliver data, and the bookkeeping is updated
+    before the print so a broken stream cannot turn into a 5-second-interval spool.
+    """
     t0 = time.time()
+    last_report, last_status = None, None
     while True:
         status = None
         if hasattr(job, 'status'):
@@ -725,6 +741,17 @@ def _wait_job(job, poll=5.0, timeout=7200):
                 status = job.status()
             except Exception:
                 status = None
+        if verbose:
+            waited = time.time() - t0
+            shown = '<none>' if status is None else str(status)
+            if (last_status != shown or last_report is None
+                    or waited - last_report >= report_every):
+                last_report, last_status = waited, shown
+                try:
+                    print('[cloud]   job %s after %.0f s (poll %.0f s, timeout %.0f s)'
+                          % (shown, waited, poll, timeout), flush=True)
+                except Exception:
+                    pass
         if status is None and hasattr(job, 'is_finished'):
             try:
                 if job.is_finished():

@@ -1,0 +1,315 @@
+{
+ "kind": "wcprobe",
+ "chip_id": "WK_C180_2",
+ "block": [
+  39,
+  48,
+  49,
+  57,
+  58,
+  66,
+  67,
+  75,
+  85
+ ],
+ "meta": {
+  "kind": "warmcold",
+  "role": "signal",
+  "arm": "warm",
+  "psi": "+",
+  "p": 0.0,
+  "frame": "IZIII",
+  "s": 5,
+  "measure": "late",
+  "angles": "vscr_angles_paper_dep.npz"
+ },
+ "n_instructions": 206,
+ "shots_requested": 1000,
+ "shots_returned": 987,
+ "return_fraction": 0.987,
+ "primary_estimator": "P_data_zero_unconditioned",
+ "layout": {
+  "anc_slice": [
+   5,
+   9
+  ],
+  "rev": true,
+  "data_slice": [
+   0,
+   5
+  ],
+  "source": "layout_from_meas(science_meas_layer()), never detect_layout -- selftest (m)"
+ },
+ "key_widths": [
+  9
+ ],
+ "nq_block": 9,
+ "expected_key": "101000000",
+ "expected_key_ideal_prob": 0.9999999999999947,
+ "billing": {
+  "kind": "wcprobe",
+  "n_shots": 1000,
+  "ms_per_shot": 14.0,
+  "ms_per_shot_source": "pessimistic constant MS_PER_SHOT",
+  "cost_s": 14.0,
+  "cost_s_pessimistic": 14.0,
+  "budget_remaining_before": 391.0,
+  "budget_remaining_after": 377.0,
+  "margin_s": 30.0,
+  "utc": "20261015T150408Z"
+ },
+ "noiseless_check": {
+  "anc_slice": [
+   5,
+   9
+  ],
+  "rev": true,
+  "data_slice": [
+   0,
+   5
+  ],
+  "per_circuit": {
+   "signal|warm|s5": {
+    "P_s": 1.0,
+    "P_data_zero": 1.0,
+    "ideal": 0.9999999999999947,
+    "n_total": 1000,
+    "dev_in_sigma": 5.329070518200751e-12
+   }
+  },
+  "min_acceptance_rate": 1.0,
+  "max_dev_in_sigma": 5.329070518200751e-12,
+  "shots": 1000,
+  "layout_verified": true
+ },
+ "expected_key_stats": {
+  "n_hits": 3,
+  "p_hw": 0.00303951367781155,
+  "p_ideal": 0.9999999999999947,
+  "eps_per_instruction": 0.027744066075046092,
+  "note": "this circuit is 206 instructions; the manuscript's device point (1.04e-2) is per instruction of the 204-instruction inventory of circuit D, so the two are comparable per instruction, not as raw probabilities"
+ },
+ "pipeline": {
+  "ok": true,
+  "problems": []
+ },
+ "primary": {
+  "n_hit": 47,
+  "n_total": 987,
+  "p": 0.047619047619047616,
+  "wilson95": [
+   0.03599729666613706,
+   0.06274865828771227
+  ],
+  "floor_uniform": 0.03125,
+  "z_vs_floor": 2.4148284585814785,
+  "structure_detected": false
+ },
+ "w": {
+  "point": 0.016897081413210443,
+  "lo95": 0.004900435268270513,
+  "hi95": 0.032514744038928796,
+  "formula": "(P(data=00000) - 1/32) / (1 - 1/32)"
+ },
+ "per_bit": [
+  {
+   "logical_qubit": 0,
+   "cbit": 4,
+   "key_position": 4,
+   "p0": 0.5065856129685917,
+   "polarisation": 0.01317122593718345
+  },
+  {
+   "logical_qubit": 1,
+   "cbit": 5,
+   "key_position": 3,
+   "p0": 0.2978723404255319,
+   "polarisation": -0.4042553191489362
+  },
+  {
+   "logical_qubit": 2,
+   "cbit": 6,
+   "key_position": 2,
+   "p0": 0.3698074974670719,
+   "polarisation": -0.26038500506585616
+  },
+  {
+   "logical_qubit": 3,
+   "cbit": 7,
+   "key_position": 1,
+   "p0": 0.48632218844984804,
+   "polarisation": -0.027355623100303927
+  },
+  {
+   "logical_qubit": 4,
+   "cbit": 8,
+   "key_position": 0,
+   "p0": 0.5734549138804458,
+   "polarisation": 0.14690982776089156
+  }
+ ],
+ "power": {
+  "ladder": [
+   {
+    "shots_per_circuit": 1000,
+    "n_shots_total": 6000,
+    "cost_s": 84.0,
+    "cost_s_pessimistic": 84.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 0.9272181475593826,
+    "sigma_z_at_w_lo95": 0.29906050802333306,
+    "sigma_pair": 0.009111714500773319,
+    "w_bound95_if_null": 0.035717894065238245
+   },
+   {
+    "shots_per_circuit": 1500,
+    "n_shots_total": 9000,
+    "cost_s": 126.0,
+    "cost_s_pessimistic": 126.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 1.1356056708845634,
+    "sigma_z_at_w_lo95": 0.36627282343734036,
+    "sigma_pair": 0.007439683736270997,
+    "w_bound95_if_null": 0.02916353838220575
+   },
+   {
+    "shots_per_circuit": 2000,
+    "n_shots_total": 12000,
+    "cost_s": 168.0,
+    "cost_s_pessimistic": 168.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 1.3112844795569365,
+    "sigma_z_at_w_lo95": 0.42293542641678544,
+    "sigma_pair": 0.006442955111732611,
+    "w_bound95_if_null": 0.025256365103232706
+   },
+   {
+    "shots_per_circuit": 2500,
+    "n_shots_total": 15000,
+    "cost_s": 210.0,
+    "cost_s_pessimistic": 210.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 1.4660606170648716,
+    "sigma_z_at_w_lo95": 0.47285618178039623,
+    "sigma_pair": 0.005762754242325549,
+    "w_bound95_if_null": 0.02258997969415273
+   },
+   {
+    "shots_per_circuit": 3000,
+    "n_shots_total": 18000,
+    "cost_s": 252.0,
+    "cost_s_pessimistic": 252.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 1.605988941272747,
+    "sigma_z_at_w_lo95": 0.5179879944337727,
+    "sigma_pair": 0.005260650819800492,
+    "w_bound95_if_null": 0.020621735753451834
+   },
+   {
+    "shots_per_circuit": 4000,
+    "n_shots_total": 24000,
+    "cost_s": 336.0,
+    "cost_s_pessimistic": 336.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 1.8544362951187652,
+    "sigma_z_at_w_lo95": 0.5981210160466661,
+    "sigma_pair": 0.004555857250386659,
+    "w_bound95_if_null": 0.017858947032619123
+   },
+   {
+    "shots_per_circuit": 5000,
+    "n_shots_total": 30000,
+    "cost_s": 420.0,
+    "cost_s_pessimistic": 420.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 2.0733228079142103,
+    "sigma_z_at_w_lo95": 0.668719625325794,
+    "sigma_pair": 0.00407488260305994,
+    "w_bound95_if_null": 0.015973527828601803
+   },
+   {
+    "shots_per_circuit": 6000,
+    "n_shots_total": 36000,
+    "cost_s": 504.0,
+    "cost_s_pessimistic": 504.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 2.271211341769127,
+    "sigma_z_at_w_lo95": 0.7325456468746807,
+    "sigma_pair": 0.0037198418681354986,
+    "w_bound95_if_null": 0.014581769191102874
+   },
+   {
+    "shots_per_circuit": 8000,
+    "n_shots_total": 48000,
+    "cost_s": 672.0,
+    "cost_s_pessimistic": 672.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 2.622568959113873,
+    "sigma_z_at_w_lo95": 0.8458708528335709,
+    "sigma_pair": 0.0032214775558663056,
+    "w_bound95_if_null": 0.012628182551616353
+   },
+   {
+    "shots_per_circuit": 10000,
+    "n_shots_total": 60000,
+    "cost_s": 840.0,
+    "cost_s_pessimistic": 840.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 2.932121234129743,
+    "sigma_z_at_w_lo95": 0.9457123635607925,
+    "sigma_pair": 0.0028813771211627743,
+    "w_bound95_if_null": 0.011294989847076366
+   },
+   {
+    "shots_per_circuit": 12000,
+    "n_shots_total": 72000,
+    "cost_s": 1008.0,
+    "cost_s_pessimistic": 1008.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 3.211977882545494,
+    "sigma_z_at_w_lo95": 1.0359759888675455,
+    "sigma_pair": 0.002630325409900246,
+    "w_bound95_if_null": 0.010310867876725917
+   },
+   {
+    "shots_per_circuit": 15000,
+    "n_shots_total": 90000,
+    "cost_s": 1260.0,
+    "cost_s_pessimistic": 1260.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 3.5911004437987795,
+    "sigma_z_at_w_lo95": 1.1582563670826984,
+    "sigma_pair": 0.0023526345677927795,
+    "w_bound95_if_null": 0.009222320591751232
+   },
+   {
+    "shots_per_circuit": 20000,
+    "n_shots_total": 120000,
+    "cost_s": 1680.0,
+    "cost_s_pessimistic": 1680.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 4.146645615828421,
+    "sigma_z_at_w_lo95": 1.337439250651588,
+    "sigma_pair": 0.00203744130152997,
+    "w_bound95_if_null": 0.007986763914300902
+   }
+  ],
+  "n_circuits_in_ab": 6,
+  "ms_per_shot": 14.0,
+  "ms_per_shot_source": "dashboard-measured",
+  "budget_remaining_after": 377.0,
+  "margin_s": 30.0,
+  "s_star": 4000,
+  "sigma_z_at_s_star": 1.8544362951187652,
+  "w_bound95_at_s_star": 0.017858947032619123,
+  "min_sigma": 3.0,
+  "detection_affordable": false
+ },
+ "verdict": "BOUND EXPERIMENT",
+ "exit_code": 5,
+ "dump_raw": "/home/yqc/github/QEC/qcloud_raw_wcprobe_WK_C180_2_20261015T150408Z.json",
+ "wall_s": 5608.478730201721,
+ "shots_used": [
+  987
+ ]
+}

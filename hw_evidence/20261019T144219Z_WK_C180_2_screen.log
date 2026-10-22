@@ -1,0 +1,151 @@
+# launch_mixedness.sh screen
+# utc=20261019T144219Z chip=WK_C180_2 stage=warmcold --cal9-screen --allow-rejected-block
+# dashboard_before=349s ms_per_shot=unset (priced at the pessimistic 14)
+# block=39,48,49,57,58,66,67,75,85 shots=default cal_first=1
+# angles=/home/yqc/github/QEC/vscr_angles_paper_dep.npz vendor=0.9993,0.9831,0.9612
+# WHEN THE JOB LANDS: read the dashboard again and append the reading, so the
+# billed ms/shot stops being a hypothesis:
+#   echo 'dashboard_after=<seconds>' >> hw_evidence/20261019T144219Z_WK_C180_2_screen.log
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[budget] cal9screen: 2000 shots = 28.0 s at 14.000 ms/shot; 349.0 s remain, 30 s margin held back -> 291.0 s left after this submission
+[cal9screen] WARNING: block [39, 48, 49, 57, 58, 66, 67, 75, 85] on WK_C180_2 is one this file REJECTS on measured grounds (2026-10-12: logical q3 / physical 85 measured contrast -0.156, a dead DATA channel).  Screening it answers whether that fault is persistent, NOT which block to use -- best_qubit_blocks(9) offers no alternative and its record carries no per-qubit quality data.
+[cal9screen] chip=WK_C180_2 block=[39, 48, 49, 57, 58, 66, 67, 75, 85] shots/circuit=1000 -> 2000 shots = 28.0 s at 14.000 ms/shot; mapping=True
+[cloud] backend: WK_C180_2
+[cloud] options: amend=True, mapping=True, optimization=True, specified_block=[39, 48, 49, 57, 58, 66, 67, 75, 85]
+[cloud]   batch 1: submitting 2 circuits ...
+[cloud]   job JobStatus.WAITING after 0 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 11 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 75 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 139 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 202 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 266 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 330 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 394 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 457 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 521 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 585 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 648 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 712 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 776 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 840 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 903 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 967 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1030 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1094 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1158 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1223 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1286 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1350 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1414 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1478 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1539 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1604 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1664 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1725 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1788 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1852 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1916 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 1979 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2043 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2107 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2170 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2234 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2297 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2361 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2424 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2489 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2554 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2617 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2681 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2745 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2808 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2872 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 2936 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3000 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3063 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3127 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3191 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3254 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3318 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3382 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3446 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3510 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3573 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3637 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3701 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3764 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3828 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3892 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 3955 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4019 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4082 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4146 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4210 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4274 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4338 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4402 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4466 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4530 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4593 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4657 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4721 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4785 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4849 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4912 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 4976 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5040 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5104 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5168 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5232 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5296 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5359 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5423 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5487 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5550 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5614 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5678 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5741 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5805 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5870 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5934 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 5998 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6062 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6126 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6190 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6254 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6319 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6383 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6447 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6511 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6575 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6639 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6703 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6767 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6831 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6896 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 6960 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 7024 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 7089 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 7153 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.FINISHED after 7195 s (poll 5 s, timeout 21600 s)
+[cloud]   batch 1: received
+[cal9screen] 998/1000 and 1000/1000 shots; mean readout fidelity 0.9995 (0.9995 over healthy channels)
+[cal9screen]   data0  logical q0  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   data1  logical q1  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   data2  logical q2  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   data3  logical q3  e01=0.0000 e10=0.0010 fid=0.9995 contrast=+0.9990  ok
+[cal9screen]   data4  logical q4  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   anc0   logical q5  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   anc1   logical q6  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   anc2   logical q7  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   anc3   logical q8  e01=0.0000 e10=0.0080 fid=0.9960 contrast=+0.9920  ok
+[cal9screen] SCREEN: all 9 channels screened; 0 broken (0 data, 0 ancilla)
+[cal9screen] VERDICT: block [39, 48, 49, 57, 58, 66, 67, 75, 85] is USABLE -- primary estimator valid, post-selected F_s valid
+[cal9screen] -> science circuits MAY be bought on this block, but the NEXT gate is --wc-probe, not the A/B: 1 circuit x 1000 shots = 14.0 s, and it measures the data-register survival w that sets the A/B's power.  The full warmcold stage at STAGE_SHOTS=3000 is 6 circuits x 3000 shots = 252 s at the pessimistic 14 ms/shot, so buying it before w is known risks spending the allocation on a bound.  ALSO: read the dashboard again now -- (before - after) / 2000 shots is the billed ms/shot, the only measurement of it that exists.
+[out] /home/yqc/github/QEC/hw_mixedness.json
+[cal9screen] dump qcloud_raw_cal9screen_WK_C180_2_20261019T144220Z.json (screen only -- no warm-vs-cold claim is made or implied).  Read the dashboard again: the delta over 2000 shots is the billed ms/shot to pass as --ms-per-shot next.
+dashboard_after=389.136
+# same reading, same ambiguity note: see hw_evidence/20261019T143633Z_WK_C180_screen.log.
+# This screen's own 2000 shots may or may not be inside that delta depending on whether
+# the operator read the dashboard before or after it was billed at 16:42Z on 10-19.
+# Either way the billed rate is <= 0.788 ms/shot, 3.8x below the DETECTION/BOUND flip.

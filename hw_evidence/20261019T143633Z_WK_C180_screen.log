@@ -1,0 +1,47 @@
+# launch_mixedness.sh screen
+# utc=20261019T143633Z chip=WK_C180 stage=warmcold --cal9-screen
+# dashboard_before=391s ms_per_shot=unset (priced at the pessimistic 14)
+# block=52,61,62,70,71,79,80,88,89 shots=default cal_first=1
+# angles=/home/yqc/github/QEC/vscr_angles_paper_dep.npz vendor=0.9988,0.9790,0.9260
+# WHEN THE JOB LANDS: read the dashboard again and append the reading, so the
+# billed ms/shot stops being a hypothesis:
+#   echo 'dashboard_after=<seconds>' >> hw_evidence/20261019T143633Z_WK_C180_screen.log
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[budget] cal9screen: 2000 shots = 28.0 s at 14.000 ms/shot; 391.0 s remain, 30 s margin held back -> 333.0 s left after this submission
+[cal9screen] chip=WK_C180 block=[52, 61, 62, 70, 71, 79, 80, 88, 89] shots/circuit=1000 -> 2000 shots = 28.0 s at 14.000 ms/shot; mapping=True
+[cloud] backend: WK_C180
+[cloud] options: amend=True, mapping=True, optimization=True, specified_block=[52, 61, 62, 70, 71, 79, 80, 88, 89]
+[cloud]   batch 1: submitting 2 circuits ...
+[cloud]   job JobStatus.WAITING after 0 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.FINISHED after 11 s (poll 5 s, timeout 21600 s)
+[cloud]   batch 1: received
+[cal9screen] 999/1000 and 999/1000 shots; mean readout fidelity 0.9974 (0.9974 over healthy channels)
+[cal9screen]   data0  logical q0  e01=0.0010 e10=0.0000 fid=0.9995 contrast=+0.9990  ok
+[cal9screen]   data1  logical q1  e01=0.0000 e10=0.0020 fid=0.9990 contrast=+0.9980  ok
+[cal9screen]   data2  logical q2  e01=0.0020 e10=0.0030 fid=0.9975 contrast=+0.9950  ok
+[cal9screen]   data3  logical q3  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   data4  logical q4  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   anc0   logical q5  e01=0.0000 e10=0.0010 fid=0.9995 contrast=+0.9990  ok
+[cal9screen]   anc1   logical q6  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   anc2   logical q7  e01=0.0000 e10=0.0350 fid=0.9825 contrast=+0.9650  ok
+[cal9screen]   anc3   logical q8  e01=0.0000 e10=0.0020 fid=0.9990 contrast=+0.9980  ok
+[cal9screen] SCREEN: all 9 channels screened; 0 broken (0 data, 0 ancilla)
+[cal9screen] VERDICT: block [52, 61, 62, 70, 71, 79, 80, 88, 89] is USABLE -- primary estimator valid, post-selected F_s valid
+[cal9screen] -> science circuits MAY be bought on this block, but the NEXT gate is --wc-probe, not the A/B: 1 circuit x 1000 shots = 14.0 s, and it measures the data-register survival w that sets the A/B's power.  The full warmcold stage at STAGE_SHOTS=3000 is 6 circuits x 3000 shots = 252 s at the pessimistic 14 ms/shot, so buying it before w is known risks spending the allocation on a bound.  ALSO: read the dashboard again now -- (before - after) / 2000 shots is the billed ms/shot, the only measurement of it that exists.
+[out] /home/yqc/github/QEC/hw_mixedness.json
+[cal9screen] dump qcloud_raw_cal9screen_WK_C180_20261019T143634Z.json (screen only -- no warm-vs-cold claim is made or implied).  Read the dashboard again: the delta over 2000 shots is the billed ms/shot to pass as --ms-per-shot next.
+dashboard_after=389.136
+# recorded 2026-10-20 from the operator's reading of the vendor dashboard ("zong ji shi
+# remaining 389.136 s").  NOTE the denominator is ambiguous and both bounds are given:
+# this reading was taken somewhere after the WK_C180 screen (2000 shots) and possibly
+# after the WK_C180_2 screen (a further 2000 shots, FINISHED 16:42Z on 10-19).  Against
+# R1=391 read on 10-15 before probe B, delta=1.864 s covers EITHER
+#   3000 shots (probe B 1000 + WK_C180 screen 2000)      -> 0.621 ms/shot
+#   5000 shots (the above + WK_C180_2 screen 2000)       -> 0.373 ms/shot
+# and if R1 was itself integer-quantised the 3000-shot case spans [0.455, 0.788].
+# The CONSERVATIVE end of that whole range is 0.788 ms/shot, still 3.8x BELOW the
+# 3.008 ms/shot at which the pre-registered verdict flips from DETECTION to BOUND, so
+# the ambiguity does not touch the decision.  It DOES falsify the pessimistic constant:
+# MS_PER_SHOT=14 predicts 42 s of billing here and a dashboard reading of ~349 s, not
+# 389.136 -- it overstates cost by 18-23x.  The reading also fell rather than rose,
+# which excludes an allocation refresh over the 4-day gap (the 491 s anomaly had risen).

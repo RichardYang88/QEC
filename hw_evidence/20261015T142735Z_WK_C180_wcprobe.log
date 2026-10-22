@@ -1,0 +1,90 @@
+# launch_mixedness.sh wcprobe
+# utc=20261015T142735Z chip=WK_C180 stage=warmcold --wc-probe
+# dashboard_before=392s ms_per_shot=unset (priced at the pessimistic 14)
+# block=auto shots=default cal_first=1
+# angles=/home/yqc/github/QEC/vscr_angles_paper_dep.npz vendor=0.9988,0.9790,0.9260
+# WHEN THE JOB LANDS: read the dashboard again and append the reading, so the
+# billed ms/shot stops being a hypothesis:
+#   echo 'dashboard_after=<389.136>' >> hw_evidence/20261015T142735Z_WK_C180_wcprobe.log
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[budget] wcprobe: 1000 shots = 14.0 s at 14.000 ms/shot; 392.0 s remain, 30 s margin held back -> 348.0 s left after this submission
+[wcprobe] best_qubit_blocks(9) on WK_C180 returned 1 block(s); 0 excluded on measured grounds
+[wcprobe]   [52, 61, 62, 70, 71, 79, 80, 88, 89]
+[wcprobe] chip=WK_C180 block=[52, 61, 62, 70, 71, 79, 80, 88, 89] 1 circuit x 1000 shots = 14.0 s at 14.000 ms/shot; mapping=True; this measures w, it does NOT test warm vs cold
+[cloud] backend: WK_C180
+[cloud] options: amend=True, mapping=True, optimization=True, specified_block=[52, 61, 62, 70, 71, 79, 80, 88, 89]
+[cloud]   batch 1: submitting 1 circuits ...
+[cloud]   batch 1: received
+[wcprobe] chip=WK_C180 block=[52, 61, 62, 70, 71, 79, 80, 88, 89]  985/1000 shots returned (98.5%), key widths [9], 206-instruction circuit
+[wcprobe] PIPELINE: OK (noiseless acceptance 1.000, deviation 0.0 sigma; expected key 101000000 at P_ideal=1.0000, measured P=0.0020)
+[wcprobe] PRIMARY P_data_zero_unconditioned = 0.0426  [0.0317, 0.0571] Wilson 95%, uniform floor 0.0312 -> z_vs_floor = +1.77  NO structure above the floor
+[wcprobe] implied data-register survival w = +0.0118  [+0.0005, +0.0267]  ((P(data=00000) - 1/32) / (1 - 1/32))
+[wcprobe] per-bit polarisation P(0)-P(1): q0=+0.019  q1=+0.125  q2=-0.214  q3=-0.076  q4=-0.163
+[wcprobe] the A/B is 6 circuits; rate 14.000 ms/shot (dashboard-measured); 378.0 s remain after the probe, 30 s held back as cut-off margin
+[wcprobe]     S/circ total shots   cost s   fits     z(w)  z(w_lo95) w<95% if null
+[wcprobe]       1000        6000     84.0    yes     0.67       0.03        0.0342
+[wcprobe]       1500        9000    126.0    yes     0.82       0.04        0.0279
+[wcprobe]       2000       12000    168.0    yes     0.95       0.04        0.0242
+[wcprobe]       2500       15000    210.0    yes     1.06       0.05        0.0216
+[wcprobe]       3000       18000    252.0    yes     1.17       0.05        0.0198
+[wcprobe]       4000       24000    336.0    yes     1.35       0.06        0.0171   <-- S*
+[wcprobe]       5000       30000    420.0     no     1.51       0.07        0.0153
+[wcprobe]       6000       36000    504.0     no     1.65       0.07        0.0140
+[wcprobe]       8000       48000    672.0     no     1.90       0.08        0.0121
+[wcprobe]      10000       60000    840.0     no     2.13       0.09        0.0108
+[wcprobe]      12000       72000   1008.0     no     2.33       0.10        0.0099
+[wcprobe]      15000       90000   1260.0     no     2.61       0.11        0.0088
+[wcprobe]      20000      120000   1680.0     no     3.01       0.13        0.0077
+[wcprobe] VERDICT: BOUND EXPERIMENT at S*=4000 shots/circuit (6 circuits = 336.0 s, z=1.35 at the measured w).
+[wcprobe] -> the A/B would NOT reach 3 sigma, so at S* it reports w < 0.0171 (95% CL) rather than a detection.  That is a characterised measurement and it does close the 2026-10-12 INVALID, but whether the remaining allocation should buy a bound is a human decision, not this script's.
+[wcprobe] verdict sidecar qcloud_raw_wcprobe_WK_C180_20261015T142737Z.json.probe.json  (feed it to --mode wcpick --probe-json; the artifact keeps only the LAST probe, so two probes need two sidecars)
+[out] /home/yqc/github/QEC/hw_mixedness.json
+[wcprobe] dump qcloud_raw_wcprobe_WK_C180_20261015T142737Z.json (one arm only -- this is a measurement of w, not a warm-versus-cold result)
+# --- dashboard readings around probe A (operator-supplied, 2026-10-15) ---
+dashboard_before=392s   (R0, supplied before the probe was bought)
+dashboard_after=491s    (first reading -- REJECTED: exceeds R0 even though 1000 shots
+                         were spent; physically inconsistent, superseded by the next
+                         line, kept here for provenance rather than quietly dropped)
+dashboard_after=391s    (R1) -> delta = 1 s over 1000 shots = 1.0 ms/shot BILLED
+# quantisation: the dashboard is whole seconds, so the true delta lies in [1,2) s and
+#   the implied billed rate in [1.0,2.0) ms/shot.  A single 1-s decrement is not
+#   allowed to carry a 120 000-shot decision on its own.
+# corroboration: MS_PER_SHOT_WALL_OBSERVED_2026_09 = 1.0 (288 000 shots in ~285 s of
+#   wall time, qcloud_run2.log).  hw_mixedness.py:272-294 documents the 14 ms/shot
+#   constant as NOT reproducible from anything on disk and as the pessimistic end of
+#   an unverified 1x-14x wall-to-billed multiplier; this delta settles it at 1x.
+# decision taken: probe B is priced at the pessimistic 14 ms/shot (MSPS deliberately
+#   NOT passed) so no sidecar records a single-sample rate as if measured.  The
+#   two-sample rate is (392 - R2) ms/shot over 2000 shots and is what the free
+#   wcpick step will be given.
+# --- CORRECTION to this probe's sidecar metadata (recorded after the fact) ---
+# qcloud_raw_wcprobe_WK_C180_20261015T142737Z.json.probe.json carries
+#   power.ms_per_shot = 14.000   power.ms_per_shot_source = "dashboard-measured"
+# That label was FALSE.  No --ms-per-shot was supplied for this probe; 14.000 is the
+# pessimistic module constant MS_PER_SHOT.  Defect: run_wc_probe handed the
+# already-resolved bill['ms_per_shot'] to analyze_wc_probe, so wc_probe_power stamped
+# 'dashboard-measured' onto whatever it was given.  billing.ms_per_shot_source in the
+# SAME sidecar carries the true label ('pessimistic constant MS_PER_SHOT'), so the file
+# contradicted itself -- and that contradiction is the proof, not a matter of opinion.
+# Fixed at hw_mixedness.py:3503-3514: the caller's value (None) is now passed through.
+# NO MEASUREMENT CHANGES.  w=+0.0118, P(data=00000)=0.0426, z_vs_floor=+1.77, the
+# ladder, S*=4000, z(S*)=1.35 and exit=5 are all untouched, because wc_probe_power
+# resolves None to the same 14.0 it was given.  Only the provenance string changed.
+# The WK_C180_2 probe sidecar will carry the same false label: that process had already
+# loaded the pre-fix module when it was launched at 15:04:07Z.
+# The genuinely MEASURED rate is the dashboard delta recorded above: 1 s over 1000
+# shots = 1.0 ms/shot, in [1.0,2.0) ms/shot once the whole-second quantisation is
+# admitted.  That, and not 14.0, is what any decision must be priced at -- but only
+# after a second sample corroborates it.
+# --- wcpick rehearsals on ONE probe (NOT the decision) ---
+# hw_evidence/20261015T162937Z_wcpick.json  mode=DETECTION exit=0 at ms_per_shot=1.0
+# hw_evidence/20261015T162938Z_wcpick.json  mode=BOUND     exit=5 at ms_per_shot=14.0
+# Both were produced from probe A ALONE (n_probes=1, WK_C180_2 still queued) to test the
+# code paths and to price the fork; each record discloses that in n_probes, in `refused`
+# (empty) and in its `reason`.  They are SUPERSEDED by the decision taken after probe B
+# returns and R2 is read.  What they establish is the shape of the fork, not its answer:
+#   billed rate <= 3.008 ms/shot -> S*=20000 -> min_w=0.0117 -> DETECTION (w=0.0118 clears)
+#   billed rate >  3.008 ms/shot -> S*=15000 -> min_w~0.0135 -> BOUND
+# The measured rate is 1.0 ms/shot, i.e. a factor ~3 below the flip, so the flip is NOT
+# sensitive to the quantisation of a single 1-second decrement.  It IS sensitive to a
+# reading that had not posted yet -- which is why R2 over a known 2000 shots decides it.

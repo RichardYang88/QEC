@@ -1,0 +1,39 @@
+# FREE analysis: can the dead-channel record on WK_C180_2's block explain probe B's w?
+# Inputs (all already on disk; nothing submitted for this note):
+#   probe A  WK_C180    block [52,61,62,70,71,79,80,88,89]  w=+0.0118 [+0.0005,+0.0267]  985 shots
+#   probe B  WK_C180_2  block [39,48,49,57,58,66,67,75,85]  w=+0.0169 [+0.0049,+0.0325]  987 shots
+#   REJECTED_BLOCKS record, hw_mixedness.py:330-336 and 416-418: that block's logical q3
+#   (physical 85) measured e01=0.5679 e10=0.5885 contrast=-0.156 on 2026-10-12, and was
+#   back at e01=0.0000 e10=0.0020 contrast=+0.9980 on the 2026-10-13 screen.  Transient.
+#
+# QUESTION ASKED.  Probe B measured the HIGHER w, on the chip whose block carries a dead
+# DATA channel.  wcpick picks by highest w, so if a dead channel inflates w, the rule
+# would buy 120 s of A/B on the strength of an artifact.  Tested before spending.
+#
+# MODEL.  Healthy register: P(data=00000) = w + (1-w)/32, and
+#   w_from_p_data_zero(p) = (p - 1/32)/(1 - 1/32)   [hw_mixedness.py:648-655]
+# With q3 broken, P(00000) = [w + (1-w)/16] x P(q3 reads 0).
+#
+# RESULT -- inverting probe B's observed w=+0.0169 for w_true:
+#   q3 healthy              -> w_true = 0.0169   (observation is the truth)
+#   q3 coin flip (p0=0.5)   -> w_true = 0.0349   (observation UNDERSTATES by 2x)
+#   q3 stuck at 0 (p0=1)    -> w_true = -0.0159  (negative => mode EXCLUDED)
+# Two baselines close it:
+#   q3 stuck at 0, w_true=0 -> w_measured = +0.0323, ABOVE the +0.0169 observed
+#   q3 coin flip,  w_true=0 -> w_measured = +0.0000
+#
+# CONCLUSION.  A dead q3 CANNOT manufacture w=+0.0169.  Stuck-at-0 would have shown at
+# least +0.0323 even with zero real survival, so it is excluded by the data; the
+# 2026-10-12 coin-flip mode drives w DOWN, so +0.0169 observed would imply w_true =
+# 0.0349.  The earlier speculation in this session -- "a dead channel reads 0, so it
+# inflates P(data=00000)" -- is WITHDRAWN: it holds only for stuck-at-0, which the
+# measured e01=0.5679/e10=0.5885 is not, and which the observed w already excludes.
+#
+# WHAT THE SCREEN IS STILL NEEDED FOR.  Not w.  hw_mixedness.py:332-335: a
+# negative-contrast channel INSIDE the data register makes the primary estimator
+# uninterpretable and biases warm-minus-cold WITH ITS SIGN FLIPPED (five-channel null
+# +2.84 sigma, dropping to -0.10 sigma once q3 is excluded).  A sign-flipped A/B is
+# worse than an underpowered one, and w cannot detect it.  The 2026-10-13 recovery
+# shows the fault is day-of, and :341-343 records that ChipInfo metadata is essentially
+# uncorrelated with day-of readout here -- "the only gate that works is a paid cal9
+# screen".  So gate 1 on THIS block, TODAY, is the gate that decides the A/B.

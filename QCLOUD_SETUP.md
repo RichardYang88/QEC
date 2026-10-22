@@ -852,3 +852,295 @@ CHIP=WK_C180_2 BLOCK=39,48,49,58,67 bash launch_mixedness.sh tomo
 现有的 4 电路 ×400 shots feasibility demo)、M2 零检验(±0.060 对项跨度 1.43)、
 5×5 实测读出指派矩阵、平台少给 shots 的复现,以及"该芯片最好块的 f2q 比引用表值高
 约 1%"这个可直接修正误差预算的结果。
+
+---
+
+## 九、2026-10-12 → 2026-10-14:一次 INVALID 的运行、一次前屏,和三段闸门方案
+
+§8 的记录停在"额度保留、未提交任何 job"。此后确实花了机时,结果不是主张而是
+一次**装置故障**,以及为让它不再发生而做的代码改动。本节按时间顺序归档。
+
+### 9.1 2026-10-12:warmcold 提交并返回,判定 INVALID
+
+命令(可原样复现,`--shots 3000` 是 stage 默认值,顺序是 science-first):
+
+```bash
+CHIP=WK_C180_2 BLOCK=39,48,49,57,58,66,67,75,85 \
+    bash launch_mixedness.sh warmcold
+```
+
+6 电路 × 3000 shots = 18 000 shots 全部返回(`shots_return_fraction` ≈ 1.0,
+即平台这次没有少给),墙钟记录在 `runs.warmcold.wall_s`。原始计数在
+`qcloud_raw_warmcold.json`,提交时写下的 meta 在其 `.meta.json` sidecar 里。
+
+**判定 INVALID,不是 null。** 该 job 自带的 cal9 屏(最后两条电路)测出 9 个通道中
+1 个是坏的,而且坏在**数据寄存器**里:逻辑 q3 / 物理 85,`e01=0.5679`、
+`e10=0.5885`、对比度 `1-e01-e10 = -0.156` —— 比抛硬币还差,而且是负的。负对比度
+意味着该通道从 |0⟩ 读出 '1' 的概率高于从 |1⟩,于是它在 warm−cold 差分里**带着翻转
+的符号**贡献,可以凭空造出一个真效应大小和形状的 gap。实测正好如此:
+
+| 估计量 | signal 分支 | null 分支(理想 gap = 3e-6) |
+|---|---|---|
+| 主估计量,5 个数据通道 | −0.0038 ± 0.0052(**−0.73σ**) | +0.0114 ± 0.0040(**+2.84σ**) |
+| 剔除 q3 后的 4 通道 | −0.0003 ± 0.0069(−0.05σ) | −0.0006 ± 0.0059(**−0.10σ**) |
+
+null 分支的 +2.84σ 完全来自那一个坏通道:去掉它,null 回到 −0.10σ,signal 也随之
+回到 −0.05σ。偏差与通道同生同灭、且在两条臂上一起消失,这正是单通道装置伪影的
+形状。所以那次运行**既不支持"探测到效应",也不支持"效应为零"**:它是装置故障。
+论文正文(paper/main.tex 第 1033-1100 行附近)按此表述,并额外记录了一个方法学
+发现:按计数本身去挑位窗会挑到**互补窗**(4 个 ancilla + 1 个数据比特),在互补窗上
+同一个 job 给出 signal −0.0311(**−7.8σ**)配 null +0.0010(+0.3σ),即"显著效应 +
+干净对照"——恰好是真效应该有的样子。本仓库所有数字都改用由 MEAS 映射 + 平台实测
+键序**推导**出来的窗(selftest (m) 锁死)。
+
+### 9.2 2026-10-13:只买两条标定电路的前屏,坏通道已恢复
+
+```bash
+CHIP=WK_C180_2 ALLOW_REJECTED=1 bash launch_mixedness.sh screen   # 2 × 1000 shots
+```
+
+9 个通道全部健康,平均读出保真度 0.9993;10-12 那条死通道现在读到
+`e01=0.0000`、`e10=0.0020`、对比度 **+0.9980**。所以那是**瞬态**故障,不是块的
+持久属性 —— 这既说明"重跑同一块"是可行的,也说明**免费信息无法预测它**:
+ChipInfo 当时把该通道报成 0.9612,而它自己标称最差的比特(0.9014)实测完美。
+唯一有效的闸门是花钱的 cal9 屏,这就是 §9.6 把它放在第一段的原因。
+原始计数在 `qcloud_raw_cal9screen.json`。
+
+### 9.3 2026-10-14 修正:功效不是 7.3σ,而且 w 根本不是一个数
+
+复核时发现两处必须修的问题,都已在代码里修掉并加断言。
+
+**(a) P 和 w 被混用。** 旧常量 `WARMCOLD_W_MEASURED_2026_09 = 0.1219` 是**测得的
+概率** P(data=00000),却被当作**存活率** w 传进 `warmcold_power`。模型是
+`P_warm = w + (1-w)/32`,所以 `w = (P - 1/32)/(1 - 1/32) = 0.0936`,不是 0.1219。
+可观 gap 因此从 0.0610 降到 0.0468,而那个到处被引用的"~7.3σ"其实是 **6.1σ**。
+现在 P 与 w 是两个常量,换算是一个函数 `w_from_p_data_zero()`,selftest (l) 断言
+换算关系,(n) 断言 10-12 那个 P 能从冻结的原始计数里重新算出来。
+
+**(b) w 有两个相差 10 倍的实测值,而且它们同时差了两个变量:**
+
+| 时间 | 芯片 | 编译选项 | P(data=00000) | w | 3000 shots 的 σ |
+|---|---|---|---|---|---|
+| 2026-09 | WK_C180 | **无** QCloudOptions | 0.1219 | 0.0936 | **6.1σ** |
+| 2026-10-12 | WK_C180_2 | **有** options | 0.0407 | 0.0098 | **1.0σ** |
+
+也就是说:**同一笔机时,买到的可能是"探测",也可能是"上界"**,而这取决于一个
+离线算不出来的事实。旧文档里"该实验在 w 的整个实测范围内都稳健"这句话因此是
+错的,已删除;selftest (l) 现在同时断言三行功效(6.1σ / 3.7σ / 1.0σ),并断言
+with-options 那一行 **< 1.5σ**,防止"稳健"的说法再回来。
+
+### 9.4 估计量族:主估计量为什么是 P(data=00000),而不是"最显著的那个"
+
+`warmcold_estimator_family()` 在**同一份计数**上算出 9 个候选 A/B 估计量,并同时
+在 signal 分支和 matched null 分支上打分。null 分支的理想 gap 是 3e-6,所以那里
+任何 |z| ≳ 3 都是**按构造就是假信号**。2026-10-12 的冻结计数上结果如下:
+
+| 成员 | 类型 | z(signal) | z(null) |
+|---|---|---|---|
+| `P_data_zero_all5` | **主估计量** | −0.73 | +2.84(被坏通道污染) |
+| `P_data_zero_cal9_cleared4` | 事后子集 | −0.05 | **−0.10** |
+| `P_bit0_zero` | 单比特 | −4.56 | **−16.96** |
+| `P_bit1_zero` | 单比特 | −0.89 | +3.88 |
+| `P_bit2_zero` | 单比特 | +6.22 | +5.11 |
+| `P_bit3_zero` | 单比特 | −4.96 | −1.51 |
+| `P_bit4_zero` | 单比特 | **+9.68** | +1.69 |
+| `P_expected_key` | 全 9 比特键 | 0.00(两臂都是 0 计数) | −1.41 |
+| `F_s_postselected` | 后选择 | 0.00 | −1.42 |
+
+三条结论,全部由 selftest (n) 从冻结计数重新推导并断言:
+
+1. **按 signal 显著性挑估计量会挑到 `P_bit4_zero`(+9.68σ)**,而它自己的 null 是
+   +1.69σ;族里最大的 null 偏差是 `P_bit0_zero` 的 **−16.96σ**,发生在理想 gap 只有
+   3e-6 的分支上。也就是说,在这台装置上"最显著"和"可信"是反相关的。
+2. **没有任何一个成员同时满足**:signal ≥ 3σ(预注册方向)且 null < 1σ。断言
+   `members_both_clean_and_significant == []` 把这条锁死;哪天它非空,就说明 10-12
+   那次运行是结果而不是装置故障,论文里关于它的一切都必须重写 —— 那应当在这里
+   大声失败,而不是被忽略。
+3. 主估计量不是"挑出来的",是**预注册**的;它在这次运行上读数被污染,恰恰是那次
+   运行被判 INVALID(而不是被判 null)的原因。
+
+顺带一个真实数字:`P_expected_key`(端到端全键概率)在两条臂上都是 **0 计数 /
+3000 shots**,与 `hw_error_budget.json` 里 `P_expected_key_hw = 0.0` 一致 —— 206 条
+指令之后,整个 9 比特理想输出串一次都没出现过。
+
+### 9.5 2026-10-14 的零机时代码改动(全部离线验证)
+
+| 改动 | 为什么 | 锁在哪 |
+|---|---|---|
+| 落盘路径改成带时间戳的唯一文件;`STAGE_RAW` / `CAL9_SCREEN_RAW` / `raw_trial_batch.json` 列入 `FROZEN_EVIDENCE`,写入即报错 | `run_stage` 和 `run_cal9_screen` 原来默认写死这两个名字,而 `submit_cloud` 每收一个 chunk 就用 `'w'` 覆盖一次:重跑会**无声销毁论文 INVALID 段落所依据的原始计数** | `assert_writable_dump`,在 `write_meta_sidecar` 这个唯一入口调用;付费模式在查询/花钱**之前**再查一次 |
+| `--budget-remaining` 成为所有付费提交的**必填**参数,`check_budget` 硬闸,留 30 s 切断余量 | 剩余额度**无法从 API 查**(SDK 里没有 balance/quota/usage);10-12 那次是照着一个没人读过的余额花掉 18 000 shots 的 | `BudgetError`;`--mode cloud` 里单独捕获,exit 3,**不**触发"减半 shots 重试"(那会悄悄换掉预注册的 stage) |
+| `qpu_billing` 台账:每次提交记下 shots、墙钟、假设费率、以及提交前后的余额 | 两次 dashboard 读数之差 ÷ shots 就是**计费 ms/shot**,这是唯一存在的实测,用来最终替换那个不可复现的 14 | `record_billing` |
+| `--wc-probe`:只买 1 条电路(stage 里的 signal\|warm,断言与预注册电路逐条相同),测 w 并给出 shots 阶梯 | §9.3(b) 的两世界之争,14 s 就能定 | selftest (o):无噪声链路上 w=1、期望键与采样众数一致、位宽变窄或 shots 少给都必须判 exit 4 |
+| 排除表按芯片分开(`REJECTED_BLOCKS`) | 被拒的块是 WK_C180_2 上的物理比特编号;在 WK_C180 上排除同样编号等于**用另一块芯片的证据**否决这块芯片 | `rejected_blocks_for(chip_id)` |
+| `run_stage` 也走 `resolve_block`(vendor 排名 − 本芯片被拒块) | 它原来用 `query_best_block`,**没有排除**:在 WK_C180_2 上(`best_qubit_blocks(9)` 只返回一个块)不带 `--block` 重跑就会**正好落回那块死通道的块** | `NoEligibleBlock` 与查询失败分开:前者必须上抛,后者才允许退回"由服务器选比特" |
+| `archive_previous`:新运行前把上一次的 `art[stage]` / `art['runs'][stage]` 存进 `hardware_run_archive['<stage>@<dump>']` | 论文正文引用的是 `art['warmcold']` 里 10-12 那次的 `signal_z=-0.7314`、`null_z=+2.8379`;新运行写同一个键,会让正文引用的 artifact **不再含有它引用的东西** | 以旧记录自己的 dump 文件名做标签,所以重复分析同一份 dump 是幂等的,不会堆出假档案 |
+| 运行日志改到 `hw_evidence/`,并在 `.gitignore` 里开例外 | 墙钟、逐 chunk 返回、以及当时的判定只存在于日志里,而 `*.log` 是被忽略的 | `hw_evidence/README.md` |
+
+### 9.6 执行手册:三段闸门 + 前后屏(方案 1,已获批准)
+
+原则:**每一段花钱的提交之前都有一个能读懂的判定,每一次判定都由 dashboard 读数
+ bracket**。R* 表示人工从 dashboard 读到的剩余秒数。
+
+```bash
+cd /home/yqc/github/QEC
+
+# ---- 第 0 步:免费,不花一秒机时 ----
+./qenv/bin/python hw_mixedness.py --mode preflight --chip-ids WK_C180,WK_C180_2
+./qenv/bin/python hw_mixedness.py --mode verify  --stage warmcold
+./qenv/bin/python hw_mixedness.py --mode sample  --stage warmcold   # 必须 A/B PASSED
+./qenv/bin/python run_selftests.py hwmixedness                      # (a)-(p) 全过
+./qenv/bin/python hw_mixedness.py --mode analyze --stage all --json /tmp/re.json
+#   最后一条是"复现已提交结果":必须重新给出 signal -0.7314 / null +2.8379 / INVALID
+
+# ---- 第 1 段:前屏(2 × 1000 shots ≤ 28 s)----
+#   读 dashboard 记 R0,然后:
+CHIP=<chip> BUDGET=<R0> bash launch_mixedness.sh screen
+#   exit 0 = 块可用;exit 4 = 数据通道坏,不要买第 2 段(见下方回退规则)
+#   再读 dashboard 记 R1:  ms/shot = 1000*(R0-R1)/2000
+
+# ---- 第 2 段:w 探针(1 × 1000 shots ≤ 14 s)----
+CHIP=<chip> BUDGET=<R1> MSPS=<实测 ms/shot> bash launch_mixedness.sh wcprobe
+#   打印 P(data=00000)、w 及其 95% 区间、shots 阶梯(每一档的 z 和"若为 null 则
+#   w < ?")、以及能装进余额的最大档 S*
+#   exit 0 = 买得起探测;exit 5 = 只买得起上界;exit 4 = 链路故障,停止
+#   再读 dashboard 记 R2
+
+# ---- 第 3 段:A/B(6 × S* shots,--cal-first 默认开)----
+CHIP=<chip> BUDGET=<R2> MSPS=<实测> SHOTS=<S*> bash launch_mixedness.sh warmcold
+#   落盘是带时间戳的新文件 qcloud_raw_warmcold_<chip>_<UTC>.json;日志在 hw_evidence/
+
+# ---- 第 4 段(可选):后屏,只有在还剩 ≥28 s 时才买 ----
+CHIP=<chip> BUDGET=<R3> MSPS=<实测> bash launch_mixedness.sh screen
+#   前后两屏一起,才能主张"整个 job 期间块是健康的"
+```
+
+**按悲观费率 14 ms/shot 的预算表**(dashboard 读数 300 s 时):
+
+| 段 | shots | 成本 | 累计 | 剩余 |
+|---|---|---|---|---|
+| 1 前屏 | 2 000 | 28 s | 28 s | 272 s |
+| 2 探针 | 1 000 | 14 s | 42 s | 258 s |
+| 3 A/B,S\*=2000 | 12 000 | 168 s | 210 s | 90 s |
+| 4 后屏 | 2 000 | 28 s | 238 s | **62 s** |
+
+实测费率一旦低于 14,第 3 段的 S\* 由探针自己算:`6·S·ms/1000 ≤ R2 − 30`,阶梯
+上限 20 000 shots/电路。
+
+**判定规则(先写下来,再看数据):**
+
+- 第 1 段 exit 4(数据通道坏)→ **不买**第 2、3 段。同一芯片上若 `best_qubit_blocks(9)`
+  还有别的块,就对下一个块再买一次前屏(28 s);若只有一个块(10-12 的 WK_C180_2
+  就是这种),则按 §9.7 的回退规则换芯片,或就此停止并只报告前屏结果。
+- 第 2 段 exit 4(链路故障:键宽不等于块宽、 shots 少给超过 10%、无噪声窗校验不过)
+  → 停止。这三个都是**会让 w 变得无意义**的故障,任何 shots 数都修不好。
+- 第 2 段 exit 0 → 按 S\* 买第 3 段,这是一次**探测**实验。
+- 第 2 段 exit 5 → 这是一次**上界**实验:是否把余额花在"w < X(95% CL)"上由人决定。
+  即便花,它也有两个真实产出:关闭 10-12 的 INVALID,以及在同一芯片上刷新
+  `P_expected_key` / `eps` 的器件点。若不花,探针自己已经给出 w 的 95% 上界。
+- 任何一段之后余额不足以留 30 s 余量 → 不提交下一段(`check_budget` 会自己拒绝)。
+
+### 9.7 芯片选择:2026-10-14 免费 preflight 的实测,以及修正后的决策规则
+
+第 0 步的免费查询(零机时,只读)已经跑过,结果**推翻了原先的建议依据**:
+
+```bash
+./qenv/bin/python hw_mixedness.py --mode preflight --chip-ids WK_C180,WK_C180_2
+# -> hw_mixedness_preflight_20261014T164851Z.json
+```
+
+| | WK_C180 | WK_C180_2 |
+|---|---|---|
+| `best_qubit_blocks(9)` | **[52,61,62,70,71,79,80,88,89]** | [39,48,49,57,58,66,67,75,85] |
+| 该芯片 9 比特块的可用性 | 不在排除表内,`resolve_block` 直接可用 | **只有这一块,且它在 `REJECTED_BLOCKS` 里**,必须显式 `--block`(或 `--allow-rejected-block`) |
+| 5 比特块实测 f1q / f2q / fread | 0.99888 / **0.97280** / 0.94890 | 0.99922 / **0.99275** / 0.95096 |
+| 已提交的 w(§9.3b) | **0.0936**(2026-09,无 options) | 0.0098(2026-10-12,有 options) |
+
+**两个离线证据互相矛盾**:厂商标定说 WK_C180_2 的两比特门误差低 **3.7 倍**
+(0.73% vs 2.72%),按 82 个两比特门粗算存活率应当高得多;而唯一一次实测 w 却说
+WK_C180 高 **10 倍**。这与本仓库反复得到的教训一致 —— ChipInfo 预测不了当天真正
+要紧的东西(10-12 那次,它把实测对比度 −0.156 的通道报成 0.9612)。所以**"按已提交
+证据选 WK_C180"这个理由已经不成立了**:它依据的 w 是在另一天、另一块、另一套编译
+选项下测的,而今天的标定指向反方向。
+
+先前的推理链里还有一条也值得记下:w 由 206 条指令的退相干与门误差决定,**读出
+保真度不是决定量**(两块芯片的 fread 几乎相同:0.9489 vs 0.9510),所以"180_2 读出
+更好"并不直接意味着"180_2 的 w 更大"。
+
+**修正后的决策规则(在看今天任何付费数据之前写死,并且已经写成代码):**
+
+离线证据既然矛盾,就用 28 s 把它测掉,而不是猜。两块芯片各买一条**同样的探针**
+(1 电路 × 1000 shots,同一天、同一套编译选项),然后由 `--mode wcpick`
+(`pick_wc_chip`)机械判定 —— 规则不是散文,是自检 (p) 锁住的代码:
+
+- 门槛 w ≥ **0.0467**(S\*=2000)/ **0.0404**(S\*=2500)由 `min_w_for_detection`
+  **反解功率模型**得到,不是手抄的数字。S\* 只由余额和费率决定(与 w 无关),所以这是
+  一条阈值判据而不是权衡。若较高的那个 w ≥ 门槛 → A/B 跑在 w 较高的芯片上,这是一次
+  **探测**实验(exit 0);
+- 否则(两块都低)→ A/B 跑在 **WK_C180_2**(代码里的 `WC_PICK_BOUND_CHIP`)上:与
+  10-12 那次同芯片同块,因此是那次 INVALID 的直接复现,而且它的实测 f2q 更好;结论按
+  **上界**报告(exit 5,这笔钱花不花由人决定)。**即使 WK_C180 的 w 更高也照此执行**
+  —— 这正是"先写死、后花钱"的含义;只有当 180_2 的探针被链路闸门拒掉时才回退到另一块,
+  且回退理由写进 `reason` 和证据 JSON;
+- 探针 exit 4(链路故障)的芯片**不是候选**;两块都不可用,或余额装不下阶梯的任何一档
+  → `STOP`(exit 4),不买 A/B;
+- 两种情况都在 A/B **之前**买该芯片的前屏(28 s),之后若还剩 ≥28 s 再买后屏。
+
+用探针选芯片**不会**抬高 A/B 的 I 类错误:null 分支的理想 gap 是 3e-6,与芯片无关,
+而选择用的是与 A/B 完全独立的 shots。代价是必须披露"A/B 跑在探针读数更好的那块
+芯片上",并且**报告出来的 w 会有赢家诅咒**(探针的 1σ 分辨约 ±0.0064),所以论文里
+w 的区间要按 A/B 自己的数据算,不按探针算。
+
+按悲观费率 14 ms/shot 的最坏情况预算:
+
+| 段 | shots | 成本 | 累计 | 剩余 |
+|---|---|---|---|---|
+| 探针 @WK_C180 | 1 000 | 14 s | 14 s | 286 s |
+| 探针 @WK_C180_2 | 1 000 | 14 s | 28 s | 272 s |
+| 前屏(中选芯片) | 2 000 | 28 s | 56 s | 244 s |
+| A/B,S\*=2000 | 12 000 | 168 s | 224 s | 76 s |
+| 后屏(中选芯片) | 2 000 | 28 s | 252 s | **48 s** |
+
+**方案 A 的可执行序列**(每一次 `BUDGET` 都是人工从 dashboard 读到的当前余额;
+`MSPS` 从上一步的差额反算 `1000*(R前-R后)/shots`):
+
+```bash
+cd /home/yqc/github/QEC
+
+# 1) 读 dashboard 记 R0;探针 #1 在 WK_C180 上,块由 resolve_block 自动选
+CHIP=WK_C180 BUDGET=<R0> bash launch_mixedness.sh wcprobe            # 1 × 1000 shots
+#    记下它打印的 "[wcprobe] verdict sidecar <pathA>";再读 dashboard 记 R1
+
+# 2) 探针 #2 在 WK_C180_2 上:它唯一的 9 比特块在排除表里,必须显式给 BLOCK
+CHIP=WK_C180_2 BUDGET=<R1> MSPS=<实测> BLOCK=39,48,49,57,58,66,67,75,85 \
+    bash launch_mixedness.sh wcprobe                                 # 1 × 1000 shots
+#    记下 "<pathB>";再读 dashboard 记 R2
+
+# 3) 免费判定:不读 token、不提交任何电路,只把 §9.7 的规则应用到两份 sidecar 上
+PROBE_JSONS="<pathA> <pathB>" BUDGET=<R2> MSPS=<实测> \
+    bash launch_mixedness.sh wcpick
+#    -> 打印 chip / block / S* / 该 w 下的 z / "若为 null 则 w < ?",并直接给出第 5 步的整条命令
+#    -> 决策记录落在 hw_evidence/<UTC>_wcpick.json(刻意不写进 hw_mixedness.json:
+#       artifact 存的是论文引用的测量,不是两次测量之间的路由决定)
+#    exit 0 = 探测实验 | exit 5 = 上界实验(人决定是否花) | exit 4 = STOP,不买 A/B
+
+# 4) 中选芯片的前屏(wcpick 已经把芯片和块定死了)
+CHIP=<wcpick 的 chip> BUDGET=<R2> MSPS=<实测> [BLOCK=<wcpick 的 block>] \
+    bash launch_mixedness.sh screen                                  # 2 × 1000 shots
+#    读 dashboard 记 R3;exit 4(数据通道坏)→ 不买 A/B,见 §9.6 的回退规则
+
+# 5) 主 A/B:6 电路 × S*,--cal-first 默认开,落盘带时间戳的新 dump
+CHIP=<chip> BUDGET=<R3> MSPS=<实测> SHOTS=<S*> [BLOCK=<block>] \
+    bash launch_mixedness.sh warmcold
+#    6) 若 R4 ≥ 28 s + 余量,再买后屏;然后 --mode analyze 读那份新 dump
+```
+
+**明确不做的两件事**:
+
+1. **不按显著性挑块**(§8.8.4 已锁死):块只能来自 `best_qubit_blocks(9)` 的排名,
+   减去本芯片上按实测理由被拒的块。WK_C180 今天的 [52,61,62,70,71,79,80,88,89]
+   就是这么来的,不是挑出来的。
+2. **不把探针的 w 当作 A/B 的结果**:探针只有一条臂,形不成 gap,它只决定 S\* 和芯片。
+
+
+
+

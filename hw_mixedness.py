@@ -342,6 +342,18 @@ CI_HALF_WIDTH_AT_1000 = 0.079      # bootstrap half-width, from the power study
 # (0.9014) measured perfect.  Metadata quality and day-of readout are essentially
 # uncorrelated here, so the only gate that works is a paid cal9 screen.
 WARMCOLD_BLOCK_REJECTED_2026_10_12 = [39, 48, 49, 57, 58, 66, 67, 75, 85]
+# ... and that rejection is a fact about ONE CHIP.  The block is a list of physical
+# qubit indices on WK_C180_2; the same indices on WK_C180 are a different device
+# with a different day-of readout, so excluding them there would reject a block on
+# evidence measured on another chip.  Keyed by chip, with the constant above kept
+# as the WK_C180_2 entry so every existing reference still resolves.
+REJECTED_BLOCKS = {'WK_C180_2': [WARMCOLD_BLOCK_REJECTED_2026_10_12]}
+
+
+def rejected_blocks_for(chip_id):
+    """Blocks rejected on MEASURED grounds on this chip (empty if none)."""
+    return tuple(tuple(b) for b in REJECTED_BLOCKS.get(chip_id, ()))
+
 # Cost of the screen itself.  Billing is per SHOT, not per instruction, so the two
 # calibration circuits cost what any two circuits cost at this shot count:
 # 2 x 1000 = 2000 shots = 28 s at the confirmed pessimistic 14 ms/shot.  That fits
@@ -394,6 +406,155 @@ STAGE_JOB = {'probe': 1, 'tomo': 2, 'bench': 3, 'ladder': 4, 'warmcold': 5}
 BENCH_FRAME = 'IIIII'
 BENCH_S_INJECTED = 12
 BENCH_FRAME_INJECTED = 'IIXII'
+
+# ---------------------------------------------------------------------
+# dump paths: every paid run writes its OWN file and can never overwrite evidence
+# ---------------------------------------------------------------------
+# WHY THIS EXISTS.  run_stage and run_cal9_screen defaulted their dump path to
+# STAGE_RAW[stage] / CAL9_SCREEN_RAW, i.e. to qcloud_raw_warmcold.json and
+# qcloud_raw_cal9screen.json -- and BOTH ARE COMMITTED.  They are the raw counts
+# behind the manuscript's 2026-10-12 INVALID paragraph (logical q3 / physical 85
+# at e01=0.5679, e10=0.5885, contrast -0.156) and its 2026-10-13 screen (the same
+# channel back at e01=0.0000, e10=0.0020, contrast +0.9980).  A rerun would have
+# opened them with 'w' and destroyed the only record those numbers can be
+# recomputed from -- silently, because submit_cloud writes the dump incrementally
+# and unconditionally after every chunk.  The legacy names are therefore FROZEN: a
+# new run gets its own timestamped file, and writing to a frozen name raises.
+FROZEN_EVIDENCE = frozenset(
+    [CAL9_SCREEN_RAW, 'raw_trial_batch.json', 'raw_verify_options.json',
+     # the 2026-10-11 free-query snapshot QCLOUD_SETUP.md 8.8 cites for B5's
+     # measured calibration; --mode preflight now writes a timestamped file
+     'hw_mixedness_preflight.json']
+    + list(STAGE_RAW.values()))
+# Run logs are evidence too: the wall time, the returned shot counts and the
+# per-chunk record quoted in the hardware section exist only in them, and *.log is
+# gitignored, so logs go here and this directory is tracked (see .gitignore).
+RUN_LOG_DIR = os.path.join(ROOT, 'hw_evidence')
+
+
+def _utc_stamp():
+    return time.strftime('%Y%m%dT%H%M%SZ', time.gmtime())
+
+
+def unique_dump_path(kind, chip_id, root=ROOT):
+    """A dump path for a NEW run: qcloud_raw_<kind>_<chip>_<UTC>.json.
+
+    Uniqueness is asserted rather than assumed -- the file must not already exist
+    and the name must not be frozen evidence -- so a rerun can never land on the
+    counts a manuscript number was computed from."""
+    base = 'qcloud_raw_%s_%s_%s.json' % (kind, chip_id, _utc_stamp())
+    path, n = os.path.join(root, base), 1
+    while os.path.exists(path):
+        path = os.path.join(root, '%s_%d.json' % (base[:-5], n))
+        n += 1
+    return assert_writable_dump(path)
+
+
+def assert_writable_dump(path):
+    """Refuse to write a dump over committed evidence, or over another dump."""
+    name = os.path.basename(path)
+    if name in FROZEN_EVIDENCE:
+        raise RuntimeError(
+            '%s is FROZEN EVIDENCE: it holds the raw counts a manuscript number '
+            'is computed from.  A new run must write its own timestamped dump -- '
+            'omit --dump-raw to let unique_dump_path choose one.' % name)
+    if os.path.exists(path):
+        raise RuntimeError(
+            '%s already exists; refusing to overwrite a dump that may already be '
+            'cited.  Choose another --dump-raw.' % path)
+    return path
+
+
+# ---------------------------------------------------------------------
+# the QPU-time ledger: cost a submission BEFORE it is submitted, and record it
+# ---------------------------------------------------------------------
+# A job cannot overrun its allocation and a killed job returns nothing, so the
+# only place a budget can be enforced is here, before the spend.  Two numbers go
+# in: how many shots this submission asks for, and how much time the account
+# holder's dashboard says is LEFT.  The second cannot be read from the API --
+# QCloudService exposes backend/backends/best_qubit_blocks/setup_logging and
+# ChipInfo only topology and calibration, with no balance, quota or usage query
+# anywhere in the SDK -- so it is a required argument for any paid submission and
+# the human reads it off the dashboard.  That is not a inconvenience to design
+# away: it is the only measurement of the billing rate that exists, and the
+# difference between two readings across a known number of shots is what finally
+# replaces MS_PER_SHOT's unverified 14x.
+BUDGET_MARGIN_S = 30.0
+
+
+class BudgetError(RuntimeError):
+    """Raised instead of submitting a job that cannot fit the allocation."""
+
+
+class NoEligibleBlock(RuntimeError):
+    """Every block the vendor ranks is rejected on measured grounds, so there is
+    nothing to run on.  Distinct from a failed query: a caller may tolerate the
+    second (the server then chooses qubits) but must never tolerate this one."""
+
+
+def cost_s(n_shots, ms_per_shot=None):
+    """Seconds of billed QPU time for `n_shots` at `ms_per_shot` (default: the
+    pessimistic MS_PER_SHOT, so every cost stated offline is an upper bound)."""
+    return n_shots * (MS_PER_SHOT if ms_per_shot is None else ms_per_shot) / 1000.0
+
+
+def check_budget(kind, n_shots, budget_remaining, ms_per_shot=None,
+                 margin_s=BUDGET_MARGIN_S, verbose=True):
+    """Refuse (BudgetError) unless `n_shots` fits the remaining allocation.
+
+    Returns the ledger entry for this submission.  `budget_remaining=None` is a
+    refusal rather than a pass: an unread budget is not an infinite one, and the
+    2026-10-12 run spent 18 000 shots against a remainder nobody had read."""
+    if budget_remaining is None:
+        raise BudgetError(
+            '%s: --budget-remaining is REQUIRED for a paid submission.  The '
+            'remaining allocation cannot be queried (no balance/quota/usage call '
+            'exists in the SDK), so read it off the OriginQ dashboard and pass it '
+            'in seconds.  Without it this file cannot tell a 28 s screen from a '
+            'job that will be cut off.' % kind)
+    ms = MS_PER_SHOT if ms_per_shot is None else float(ms_per_shot)
+    c, c_pes = cost_s(n_shots, ms), cost_s(n_shots)
+    allowed = float(budget_remaining) - margin_s
+    if c > allowed:
+        raise BudgetError(
+            '%s: %d shots cost %.1f s at %.3f ms/shot, but only %.1f s remain and '
+            '%.0f s of that is held back as cut-off margin.  %s'
+            % (kind, n_shots, c, ms, float(budget_remaining), margin_s,
+               ('The margin alone exceeds the remainder, so NOTHING is affordable: '
+                'top up the allocation.' if allowed <= 0 else
+                'Reduce --shots (the largest that fits is %d) or top up the '
+                'allocation.' % int(allowed * 1000.0 / ms))))
+    if verbose:
+        print('[budget] %s: %d shots = %.1f s at %.3f ms/shot%s; %.1f s remain, '
+              '%.0f s margin held back -> %.1f s left after this submission'
+              % (kind, n_shots, c, ms,
+                 '' if ms_per_shot is None else ' (dashboard-measured)',
+                 float(budget_remaining), margin_s, allowed - c), flush=True)
+        if c_pes > allowed:
+            print('[budget] WARNING: at the pessimistic %.0f ms/shot this same '
+                  'submission would cost %.1f s and NOT fit.  It is being allowed '
+                  'only because the rate was measured from a dashboard delta; if '
+                  'that measurement is wrong the job is cut off and only the '
+                  'completed chunks survive on disk.'
+                  % (MS_PER_SHOT, c_pes), flush=True)
+    return dict(kind=kind, n_shots=int(n_shots), ms_per_shot=ms,
+                ms_per_shot_source=('dashboard-measured' if ms_per_shot is not None
+                                    else 'pessimistic constant MS_PER_SHOT'),
+                cost_s=c, cost_s_pessimistic=c_pes,
+                budget_remaining_before=float(budget_remaining),
+                budget_remaining_after=float(budget_remaining) - c,
+                margin_s=margin_s, utc=_utc_stamp())
+
+
+def record_billing(art, entry):
+    """Append one ledger entry to the artifact, so the billed rate stops being a
+    hypothesis: requested vs returned shots, wall time and the dashboard deltas
+    that bracket each submission are what MS_PER_SHOT should eventually be
+    replaced by."""
+    art.setdefault('qpu_billing', []).append(entry)
+    return entry
+
+
 
 # ---------------------------------------------------------------------
 # The warm-vs-cold recovery A/B -- the only hardware claim this budget can buy
@@ -460,20 +621,58 @@ WARMCOLD_ANGLES = {'warm': 'vscr_angles_paper_dep.npz',
 # post-selected F_s would become the better primary estimator again.
 WARMCOLD_PRIMARY = 'P_data_zero_unconditioned'
 WARMCOLD_SECONDARY = 'F_s_postselected'
-# MEASURED DATA-REGISTER SURVIVAL, from that same 2026-09 run: P(data=00000)
-# averaged over its 16 branches is 0.1219 (min 0.0734, max 0.1727) against a
-# uniform-noise floor of 1/32 = 0.0312.  A device that randomises the data
-# register cannot transmit which recovery ran, so the OBSERVABLE gap is the ideal
-# gap multiplied by this survival:
-#     warm P(00000) ~ w + (1-w)/32      cold ~ w/2 + (1-w)/32
-#     observable gap = w * 0.500
-# At w = 0.122 that is 0.061, and with 3000 shots/circuit sigma_pair = 0.0084,
-# i.e. ~7.3 sigma.  At w = 0.06 it is still ~4.4 sigma.  The experiment is
-# therefore robust across the whole observed range of w, which is the property
-# that makes it worth the allocation.
-WARMCOLD_W_MEASURED_2026_09 = 0.1219
+# MEASURED DATA-REGISTER SURVIVAL, and the arithmetic that turns a measured
+# PROBABILITY into the w the power model needs.  Two committed measurements exist
+# and they disagree by an order of magnitude, so w is carried as a PAIR (the
+# measured P and the implied w) and the relation between them is a function rather
+# than a mental note:
+#     warm P(data=00000) ~ w + (1-w)/32     cold ~ w/2 + (1-w)/32
+#     observable gap = w * 0.500            =>  w = (P - 1/32) / (1 - 1/32)
+# The 1/32 subtraction is not cosmetic, and omitting it was a real error here.  The
+# constant that used to live on this line was the measured PROBABILITY 0.1219
+# passed to warmcold_power AS IF it were w, which overstates the gap by 30%
+# (0.0610 instead of 0.0468) and the significance with it: the "~7.3 sigma" that
+# every earlier version of this file, of print_plan and of launch_mixedness.sh
+# quoted is 6.1 sigma once P is converted to w.  Both figures also came from the
+# 2026-09 run, which submitted WITHOUT QCloudOptions, while the only with-options
+# measurement on record is ten times smaller.  The honest statement is therefore a
+# range spanning two platforms and two compiler configurations, not a point:
+#     2026-09  WK_C180    no options  P = 0.1219 -> w = 0.0936, 6.1 sigma at 3000
+#     2026-10  WK_C180_2  options     P = 0.0407 -> w = 0.0098, 1.0 sigma at 3000
+# Which world today resembles is not knowable offline, and it is the difference
+# between a detection and a bound.  That is exactly what --wc-probe measures for
+# 1000 shots (14 s) before the six-circuit A/B is bought.
 WARMCOLD_W_FLOOR_UNIFORM = 1.0 / 32
-WARMCOLD_W_PESSIMISTIC = 0.06
+
+
+def w_from_p_data_zero(p, floor=WARMCOLD_W_FLOOR_UNIFORM):
+    """Data-register survival w implied by a measured P(data=00000).
+
+    Inverts P = w + (1-w)*floor: the ideal outcome contributes w and a fully
+    randomised register contributes the uniform floor on the remaining weight.  One
+    function so that the probe, the power model and these constants cannot each
+    carry their own idea of what the floor does."""
+    return (p - floor) / (1.0 - floor)
+
+
+WARMCOLD_P_DATA_ZERO_2026_09 = 0.1219    # mean over 16 branches, ~1985 shots each
+WARMCOLD_W_MEASURED_2026_09 = w_from_p_data_zero(WARMCOLD_P_DATA_ZERO_2026_09)
+# The with-options measurement: the 2026-10-12 signal|warm circuit's P(data=00000)
+# on the CORRECTED data window (the 0.0091 figure quoted in an earlier version of
+# build_warmcold's note came from the complement window and is withdrawn there).
+# That run is INVALID as an A/B -- one data channel was dead at contrast -0.156 --
+# but its P(data=00000) is still the only measurement that exists of how much of
+# the data register survives 206 instructions WITH vendor options on, which is the
+# configuration any rerun will use.  selftest (n) re-derives it from the frozen
+# dump, so this constant cannot drift from the data it summarises.
+WARMCOLD_P_DATA_ZERO_2026_10_12 = 0.0407
+WARMCOLD_W_MEASURED_2026_10_12 = w_from_p_data_zero(WARMCOLD_P_DATA_ZERO_2026_10_12)
+# "Pessimistic" means HALF the larger measured survival, so selftest (l)'s claim
+# that the design still resolves the effect at half of w is literally what is
+# computed.  Note that the with-options world sits far BELOW even this rung, which
+# is why selftest (l) carries a third power row for it instead of implying that
+# 0.0468 is the floor of the observed range.
+WARMCOLD_W_PESSIMISTIC = 0.5 * WARMCOLD_W_MEASURED_2026_09
 # 4 science circuits + 2 nine-qubit readout-calibration circuits, all at
 # STAGE_SHOTS['warmcold'] = 3000 -> 18 000 shots -> 252 s at the confirmed
 # 14 ms/shot, leaving 48 s of margin against a budget that cannot overrun.
@@ -1800,6 +1999,32 @@ def selftests(verbose=True):
     assert wc_pp['sigma_z'] >= 3.0, wc_pp
     assert abs(wc_pw['observable_gap']
                - WARMCOLD_W_MEASURED_2026_09 * WARMCOLD_GAP_IDEAL_SIGNAL) < 1e-12
+    # P and w are different numbers and mixing them up was a real error here, so the
+    # conversion is asserted rather than trusted
+    assert abs(w_from_p_data_zero(WARMCOLD_P_DATA_ZERO_2026_09)
+               - WARMCOLD_W_MEASURED_2026_09) < 1e-12
+    assert abs(w_from_p_data_zero(WARMCOLD_P_DATA_ZERO_2026_10_12)
+               - WARMCOLD_W_MEASURED_2026_10_12) < 1e-12
+    assert 0 < WARMCOLD_W_MEASURED_2026_09 < WARMCOLD_P_DATA_ZERO_2026_09, (
+        'subtracting the uniform floor must lower the measured P, not raise it')
+    assert 0 < WARMCOLD_W_MEASURED_2026_10_12 < WARMCOLD_P_DATA_ZERO_2026_10_12
+    # THE THIRD ROW IS THE ONE THAT DECIDES WHAT THE ALLOCATION BUYS.  At the only
+    # WITH-OPTIONS survival ever measured, the same 3000 shots are worth ~1 sigma:
+    # the design is NOT robust across the observed range of w, which is what an
+    # earlier version of this file claimed on the strength of a constant that had P
+    # and w mixed up.  Asserting the row is small is what keeps that claim from
+    # coming back, and it is why --wc-probe exists: 1000 shots (14 s) distinguish a
+    # 6 sigma world from a 1 sigma world before six circuits are paid for.
+    wc_p10 = warmcold_power(w=WARMCOLD_W_MEASURED_2026_10_12,
+                            shots=STAGE_SHOTS['warmcold'])
+    assert wc_p10['sigma_z'] < 1.5, wc_p10
+    assert 5 * WARMCOLD_W_MEASURED_2026_10_12 < WARMCOLD_W_MEASURED_2026_09, (
+        'the two committed survivals are no longer an order of magnitude apart, so '
+        'the arithmetic that justifies spending 14 s on --wc-probe before the A/B '
+        'has changed and this assert must be re-derived, not deleted',
+        WARMCOLD_W_MEASURED_2026_10_12, WARMCOLD_W_MEASURED_2026_09)
+    assert WC_PROBE_MIN_SIGMA <= wc_pw['sigma_z'], (
+        'the probe gate and the stage\'s own detection bar must be the same number')
 
     # THE ESTIMATOR CHANGE IS JUSTIFIED BY DATA ALREADY ON DISK, not by taste, so
     # the justification is re-derived here whenever that file is present.  If the
@@ -1824,14 +2049,20 @@ def selftests(verbose=True):
                        ancilla_entropy_bits_min=min(_H),
                        ancilla_entropy_bits_max=max(_H),
                        ancilla_entropy_uniform_bits=4.0,
-                       data_survival_mean=float(np.mean(_ws)),
-                       data_survival_min=min(_ws),
-                       data_survival_max=max(_ws))
+                       # named for what they ARE: the measured probability, not the
+                       # survival w.  The keys used to be called data_survival_*,
+                       # which is how the P/w mix-up in the power constants happened.
+                       p_data_zero_mean=float(np.mean(_ws)),
+                       p_data_zero_min=min(_ws),
+                       p_data_zero_max=max(_ws),
+                       w_implied_mean=w_from_p_data_zero(float(np.mean(_ws))),
+                       w_implied_min=w_from_p_data_zero(min(_ws)),
+                       w_implied_max=w_from_p_data_zero(max(_ws)))
         assert min(_H) > 3.0, (
             'the 2026-09 ancilla marginal is NOT near-uniform, so the case for '
             'the unconditioned primary estimator is gone and the post-selected '
             'F_s should be primary again', min(_H))
-        assert abs(np.mean(_ws) - WARMCOLD_W_MEASURED_2026_09) < 5e-3, _ws
+        assert abs(np.mean(_ws) - WARMCOLD_P_DATA_ZERO_2026_09) < 5e-3, _ws
         assert np.mean(_ws) > 2 * WARMCOLD_W_FLOOR_UNIFORM, _ws
     res['warmcold'] = dict(
         psi=WARMCOLD_PSI, signal_s=WARMCOLD_SIGNAL_S,
@@ -1846,6 +2077,17 @@ def selftests(verbose=True):
         primary_estimator=WARMCOLD_PRIMARY,
         secondary_estimator=WARMCOLD_SECONDARY,
         power_at_measured_w=wc_pw, power_at_pessimistic_w=wc_pp,
+        power_at_with_options_w=wc_p10,
+        w_measured_2026_09=WARMCOLD_W_MEASURED_2026_09,
+        w_measured_2026_10_12=WARMCOLD_W_MEASURED_2026_10_12,
+        p_data_zero_2026_09=WARMCOLD_P_DATA_ZERO_2026_09,
+        p_data_zero_2026_10_12=WARMCOLD_P_DATA_ZERO_2026_10_12,
+        probe_gate=dict(shots=WC_PROBE_SHOTS, cost_s=cost_s(WC_PROBE_SHOTS),
+                        min_sigma=WC_PROBE_MIN_SIGMA,
+                        ladder=WC_PROBE_SHOT_LADDER,
+                        why='the two committed survivals differ 10x and straddle '
+                            'the detection bar, so w is measured before the A/B is '
+                            'bought'),
         measured_2026_09=wc_data)
     say('(l) warm-vs-cold A/B: psi=%s, branch s=%d (%s) is the ONLY one of 16 '
         'carrying an effect, ideal gap %+.6f; s=%d (%s) is the matched null at '
@@ -1854,8 +2096,13 @@ def selftests(verbose=True):
         'shots = %.0f s of the %.0f s budget (%.0f s margin), chunk=%d so the '
         'signal pair alone survives a cut-off.  Primary estimator %s, because '
         'the 2026-09 ancilla marginal is near-uniform (H=%.2f-%.2f of 4.00 bits) '
-        'and its data survival %.4f beat the %.4f floor by only ~4x: the effect '
-        'is worth %.1f sigma, or %.1f sigma at half that survival.'
+        'and its measured P(data=00000)=%.4f beat the %.4f floor by only ~4x.  '
+        'POWER IS A RANGE, NOT A NUMBER: that P implies w=%.4f, worth %.1f sigma '
+        'at %d shots (%.1f at half that w), while the only WITH-OPTIONS survival '
+        'on record (2026-10-12, P=%.4f -> w=%.4f) is worth %.1f sigma -- so the '
+        'same allocation buys a detection or a bound depending on a fact that '
+        'cannot be computed offline.  --wc-probe measures it for %d shots '
+        '(%.0f s) before the six circuits are bought.'
         % (WARMCOLD_PSI, WARMCOLD_SIGNAL_S, WARMCOLD_SIGNAL_FRAME, gap_sig,
            WARMCOLD_NULL_S, WARMCOLD_NULL_FRAME, gap_null, wc_z_basis,
            WARMCOLD_PSI, n_wc, STAGE_SHOTS['warmcold'], wc_shots, wc_cost,
@@ -1863,8 +2110,11 @@ def selftests(verbose=True):
            WARMCOLD_PRIMARY,
            wc_data['ancilla_entropy_bits_min'] if wc_data else float('nan'),
            wc_data['ancilla_entropy_bits_max'] if wc_data else float('nan'),
-           wc_data['data_survival_mean'] if wc_data else float('nan'),
-           WARMCOLD_W_FLOOR_UNIFORM, wc_pw['sigma_z'], wc_pp['sigma_z']))
+           WARMCOLD_P_DATA_ZERO_2026_09, WARMCOLD_W_FLOOR_UNIFORM,
+           WARMCOLD_W_MEASURED_2026_09, wc_pw['sigma_z'],
+           STAGE_SHOTS['warmcold'], wc_pp['sigma_z'],
+           WARMCOLD_P_DATA_ZERO_2026_10_12, WARMCOLD_W_MEASURED_2026_10_12,
+           wc_p10['sigma_z'], WC_PROBE_SHOTS, cost_s(WC_PROBE_SHOTS)))
     # (l2) --cal-first reordering.  cal9's labels DO transfer to the science
     # circuits (see check_cal9_transferability), so putting the calibration pair
     # first is what lets a hard-budget kill still leave the block's readout screen
@@ -2139,6 +2389,297 @@ def selftests(verbose=True):
            _lv['min_acceptance_rate'], _lv['max_dev_in_sigma'], _lv['shots'],
            _clean['per_qubit']['data3']['science_key_pos']))
 
+    # (n) THE ESTIMATOR FAMILY.  The primary estimator is P(data=00000) over all
+    #     five data channels, and that choice is defensible only if the alternatives
+    #     are visibly worse where they can be checked for free: the NULL branch,
+    #     whose ideal gap is 3e-6, so any |z| above ~3 there is a false signal by
+    #     construction.  This re-derives the whole family from the frozen
+    #     2026-10-12 counts -- the same counts the manuscript's INVALID paragraph
+    #     quotes -- so four facts are locked in code instead of living in prose that
+    #     could drift: what the primary reads, that its null is contaminated, that
+    #     the contamination is entirely the one channel cal9 flagged, and how large
+    #     a false signal post-hoc estimator selection would have manufactured.
+    _fam_path = os.path.join(ROOT, STAGE_RAW['warmcold'])
+    if os.path.exists(_fam_path) and os.path.exists(_meta_sidecar_path(_fam_path)):
+        _fr = _load_dump('warmcold')
+        _fm = read_meta_sidecar(_fam_path)['meta']
+        assert len(_fr) == len(_fm) == len(wc_m), (len(_fr), len(_fm), len(wc_m))
+        _cbn, _gbn = {}, {}
+        for _i, _mi in enumerate(_fm):
+            assert _mi == wc_m[_i], ('the frozen dump\'s submission-time meta has '
+                                     'drifted from the current builders', _i)
+            if _mi.get('kind') != 'warmcold':
+                continue
+            _nm = '%s|%s' % (_mi['role'], _mi['arm'])
+            _cbn[_nm], _gbn[_nm] = _fr[_i], wc_g[_i]
+        assert sorted(_cbn) == ['null|cold', 'null|warm', 'signal|cold',
+                                'signal|warm'], sorted(_cbn)
+        _c9f = _analyze_cal9([(r, m) for r, m in zip(_fr, _fm)
+                              if m.get('kind') == 'cal9'], _anc, _rev)
+        _sub = _warmcold_healthy_subset(_cbn, _c9f, rev=_rev)
+        _fam = warmcold_estimator_family(_cbn, cal9_out=_sub, gates_by_name=_gbn,
+                                        rev=_rev, anc=_anc)
+        _pr = _fam['primary_member']
+        _subk = [k for k, v in _fam['members'].items() if v['kind'] == 'subset']
+        assert len(_subk) == 1, _subk
+        _sk = _subk[0]
+
+        def _z(k, b):
+            return _fam['members'][k]['pairs'][b]['z']
+
+        # 1. the probability the power constants quote IS this dump's signal|warm
+        #    arm, on the MEAS-derived window -- not a number retyped from a log
+        _psw = _fam['members'][_pr]['per_circuit']['signal|warm']['P']
+        assert abs(_psw - WARMCOLD_P_DATA_ZERO_2026_10_12) < 5e-4, (_psw,)
+        # 2. the primary's NULL is not clean on this run, which is precisely why the
+        #    run is an apparatus fault (INVALID) and not a null result
+        assert _z(_pr, 'null') > 2.5, _z(_pr, 'null')
+        assert abs(_z(_pr, 'signal') + 0.73) < 0.05, _z(_pr, 'signal')
+        # 3. dropping the ONE channel cal9 flagged cleans the null and leaves the
+        #    signal at zero with it: the bias belongs to that channel, in both arms,
+        #    rather than migrating between estimators
+        assert abs(_z(_sk, 'null')) < 0.5, _z(_sk, 'null')
+        assert abs(_z(_sk, 'signal')) < 0.5, _z(_sk, 'signal')
+        assert _c9f['n_broken'] == 1 and _sub['n_kept'] == q.NQ_DATA - 1, _sub
+        # 4. post-hoc selection over the family would have manufactured a huge false
+        #    signal on the null branch, and the most signal-significant member is
+        #    neither the primary nor the cal9-cleared subset
+        assert _fam['max_abs_null_z'] > 5.0, _fam['max_abs_null_z']
+        assert _fam['members'][_fam['max_abs_null_member']]['kind'] == 'single_bit'
+        assert _fam['max_abs_signal_member'] not in (_pr, _sk), _fam
+        # THE LOCK THAT MATTERS: no member of the family is simultaneously >=3 sigma
+        # in the pre-registered direction and clean on the matched null.  If one ever
+        # were, the 2026-10-12 run would be a result rather than an apparatus fault
+        # and everything the manuscript says about it would have to be rewritten --
+        # so that possibility fails here, loudly, instead of being overlooked.
+        _clean_sig = [k for k, v in _fam['members'].items()
+                      if v['pairs'].get('signal', {}).get('complete')
+                      and v['pairs']['signal']['z'] >= WC_PROBE_MIN_SIGMA
+                      and v['pairs'].get('null', {}).get('complete')
+                      and abs(v['pairs']['null']['z']) < 1.0]
+        assert _clean_sig == [], _clean_sig
+        res['estimator_family'] = dict(
+            source_dump=os.path.basename(_fam_path), n_members=_fam['n_members'],
+            primary_member=_pr, cal9_cleared_member=_sk,
+            kinds={k: v['kind'] for k, v in _fam['members'].items()},
+            z_signal=_fam['signal_z_by_member'], z_null=_fam['null_z_by_member'],
+            max_abs_null_z=_fam['max_abs_null_z'],
+            max_abs_null_member=_fam['max_abs_null_member'],
+            max_abs_signal_member=_fam['max_abs_signal_member'],
+            P_signal_warm_primary=_psw,
+            w_implied=w_from_p_data_zero(_psw),
+            members_both_clean_and_significant=_clean_sig,
+            data_slice=_fam['data_slice'], rev=_fam['rev'])
+        say('(n) estimator family on the frozen 2026-10-12 counts (%d members, data '
+            'window [%d:%d] rev=%s).  The primary %s reads P(signal|warm)=%.4f, '
+            'i.e. w=%.4f: signal %+.2f sigma, null %+.2f sigma -- the NULL IS '
+            'CONTAMINATED, which is why that run is an apparatus fault and not a '
+            'null result.  Dropping the single channel cal9 flagged moves the null '
+            'to %+.2f sigma and the signal to %+.2f sigma, so the bias is that '
+            'channel\'s alone and not the estimator\'s.  Ranking the family by the '
+            'SIGNAL branch instead would have picked %s at %+.2f sigma, whose own '
+            'null reads %+.2f sigma; the largest null deviation anywhere in the '
+            'family is %+.1f sigma (%s) on a branch whose ideal gap is %.1e.  NO '
+            'member is both >=%.0f sigma in the pre-registered direction and clean '
+            '(<1 sigma) on the null, which is what makes the primary a pre-registered '
+            'choice rather than the winner of a search.'
+            % (_fam['n_members'], _fam['data_slice'][0], _fam['data_slice'][1],
+               _fam['rev'], _pr, _psw, w_from_p_data_zero(_psw),
+               _z(_pr, 'signal'), _z(_pr, 'null'), _z(_sk, 'null'),
+               _z(_sk, 'signal'), _fam['max_abs_signal_member'],
+               _fam['signal_z_by_member'][_fam['max_abs_signal_member']],
+               _fam['null_z_by_member'].get(_fam['max_abs_signal_member'],
+                                            float('nan')),
+               _fam['null_z_by_member'][_fam['max_abs_null_member']],
+               _fam['max_abs_null_member'], WARMCOLD_GAP_IDEAL_NULL,
+               WC_PROBE_MIN_SIGMA))
+
+    # (o) --wc-probe's analysis chain, exercised end to end on the NOISELESS
+    #     simulator so the gate that decides whether to spend 168 s is itself tested
+    #     before it is trusted with money.  Three things are pinned: the expected key
+    #     derived analytically equals the mode of an independent noiseless sample; a
+    #     perfect device reads w = 1 and clears every pipeline gate; and a corrupted
+    #     return (keys narrower than the block, or a short count) FAILS the pipeline
+    #     gate rather than being quietly analysed.
+    _pi = [i for i, m in enumerate(wc_m)
+           if m.get('kind') == 'warmcold' and m.get('role') == 'signal'
+           and m.get('arm') == 'warm']
+    assert len(_pi) == 1, _pi
+    _pg, _pmet = wc_g[_pi[0]], wc_m[_pi[0]]
+    _ek, _ekp = expected_vendor_key(_pg)
+    assert _ekp > 1 - 1e-9, ('at p=0 the ideal output is a delta, so the expected '
+                             'key must carry all of it', _ekp)
+    _pc = q.cpuqvm_sample(_pg, 1000)
+    assert max(_pc, key=_pc.get) == _ek, (
+        'the analytically derived expected key and the noiseless sampler\'s mode '
+        'disagree, so one of the two key-order conventions is wrong',
+        max(_pc, key=_pc.get), _ek)
+    _blk = list(range(q.NQ))
+    _po = analyze_wc_probe(_pc, _pmet, _pg, wc_warm, shots_requested=1000,
+                           chip_id='NOISELESS', block=_blk, ms_per_shot=None,
+                           budget_remaining_after=BUDGET_S, verbose=False)
+    assert _po['pipeline']['ok'], _po['pipeline']['problems']
+    _tol = 4.0 / math.sqrt(1000)
+    assert abs(_po['primary']['p'] - 1.0) < _tol, _po['primary']
+    assert abs(_po['w']['point'] - 1.0) < _tol, _po['w']
+    assert _po['primary']['structure_detected'] is True
+    assert _po['noiseless_check']['min_acceptance_rate'] >= 1.0
+    assert _po['verdict'] == 'DETECTION AFFORDABLE' and _po['exit_code'] == 0, _po
+    # the ladder must price 6 circuits, be monotone in cost, and tighten the bound a
+    # null would report -- otherwise the shot count it recommends is not the one the
+    # budget arithmetic priced
+    _lad = _po['power']['ladder']
+    assert [r['n_shots_total'] for r in _lad] == \
+        [(WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL) * r['shots_per_circuit'] for r in _lad]
+    assert all(_lad[i]['cost_s'] < _lad[i + 1]['cost_s']
+               for i in range(len(_lad) - 1))
+    assert all(_lad[i]['w_bound95_if_null'] > _lad[i + 1]['w_bound95_if_null']
+               for i in range(len(_lad) - 1))
+    assert _po['power']['s_star'] == max(
+        r['shots_per_circuit'] for r in _lad if r['fits_remaining_budget'])
+    # a key narrower than the block is the failure the 5-qubit probe stage exists to
+    # avoid, and it must FAIL rather than be analysed on the wrong window
+    _narrow = {k[q.NQ - NQ5:]: v for k, v in _pc.items()}
+    _pn = analyze_wc_probe(_narrow, _pmet, _pg, wc_warm, shots_requested=1000,
+                           chip_id='NOISELESS', block=_blk, verbose=False)
+    assert _pn['pipeline']['ok'] is False and _pn['exit_code'] == 4, _pn['pipeline']
+    assert _pn['verdict'] == 'PIPELINE FAILED'
+    # a short return is the other silent-invalidating failure: the platform bills the
+    # request but delivers fewer shots, so the power table would price the wrong N
+    _short = {k: max(1, v // 2) for k, v in list(_pc.items())[:5]}
+    _ps = analyze_wc_probe(_short, _pmet, _pg, wc_warm, shots_requested=1000,
+                           chip_id='NOISELESS', block=_blk, verbose=False)
+    assert _ps['pipeline']['ok'] is False, _ps['pipeline']
+    assert any('returned' in s for s in _ps['pipeline']['problems'])
+    res['wcprobe_chain'] = dict(
+        expected_key=_ek, expected_key_ideal_prob=_ekp,
+        sampler_mode_agrees=True, noiseless_p=_po['primary']['p'],
+        noiseless_w=_po['w']['point'], s_star_at_budget=_po['power']['s_star'],
+        verdict=_po['verdict'], n_ladder=len(_lad),
+        narrow_key_rejected=True, short_return_rejected=True)
+    say('(o) --wc-probe\'s chain is tested before it is trusted with money: the '
+        'expected key derived analytically (%s, ideal probability %.6f) equals the '
+        'mode of an independent noiseless sample, so the canonical->native->vendor '
+        'key-order conversions check each other; on that noiseless device the probe '
+        'reads P(data=00000)=%.4f -> w=%.4f, clears every pipeline gate, and prices '
+        'S*=%d shots/circuit against a %.0f s budget as %s.  A return whose keys are '
+        'narrower than the block, and one that delivers fewer than %.0f%% of the '
+        'requested shots, are both REJECTED as pipeline failures (exit 4) rather '
+        'than analysed on the wrong window -- those are the two ways a probe could '
+        'otherwise report a confident w for data that is not the circuit it claims.'
+        % (_ek, _ekp, _po['primary']['p'], _po['w']['point'],
+           _po['power']['s_star'], BUDGET_S, _po['verdict'],
+           100.0 * WC_PROBE_MIN_RETURN_FRACTION))
+
+    # (p) PLAN A'S CHIP RULE (QCLOUD_SETUP.md 9.7).  Two probes, one per chip, and a
+    #     decision that has to be arithmetic rather than a judgement call at the
+    #     terminal -- the alternative is picking where to spend the last ~200 s AFTER
+    #     seeing which chip looked better, with nothing on disk to show the rule was
+    #     fixed beforehand.  Locked here: the detection threshold is an OUTPUT of the
+    #     power model selftest (l) already pins, not a number retyped into prose; S*
+    #     follows the budget passed in rather than the stale remainder each probe
+    #     carries; a pipeline-failed probe is not a candidate; and when nothing clears
+    #     the bar the A/B goes to the chip the 2026-10-12 INVALID was measured on --
+    #     NOT to the chip with the higher w, which is what an outcome-chasing rule
+    #     would do.
+    def _fake_probe(chip, w, block, ok=True, priced_at=272.0):
+        pr = {k: v for k, v in _po.items() if k != 'gates'}
+        pr['chip_id'], pr['block'] = chip, list(block)
+        pr['dump_raw'] = '/nonexistent/%s.json' % chip
+        p = w + (1.0 - w) / 32.0        # the exact inverse of w_from_p_data_zero
+        assert abs(w_from_p_data_zero(p) - w) < 1e-12, (p, w)
+        pr['primary'] = dict(pr['primary'], p=p)
+        pr['w'] = dict(pr['w'], point=w, lo95=max(0.0, w - 0.0126), hi95=w + 0.0126)
+        pr['power'] = wc_probe_power(w, pr['w']['lo95'], None, priced_at)
+        if not ok:
+            pr['pipeline'] = dict(ok=False, problems=['keys came back 5 bits wide'])
+            pr['verdict'], pr['exit_code'] = 'PIPELINE FAILED', 4
+        else:
+            pr['pipeline'] = dict(_po['pipeline'])
+            pr['verdict'] = ('DETECTION AFFORDABLE'
+                             if pr['power']['detection_affordable']
+                             else 'BOUND EXPERIMENT')
+            pr['exit_code'] = 0 if pr['power']['detection_affordable'] else 5
+        return pr
+
+    _bA = [52, 61, 62, 70, 71, 79, 80, 88, 89]
+    _bB = [39, 48, 49, 57, 58, 66, 67, 75, 85]
+    # The threshold must come FROM the power model and BE the threshold: z(w_min) is at
+    # the bar and z just below it is not.  sigma_z monotone in w is what makes the
+    # bisection inside min_w_for_detection valid, so it is checked, not assumed.
+    _zs = [warmcold_power(w=x / 2000.0, shots=2000)['sigma_z'] for x in range(2001)]
+    assert all(_zs[i] <= _zs[i + 1] + 1e-12 for i in range(len(_zs) - 1)), 'not monotone'
+    _wmin = min_w_for_detection(2000)
+    assert warmcold_power(w=_wmin, shots=2000)['sigma_z'] >= WC_PROBE_MIN_SIGMA
+    assert warmcold_power(w=_wmin - 1e-5, shots=2000)['sigma_z'] < WC_PROBE_MIN_SIGMA
+    assert abs(_wmin - 0.0467) < 2e-3, ('QCLOUD_SETUP.md 9.7 quotes 0.0467 at S=2000',
+                                        _wmin)
+    assert min_w_for_detection(2500) < _wmin, 'more shots must lower the bar'
+    # z(w=1, S) = 0.8165*sqrt(S), so the bar is unreachable only below S~13.5: at
+    # S=10 even a perfect device misses 3 sigma and no w can rescue the A/B.
+    assert min_w_for_detection(10) is None, 'a perfect device must miss the bar at S=10'
+    assert min_w_for_detection(50) is not None, 'at S=50 a perfect device clears it'
+    # DETECTION: the 2026-09 world.  S* must be the one the ARGUMENT buys (200 s ->
+    # 2000 shots/circuit), not the one the probes were priced at (272 s -> 2500).
+    _hi = [_fake_probe('WK_C180', 0.0936, _bA),
+           _fake_probe('WK_C180_2', 0.0098, _bB)]
+    _d = pick_wc_chip(_hi, 200.0, verbose=False)
+    assert (_d['mode'], _d['exit_code']) == ('DETECTION', 0), _d['reason']
+    assert _d['chip_id'] == 'WK_C180' and _d['block'] == _bA
+    assert _d['s_star'] == 2000 and _d['w_min_for_detection'] == _wmin
+    assert _d['power']['budget_remaining_after'] == 200.0
+    assert 'A/B counts' in _d['winners_curse'], 'the disclosure must ride along'
+    # BOUND: both w low.  The rule sends the A/B to the 2026-10-12 chip even though
+    # the OTHER chip measured a higher w -- that is the whole point of declaring the
+    # rule before buying the probes.
+    _lo = [_fake_probe('WK_C180', 0.0120, _bA),
+           _fake_probe('WK_C180_2', 0.0098, _bB)]
+    _b = pick_wc_chip(_lo, 200.0, verbose=False)
+    assert (_b['mode'], _b['exit_code']) == ('BOUND', 5), _b['reason']
+    assert _b['chip_id'] == WC_PICK_BOUND_CHIP and _b['block'] == _bB
+    assert _b['best_w_chip'] == 'WK_C180', _b['best_w_chip']
+    # a refused bound chip falls back to the surviving one, and says so in the reason
+    _f = pick_wc_chip([_fake_probe('WK_C180', 0.0120, _bA),
+                       _fake_probe('WK_C180_2', 0.0098, _bB, ok=False)],
+                      200.0, verbose=False)
+    assert (_f['mode'], _f['chip_id']) == ('BOUND', 'WK_C180')
+    assert len(_f['refused']) == 1 and 'NOT' in _f['reason'], _f['reason']
+    # nothing usable, and a budget no rung of the ladder fits, both STOP (exit 4)
+    # rather than buy the A/B; omitting the budget is refused (exit 3 at the CLI)
+    _s = pick_wc_chip([_fake_probe('WK_C180_2', 0.0098, _bB, ok=False)], 200.0,
+                      verbose=False)
+    assert (_s['mode'], _s['exit_code'], _s['chip_id']) == ('STOP', 4, None)
+    _t = pick_wc_chip(_hi, 40.0, verbose=False)
+    assert (_t['mode'], _t['exit_code'], _t['s_star']) == ('STOP', 4, None)
+    try:
+        pick_wc_chip(_hi, None, verbose=False)
+        raise AssertionError('wcpick without --budget-remaining must be refused')
+    except BudgetError:
+        pass
+    res['wcpick_rule'] = dict(
+        w_min_at_2000=_wmin, w_min_at_2500=min_w_for_detection(2500),
+        sigma_z_monotone_in_w=True, detection_chip=_d['chip_id'],
+        bound_chip=_b['chip_id'], bound_chip_declared=WC_PICK_BOUND_CHIP,
+        s_star_follows_argument=_d['s_star'], s_star_in_probe_was=2500,
+        refused_probe_excluded=True, fallback_disclosed=True,
+        stop_when_none_usable=True, stop_when_no_rung_fits=True,
+        budget_required=True)
+    say('(p) plan A\'s chip rule is arithmetic, not a terminal judgement.  The '
+        'detection threshold is computed by inverting the power model selftest (l) '
+        'pins, so w >= %.4f at S=2000 (%.4f at S=2500) is where the %.0f sigma bar '
+        'sits, with sigma_z verified monotone in w so the bisection is valid.  On two '
+        'synthetic probes S* follows the budget ARGUMENT (%d shots/circuit at 200 s) '
+        'rather than the stale 272 s the probes were priced at; a probe that failed its '
+        'pipeline gate is excluded, and when it was the declared bound chip the '
+        'fallback is disclosed in the reason.  When both w are low the A/B goes to %s '
+        '-- the chip the 2026-10-12 INVALID was measured on -- even though the OTHER '
+        'chip measured the higher w (0.0120 vs 0.0098), which is what a rule declared '
+        'before the data was bought has to do.  No usable probe, or a budget no rung of '
+        'the ladder fits, returns STOP (exit 4) instead of buying the A/B, and omitting '
+        '--budget-remaining raises BudgetError (exit 3 at the CLI).'
+        % (_wmin, min_w_for_detection(2500), WC_PROBE_MIN_SIGMA, _d['s_star'],
+           WC_PICK_BOUND_CHIP))
+
     return res
 
 
@@ -2389,9 +2930,9 @@ def science_meas_layer():
     return list(q.extraction_measures()) + list(q.data_measures())
 
 def run_cal9_screen(token, chip_id, shots=CAL9_SCREEN_SHOTS, block=None,
-                    exclude=(WARMCOLD_BLOCK_REJECTED_2026_10_12,),
-                    dump_raw=None, job_timeout=3600, use_options=True,
-                    mapping=True, verbose=True):
+                    exclude=None, dump_raw=None, job_timeout=3600,
+                    use_options=True, mapping=True, verbose=True,
+                    budget_remaining=None, ms_per_shot=None):
     """Pay for the two calibration circuits ONLY and report whether the block is
     usable -- before any science circuit is bought.
 
@@ -2402,27 +2943,33 @@ def run_cal9_screen(token, chip_id, shots=CAL9_SCREEN_SHOTS, block=None,
     real decision point between the screen and the spend.  Both exist because they
     buy different things.
 
-    COST.  2 x `shots` = 2000 shots at the default, i.e. 28 s at the confirmed
-    pessimistic 14 ms/shot.  That is deliberately inside the worst-case reading of
-    the remaining allocation, because the remaining allocation CANNOT be read from
-    the API: QCloudService exposes backend/backends/best_qubit_blocks/setup_logging
-    and ChipInfo only topology and calibration, with no balance, quota or usage
-    query anywhere in the SDK.  The only offline figure is BUDGET_S less what the
-    2026-10-12 run consumed -- ~48 s at 14 ms/shot, ~282 s at the observed wall
-    rate.  A 6000-shot science job is 84 s and so is unsafe at the pessimistic end;
-    this screen is safe at both ends.
+    COST.  2 x `shots` = 2000 shots at the default, i.e. 28 s at the pessimistic
+    14 ms/shot.  That is deliberately small because the remaining allocation
+    CANNOT be read from the API: QCloudService exposes
+    backend/backends/best_qubit_blocks/setup_logging and ChipInfo only topology and
+    calibration, with no balance, quota or usage query anywhere in the SDK.  So
+    `budget_remaining` -- the seconds the account holder reads off the dashboard --
+    is a REQUIRED argument and check_budget refuses the submission without it.
+    This screen is also what turns the billing rate from a hypothesis into a
+    measurement: read the dashboard again afterwards and (before - after) / 2000 is
+    the billed ms/shot, which is the only such measurement that exists.
 
     BLOCK CHOICE.  `block` if given, else the best-ranked block that is not in
-    `exclude`.  The exclusion is the whole point: the vendor's own top pick is the
-    block whose DATA qubit q3 measured contrast -0.156, nothing free predicts that
-    (ChipInfo reported the channel that measured 0.4218 at 0.9612, and its own worst
-    qubit at 0.9014 measured perfect), so a rerun on the vendor's pick reproduces
-    the fault.  If every ranked block is excluded this raises rather than silently
-    falling back to a known-bad one.
+    `exclude` (default: the blocks rejected on measured grounds ON THIS CHIP,
+    rejected_blocks_for).  The exclusion is the whole point: the vendor's own top
+    pick on WK_C180_2 is the block whose DATA qubit q3 measured contrast -0.156,
+    nothing free predicts that (ChipInfo reported the channel that measured 0.4218
+    at 0.9612, and its own worst qubit at 0.9014 measured perfect), so a rerun on
+    the vendor's pick reproduces the fault.  If every ranked block is excluded this
+    raises rather than silently falling back to a known-bad one.
 
-    Returns the screen dict and what was submitted.  Submits NO science circuit and
-    makes no claim about warm versus cold."""
-    dump_raw = dump_raw or os.path.join(ROOT, CAL9_SCREEN_RAW)
+    Returns the screen dict and what was submitted, including the `billing` ledger
+    entry.  Submits NO science circuit and makes no claim about warm versus cold."""
+    if exclude is None:
+        exclude = rejected_blocks_for(chip_id)
+    dump_raw = dump_raw or unique_dump_path('cal9screen', chip_id)
+    bill = check_budget('cal9screen', 2 * shots, budget_remaining, ms_per_shot,
+                        verbose=verbose)
     nq = STAGE_NQ['warmcold']
     if block is None:
         if not use_options:
@@ -2441,21 +2988,21 @@ def run_cal9_screen(token, chip_id, shots=CAL9_SCREEN_SHOTS, block=None,
                       % (b, '   <-- REJECTED (2026-10-12 dead data channel q3)'
                          if tuple(sorted(b)) in banned else ''), flush=True)
         if not cand:
-            raise RuntimeError(
+            raise NoEligibleBlock(
                 'every ranked %d-qubit block is on the exclusion list %r, so there '
                 'is no block to screen; pass --block explicitly rather than falling '
                 'back to a block already known to have a dead data channel'
                 % (nq, sorted(banned)))
         block = cand[0]
-    if sorted(block) == sorted(WARMCOLD_BLOCK_REJECTED_2026_10_12):
-        # Printed regardless of `exclude`, so that allowing the rejected block is
+    if any(sorted(block) == sorted(b) for b in REJECTED_BLOCKS.get(chip_id, ())):
+        # Printed regardless of `exclude`, so that allowing a rejected block is
         # always visible in the log and can never happen silently.
-        print('[cal9screen] WARNING: block %s is the one the 2026-10-12 run was '
-              'REJECTED on (logical q3 / physical 85 measured contrast -0.156, a '
-              'dead DATA channel).  Screening it answers whether that fault is '
-              'persistent, NOT which block to use -- best_qubit_blocks(9) offers '
-              'no alternative and its record carries no per-qubit quality data.'
-              % (block,), flush=True)
+        print('[cal9screen] WARNING: block %s on %s is one this file REJECTS on '
+              'measured grounds (2026-10-12: logical q3 / physical 85 measured '
+              'contrast -0.156, a dead DATA channel).  Screening it answers '
+              'whether that fault is persistent, NOT which block to use -- '
+              'best_qubit_blocks(9) offers no alternative and its record carries '
+              'no per-qubit quality data.' % (block, chip_id), flush=True)
     gates = [build_cal9('zero'), build_cal9('one')]
     meta = [dict(kind='cal9', cal='zero', rep=0),
             dict(kind='cal9', cal='one', rep=0)]
@@ -2464,17 +3011,16 @@ def run_cal9_screen(token, chip_id, shots=CAL9_SCREEN_SHOTS, block=None,
     write_meta_sidecar(dump_raw, meta, gates, 'cal9screen', chip_id, block, shots,
                        mapping=mapping, use_options=use_options)
     if verbose:
-        print('[cal9screen] chip=%s block=%s shots/circuit=%d -> %d shots = %.0f s '
-              'at the confirmed %.0f ms/shot (worst case); mapping=%s'
-              % (chip_id, block, shots, len(gates) * shots,
-                 len(gates) * shots * MS_PER_SHOT / 1000.0, MS_PER_SHOT, mapping),
-              flush=True)
+        print('[cal9screen] chip=%s block=%s shots/circuit=%d -> %d shots = %.1f s '
+              'at %.3f ms/shot; mapping=%s'
+              % (chip_id, block, shots, len(gates) * shots, bill['cost_s'],
+                 bill['ms_per_shot'], mapping), flush=True)
     return _finish_cal9_screen(token, chip_id, shots, block, gates, meta, dump_raw,
-                               job_timeout, use_options, mapping, verbose)
+                               job_timeout, use_options, mapping, verbose, bill)
 
 
 def _finish_cal9_screen(token, chip_id, shots, block, gates, meta, dump_raw,
-                        job_timeout, use_options, mapping, verbose):
+                        job_timeout, use_options, mapping, verbose, bill=None):
     """Submit the screened calibration pair and report the block verdict.
 
     Split out of run_cal9_screen only to keep that function readable; it is not
@@ -2494,7 +3040,7 @@ def _finish_cal9_screen(token, chip_id, shots, block, gates, meta, dump_raw,
               'is not a passing one.' % len(got), flush=True)
         return dict(available=False, block=block, chip_id=chip_id, shots=shots,
                     wall_s=wall, dump_raw=dump_raw, n_returned=len(got),
-                    cal9=None, screen=None, block_usable=False,
+                    cal9=None, screen=None, block_usable=False, billing=bill,
                     note='truncated return; no screen, no clearance')
     c9 = _analyze_cal9(got, anc, rev)
     s = c9['screen']
@@ -2522,34 +3068,708 @@ def _finish_cal9_screen(token, chip_id, shots, block, gates, meta, dump_raw,
               flush=True)
         n_all = WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL
         if s['block_usable']:
-            print('[cal9screen] -> science circuits MAY be bought on this block.  '
-                  'Cost for the full warmcold stage at STAGE_SHOTS=%d: %d circuits '
-                  'x %d shots = %.0f s at %.0f ms/shot.  Read the dashboard '
-                  'remainder FIRST -- that figure is not obtainable from the API, '
-                  'and a job that overruns is killed and returns nothing.'
-                  % (STAGE_SHOTS['warmcold'], n_all, STAGE_SHOTS['warmcold'],
-                     n_all * STAGE_SHOTS['warmcold'] * MS_PER_SHOT / 1000.0,
-                     MS_PER_SHOT), flush=True)
+            print('[cal9screen] -> science circuits MAY be bought on this block, '
+                  'but the NEXT gate is --wc-probe, not the A/B: 1 circuit x %d '
+                  'shots = %.1f s, and it measures the data-register survival w '
+                  'that sets the A/B\'s power.  The full warmcold stage at '
+                  'STAGE_SHOTS=%d is %d circuits x %d shots = %.0f s at the '
+                  'pessimistic %.0f ms/shot, so buying it before w is known risks '
+                  'spending the allocation on a bound.  ALSO: read the dashboard '
+                  'again now -- (before - after) / %d shots is the billed ms/shot, '
+                  'the only measurement of it that exists.'
+                  % (shots, cost_s(shots, bill['ms_per_shot'] if bill else None),
+                     STAGE_SHOTS['warmcold'], n_all, STAGE_SHOTS['warmcold'],
+                     cost_s(n_all * STAGE_SHOTS['warmcold']), MS_PER_SHOT,
+                     2 * shots), flush=True)
         else:
             print('[cal9screen] -> DO NOT buy science circuits on this block.  '
-                  'Re-screen another ranked block (%d shots = %.0f s each).  A dead '
+                  'Re-screen another ranked block (%d shots = %.1f s each).  A dead '
                   'DATA channel makes the primary estimator uninterpretable '
                   'however many shots are spent on it; a dead ANCILLA would only '
                   'cost the post-selected F_s.'
                   % (len(gates) * shots,
-                     len(gates) * shots * MS_PER_SHOT / 1000.0), flush=True)
+                     cost_s(len(gates) * shots,
+                            bill['ms_per_shot'] if bill else None)), flush=True)
     return dict(available=True, block=block, chip_id=chip_id, shots=shots,
                 wall_s=wall, dump_raw=dump_raw, n_returned=len(got),
                 layout=dict(anc_slice=[anc.start, anc.stop], rev=rev),
-                cal9=c9, screen=s, block_usable=bool(s['block_usable']))
+                cal9=c9, screen=s, block_usable=bool(s['block_usable']),
+                billing=bill)
 
 
+# ---------------------------------------------------------------------
+# the warm/cold PROBE: buy ONE science circuit and measure w before buying six
+# ---------------------------------------------------------------------
+# WHY A PROBE EXISTS.  The A/B's observable gap is w * 0.500, where w is the
+# data-register survival P(data=00000) rescaled above the 1/32 uniform floor, and w
+# is the ONE quantity that decides whether six circuits buy a detection or a bound.
+# Two committed measurements of it disagree by 8x and they differ in two variables
+# at once -- chip and compiler options:
+#     2026-09  WK_C180    no QCloudOptions  w = 0.0936 (16 branches, ~2000 shots)
+#     2026-10  WK_C180_2  with options      w = 0.0111 (4 circuits, 3000 shots,
+#                                           and one data channel was dead)
+# At w = 0.0936 and S = 2000 the A/B is a 5.0 sigma detection; at w = 0.0111 it is
+# 0.6 sigma, i.e. a bound.  Buying the six circuits before w is known therefore
+# risks spending the whole remaining allocation on a number whose size was already
+# predictable.  One circuit at 1000 shots costs 14 s at the pessimistic rate and
+# measures w to +-0.011, which is enough to tell those two worlds apart.
+#
+# The probe is the SIGNAL|WARM entry of the pre-registered stage, byte-identical to
+# it (asserted, not assumed), so it is not a new experiment and needs no new
+# pre-registration: it is one sixth of the job, bought first.
+WC_PROBE_SHOTS = 1000
+WC_PROBE_NOISELESS_SHOTS = 1000
+WC_PROBE_SHOT_LADDER = (1000, 1500, 2000, 2500, 3000, 4000, 5000, 6000, 8000,
+                        10000, 12000, 15000, 20000)
+WC_PROBE_MIN_SIGMA = 3.0          # the A/B's own pre-registered detection bar
+WC_PROBE_MIN_STRUCTURE_Z = 3.0    # P(data=00000) above the 1/32 uniform floor
+WC_PROBE_MIN_RETURN_FRACTION = 0.9
 
+
+def resolve_block(chip_id, nq, token, block=None, exclude=None, tag='block',
+                  verbose=True):
+    """The physical block a submission lands on, chosen by the pre-registered rule
+    and never by an outcome: `block` if the caller pinned one, else the top-ranked
+    best_qubit_blocks(nq) entry that is not rejected on measured grounds for THIS
+    chip.
+
+    Same rule as run_cal9_screen's, factored out so the screen, the probe and the
+    stage cannot drift onto different blocks -- which would silently invalidate the
+    screen's clearance of the block the science circuits actually use.  Raises
+    rather than falling back if every ranked block is rejected."""
+    rejected = {tuple(sorted(b)) for b in REJECTED_BLOCKS.get(chip_id, ())}
+    if block is not None:
+        block = [int(x) for x in block]
+        if tuple(sorted(block)) in rejected and verbose:
+            print('[%s] WARNING: block %s on %s is one this file rejects on measured '
+                  'grounds; it is being used because it was pinned explicitly'
+                  % (tag, block, chip_id), flush=True)
+        return block
+    ranked = query_blocks(chip_id, nq, token)
+    banned = ({tuple(sorted(b)) for b in exclude} if exclude is not None
+              else rejected)
+    cand = [b for b in ranked if tuple(sorted(b)) not in banned]
+    if verbose:
+        print('[%s] best_qubit_blocks(%d) on %s returned %d block(s); %d excluded '
+              'on measured grounds' % (tag, nq, chip_id, len(ranked),
+                                       len(ranked) - len(cand)), flush=True)
+        for b in ranked[:5]:
+            print('[%s]   %s%s' % (tag, b,
+                                   '   <-- REJECTED on measured grounds'
+                                   if tuple(sorted(b)) in rejected else ''),
+                  flush=True)
+    if not cand:
+        raise NoEligibleBlock(
+            'every ranked %d-qubit block on %s is on the exclusion list %r, so '
+            'there is no block to run on; pass --block explicitly rather than '
+            'falling back to a block already known to have a dead data channel'
+            % (nq, chip_id, sorted(banned)))
+    return [int(x) for x in cand[0]]
+
+
+def canonical_to_native_key(canon, gates, nq=None):
+    """hw_mixedness's canonical key -> the LOCAL SIMULATOR's native key.
+
+    THE TRAP, caught by selftest (o) rather than by the hardware run.  These two are
+    NOT related by a global reversal, and assuming they are produces a key whose
+    ancilla nibble is backwards:
+      * canonical (exact_probs, canonical_key): character j is LOGICAL QUBIT j;
+      * CPUQVM native: key position p holds CLASSICAL BIT nq-1-p, and the classical
+        bit a logical qubit lands in comes from the circuit's own MEAS map, which for
+        the science circuit is q5->c0..q8->c3, q0->c4..q4->c8.
+    So the conversion has to go through cbit_of_qubit.  Worked example from the
+    signal|warm branch, whose ideal outcome is q6=q8=1: canonical '000000101' ->
+    native '000001010' -> vendor '101000000', and the last of those is what the QPU
+    and cpuqvm_sample both return."""
+    nq = nq or q.NQ
+    assert len(canon) == nq, (len(canon), nq)
+    native = ['0'] * nq
+    for qb in range(nq):
+        native[nq - 1 - cbit_of_qubit(qb, gates, nq=nq)] = canon[qb]
+    return ''.join(native)
+
+
+def expected_vendor_key(gates, n=None):
+    """The ONE key the ideal circuit puts all its weight on, in the VENDOR's order.
+
+    Derived, not sampled and not read off the hardware: exact_probs gives the ideal
+    512-dim distribution in the canonical order, its argmax is the ideal outcome,
+    canonical_to_native_key puts that in the simulator's native order and
+    sim_key_to_vendor_key in the order the QPU returns.  At p=0 with a deterministic
+    syndrome the ideal distribution is a delta, so the argmax is unambiguous -- and
+    selftest (o) asserts the result equals the mode of an independent noiseless
+    sample, which is what makes the two key-order conversions check each other."""
+    n = n or q.NQ
+    pv = exact_probs(gates, n=n)
+    best = max(pv.items(), key=lambda kv: kv[1])
+    native = canonical_to_native_key(best[0], gates, nq=n)
+    return q.sim_key_to_vendor_key(native, nq=n), float(best[1])
+
+
+def wc_probe_power(w_point, w_lo95, ms_per_shot=None, budget_remaining=None,
+                   ladder=WC_PROBE_SHOT_LADDER):
+    """What each rung of the shot ladder would buy, and which rung fits.
+
+    One row per candidate per-circuit shot count S: the A/B's total shots (6S), its
+    cost at the operative rate and at the pessimistic one, whether it fits the
+    remaining budget with BUDGET_MARGIN_S held back, the A/B's z at the measured w
+    and at w's lower 95% bound, and -- the number that makes a null worth buying --
+    the 95% CL upper bound on w that a null at that S would report.  Pure arithmetic
+    on warmcold_power, so the ladder cannot disagree with selftest (l)."""
+    w_pt, w_lo = max(0.0, w_point), max(0.0, w_lo95)
+    n_ab = WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL
+    rows = []
+    for S in ladder:
+        pw = warmcold_power(w=w_pt, shots=S)
+        pl = warmcold_power(w=w_lo, shots=S)
+        c = cost_s(n_ab * S, ms_per_shot)
+        rows.append(dict(
+            shots_per_circuit=S, n_shots_total=n_ab * S, cost_s=c,
+            cost_s_pessimistic=cost_s(n_ab * S),
+            fits_remaining_budget=bool(
+                budget_remaining is not None
+                and c <= float(budget_remaining) - BUDGET_MARGIN_S),
+            sigma_z_at_w_point=pw['sigma_z'], sigma_z_at_w_lo95=pl['sigma_z'],
+            sigma_pair=pw['sigma_pair'],
+            w_bound95_if_null=(1.96 * pw['sigma_pair']
+                               / WARMCOLD_GAP_IDEAL_SIGNAL)))
+    aff = [r for r in rows if r['fits_remaining_budget']]
+    row = aff[-1] if aff else None
+    return dict(ladder=rows, n_circuits_in_ab=n_ab,
+                ms_per_shot=(MS_PER_SHOT if ms_per_shot is None
+                             else float(ms_per_shot)),
+                ms_per_shot_source=('pessimistic constant MS_PER_SHOT'
+                                    if ms_per_shot is None
+                                    else 'dashboard-measured'),
+                budget_remaining_after=budget_remaining,
+                margin_s=BUDGET_MARGIN_S,
+                s_star=row['shots_per_circuit'] if row else None,
+                sigma_z_at_s_star=row['sigma_z_at_w_point'] if row else None,
+                w_bound95_at_s_star=row['w_bound95_if_null'] if row else None,
+                min_sigma=WC_PROBE_MIN_SIGMA,
+                detection_affordable=bool(
+                    row and row['sigma_z_at_w_point'] >= WC_PROBE_MIN_SIGMA))
+
+
+def analyze_wc_probe(counts, meta, gates, phi_warm, shots_requested=None,
+                     chip_id=None, block=None, billing=None, ms_per_shot=None,
+                     budget_remaining_after=None, verbose=True):
+    """Read the probe's counts and answer the two questions that gate the A/B.
+
+    QUESTION 1 (pipeline): did the platform return what was asked for -- one circuit,
+    keys as wide as the block, the window layout_from_meas derives from the MEAS map,
+    and (on the noiseless simulator) total acceptance?  A 'no' is exit 4 and stops the
+    run: no shot count repairs a key that came back five bits wide.
+
+    QUESTION 2 (power): how large is w, the data-register survival, and therefore how
+    large would the A/B's observable gap w*0.500 be?  wc_probe_power turns that into a
+    ladder of affordable shot counts and says whether the largest one clears the stage's
+    own pre-registered 3 sigma bar.  Below it the six circuits buy a 95% CL upper bound
+    on w instead of a detection, and the ladder states what that bound would be at every
+    rung, so the choice is arithmetic rather than hope.
+
+    This is NOT a warm-versus-cold claim: one arm cannot form a gap.  It measures the
+    scale a gap would need to have to be visible, on the day, on this block."""
+    shots_requested = shots_requested or WC_PROBE_SHOTS
+    anc, rev = layout_from_meas(science_meas_layer())
+    ds = _data_slice_for(anc)
+    nq_block = len(block) if block else q.NQ
+    widths = sorted({len(k) for k in counts})
+    n_tot = int(sum(counts.values()))
+    ek, ek_ideal = expected_vendor_key(gates)
+    out = dict(kind='wcprobe', chip_id=chip_id, block=block, meta=meta,
+               n_instructions=len(gates), shots_requested=shots_requested,
+               shots_returned=n_tot,
+               return_fraction=n_tot / float(max(shots_requested, 1)),
+               primary_estimator=WARMCOLD_PRIMARY,
+               layout=dict(anc_slice=[anc.start, anc.stop], rev=rev,
+                           data_slice=[ds.start, ds.stop],
+                           source='layout_from_meas(science_meas_layer()), never '
+                                  'detect_layout -- selftest (m)'),
+               key_widths=widths, nq_block=nq_block,
+               expected_key=ek, expected_key_ideal_prob=ek_ideal,
+               billing=billing)
+    # ---- question 1: the pipeline, checked BEFORE any physics is quoted
+    problems = []
+    if widths != [nq_block]:
+        problems.append(
+            'returned keys are %s bits wide but the block has %d qubits, so the '
+            'window layout_from_meas derived does not apply to this data'
+            % (widths, nq_block))
+    if n_tot < WC_PROBE_MIN_RETURN_FRACTION * shots_requested:
+        problems.append(
+            'only %d of %d requested shots returned (%.0f%%), below the %.0f%% '
+            'floor: the platform shorted the job, so the power table would be '
+            'built on a shot count that was not the one bought'
+            % (n_tot, shots_requested, 100.0 * n_tot / max(shots_requested, 1),
+               100.0 * WC_PROBE_MIN_RETURN_FRACTION))
+    mv = dict(meta)
+    mv['phi'] = phi_warm     # verify_layout_noiseless computes its own ideal ref
+    nl = verify_layout_noiseless([gates], [mv], shots=WC_PROBE_NOISELESS_SHOTS,
+                                 anc=anc, rev=rev)
+    out['noiseless_check'] = nl
+    if not nl['layout_verified']:
+        problems.append(
+            'the noiseless cross-check did NOT verify this window (acceptance '
+            '%.3f, max deviation %.1f sigma), so the window is wrong or a builder '
+            'changed' % (nl['min_acceptance_rate'], nl['max_dev_in_sigma']))
+    n_ek = int(sum(v for k, v in counts.items() if k == ek))
+    p_ek = n_ek / float(max(n_tot, 1))
+    out['expected_key_stats'] = dict(
+        n_hits=n_ek, p_hw=p_ek, p_ideal=ek_ideal,
+        eps_per_instruction=(1.0 - p_ek ** (1.0 / len(gates)) if p_ek > 0 else None),
+        note='this circuit is %d instructions; the manuscript\'s device point '
+             '(1.04e-2) is per instruction of the 204-instruction inventory of '
+             'circuit D, so the two are comparable per instruction, not as raw '
+             'probabilities' % len(gates))
+    out['pipeline'] = dict(ok=not problems, problems=problems)
+
+    # ---- question 2: w, and what the remaining budget can buy with it
+    n_hit, n_dz = data_zero_counts(counts, anc, rev)
+    p = n_hit / float(max(n_dz, 1))
+    lo, hi = wilson(n_hit, n_dz)
+    floor = WARMCOLD_W_FLOOR_UNIFORM
+    scale = 1.0 / (1.0 - floor)
+    sig_p = math.sqrt(max(p * (1.0 - p), 1.0 / max(n_dz, 1)) / max(n_dz, 1))
+    z_floor = (p - floor) / sig_p if sig_p > 0 else 0.0
+    out['primary'] = dict(
+        n_hit=n_hit, n_total=n_dz, p=p, wilson95=[lo, hi], floor_uniform=floor,
+        z_vs_floor=z_floor,
+        structure_detected=bool(z_floor >= WC_PROBE_MIN_STRUCTURE_Z))
+    out['w'] = dict(point=(p - floor) * scale, lo95=(lo - floor) * scale,
+                    hi95=(hi - floor) * scale,
+                    formula='(P(data=00000) - 1/32) / (1 - 1/32)')
+    # per-bit polarisation: a dead data channel shows up as one bit pinned near zero
+    # while the others carry the structure.  A diagnostic, not a gate -- the cal9
+    # screen is the gate -- but it says WHICH channel to look at.
+    per_bit = []
+    for qb in range(q.NQ_DATA):
+        cb = cbit_of_qubit(qb, gates, nq=q.NQ)
+        pos = len(next(iter(counts))) - 1 - cb if counts else 0
+        n0 = int(sum(v for k, v in counts.items()
+                     if len(k) > cb and k[len(k) - 1 - cb] == '0'))
+        p0 = n0 / float(max(n_tot, 1))
+        per_bit.append(dict(logical_qubit=qb, cbit=cb, key_position=pos, p0=p0,
+                            polarisation=2.0 * p0 - 1.0))
+    out['per_bit'] = per_bit
+    out['power'] = wc_probe_power(out['w']['point'], out['w']['lo95'],
+                                  ms_per_shot, budget_remaining_after)
+    if not out['pipeline']['ok']:
+        out['verdict'], out['exit_code'] = 'PIPELINE FAILED', 4
+    elif out['power']['detection_affordable']:
+        out['verdict'], out['exit_code'] = 'DETECTION AFFORDABLE', 0
+    else:
+        out['verdict'], out['exit_code'] = 'BOUND EXPERIMENT', 5
+    if verbose:
+        _wc_probe_report(out)
+    return out
+
+
+def _wc_probe_report(out):
+    """Print the probe verdict in the order the decision needs it: pipeline first,
+    then w, then what the remaining budget can buy with that w."""
+    pl, pr, w, pw = out['pipeline'], out['primary'], out['w'], out['power']
+    print('[wcprobe] chip=%s block=%s  %d/%d shots returned (%.1f%%), key widths '
+          '%s, %d-instruction circuit'
+          % (out['chip_id'], out['block'], out['shots_returned'],
+             out['shots_requested'], 100.0 * out['return_fraction'],
+             out['key_widths'], out['n_instructions']), flush=True)
+    for s in pl['problems']:
+        print('[wcprobe]   PROBLEM: %s' % s, flush=True)
+    print('[wcprobe] PIPELINE: %s (noiseless acceptance %.3f, deviation %.1f sigma; '
+          'expected key %s at P_ideal=%.4f, measured P=%.4f)'
+          % ('OK' if pl['ok'] else 'FAILED',
+             out['noiseless_check']['min_acceptance_rate'],
+             out['noiseless_check']['max_dev_in_sigma'], out['expected_key'],
+             out['expected_key_ideal_prob'], out['expected_key_stats']['p_hw']),
+          flush=True)
+    print('[wcprobe] PRIMARY %s = %.4f  [%.4f, %.4f] Wilson 95%%, uniform floor '
+          '%.4f -> z_vs_floor = %+.2f  %s'
+          % (out['primary_estimator'], pr['p'], pr['wilson95'][0],
+             pr['wilson95'][1], pr['floor_uniform'], pr['z_vs_floor'],
+             'STRUCTURE DETECTED' if pr['structure_detected']
+             else 'NO structure above the floor'), flush=True)
+    print('[wcprobe] implied data-register survival w = %+.4f  [%+.4f, %+.4f]  (%s)'
+          % (w['point'], w['lo95'], w['hi95'], w['formula']), flush=True)
+    print('[wcprobe] per-bit polarisation P(0)-P(1): %s'
+          % '  '.join('q%d=%+.3f' % (d['logical_qubit'], d['polarisation'])
+                      for d in out['per_bit']), flush=True)
+    print('[wcprobe] the A/B is %d circuits; rate %.3f ms/shot (%s); %s s remain '
+          'after the probe, %.0f s held back as cut-off margin'
+          % (pw['n_circuits_in_ab'], pw['ms_per_shot'], pw['ms_per_shot_source'],
+             ('%.1f' % pw['budget_remaining_after']
+              if pw['budget_remaining_after'] is not None else 'UNREAD'),
+             pw['margin_s']), flush=True)
+    print('[wcprobe]   %8s %11s %8s %6s %8s %10s %13s'
+          % ('S/circ', 'total shots', 'cost s', 'fits', 'z(w)', 'z(w_lo95)',
+             'w<95% if null'), flush=True)
+    for r in pw['ladder']:
+        print('[wcprobe]   %8d %11d %8.1f %6s %8.2f %10.2f %13.4f%s'
+              % (r['shots_per_circuit'], r['n_shots_total'], r['cost_s'],
+                 'yes' if r['fits_remaining_budget'] else 'no',
+                 r['sigma_z_at_w_point'], r['sigma_z_at_w_lo95'],
+                 r['w_bound95_if_null'],
+                 '   <-- S*' if r['shots_per_circuit'] == pw['s_star'] else ''),
+              flush=True)
+    if pw['s_star'] is None:
+        print('[wcprobe] VERDICT: NO RUNG OF THE LADDER FITS the remaining budget, '
+              'so do not submit the A/B.  Top up the allocation or report the bound '
+              'the probe itself already sets: w < %.4f (95%% CL).'
+              % w['hi95'], flush=True)
+    else:
+        cost = [r['cost_s'] for r in pw['ladder']
+                if r['shots_per_circuit'] == pw['s_star']][0]
+        print('[wcprobe] VERDICT: %s at S*=%d shots/circuit (%d circuits = %.1f s, '
+              'z=%.2f at the measured w).'
+              % (out['verdict'], pw['s_star'], pw['n_circuits_in_ab'], cost,
+                 pw['sigma_z_at_s_star']), flush=True)
+        if out['verdict'] == 'DETECTION AFFORDABLE':
+            print('[wcprobe] -> the A/B is a DETECTION experiment at S*: submit it '
+                  'with --cal-first so a cut-off still leaves the block screen.',
+                  flush=True)
+        else:
+            print('[wcprobe] -> the A/B would NOT reach %.0f sigma, so at S* it '
+                  'reports w < %.4f (95%% CL) rather than a detection.  That is a '
+                  'characterised measurement and it does close the 2026-10-12 '
+                  'INVALID, but whether the remaining allocation should buy a bound '
+                  'is a human decision, not this script\'s.'
+                  % (WC_PROBE_MIN_SIGMA, pw['w_bound95_at_s_star']), flush=True)
+    return out
+
+
+def run_wc_probe(token, chip_id, phi_warm, phi_cold, shots=WC_PROBE_SHOTS,
+                 block=None, exclude=None, dump_raw=None, job_timeout=3600,
+                 use_options=True, mapping=True, verbose=True,
+                 budget_remaining=None, ms_per_shot=None):
+    """Buy ONE science circuit -- the stage's signal|warm entry -- and analyse it.
+
+    This is the second of the three gates in front of the warm-vs-cold A/B (cal9
+    screen, probe, A/B) and the only one that measures the effect SIZE rather than
+    the apparatus.  It submits a single circuit, so it costs `shots` shots: 1000 is
+    14 s at the pessimistic rate, against 168 s for the six-circuit A/B at 2000.
+
+    The circuit is not a new one.  It is selected out of stage_circuits('warmcold')
+    by (role, arm) and asserted byte-identical to a fresh build of the pre-registered
+    signal branch, so the probe measures the same physical circuit the A/B will and
+    cannot drift from the manuscript's pre-registration.  Its meta is passed through
+    unchanged, which is what lets the sidecar and --mode analyze verify it later.
+
+    Returns the probe dict (see analyze_wc_probe) including `exit_code`: 0 detection
+    affordable, 5 the A/B would only set a bound, 4 pipeline failure.  Submits no
+    other circuit and makes no warm-versus-cold claim."""
+    gates_all, meta_all = stage_circuits('warmcold', phi_warm, phi_cold)
+    sel = [i for i, m in enumerate(meta_all)
+           if m.get('kind') == 'warmcold' and m.get('role') == 'signal'
+           and m.get('arm') == 'warm']
+    assert len(sel) == 1, ('the pre-registered stage must contain exactly one '
+                           'signal|warm science circuit', sel)
+    gates, meta = [gates_all[sel[0]]], [meta_all[sel[0]]]
+    m0 = meta[0]
+    assert (m0['psi'], m0['s'], m0['frame'], m0['measure'], m0['p']) == \
+        (WARMCOLD_PSI, WARMCOLD_SIGNAL_S, WARMCOLD_SIGNAL_FRAME, 'late', 0.0), m0
+    assert m0['angles'] == WARMCOLD_ANGLES['warm'], m0
+    assert gates[0] == q.build_branch_circuit(
+        q.ENC5, WARMCOLD_PSI, WARMCOLD_SIGNAL_FRAME, WARMCOLD_SIGNAL_S, phi_warm,
+        late_measure=True), 'the probe circuit is not the pre-registered one'
+    # Budget BEFORE the block query: the cost does not depend on which block is
+    # chosen, and a refusal to spend must be diagnosable without a working token.
+    bill = check_budget('wcprobe', shots, budget_remaining, ms_per_shot,
+                        verbose=verbose)
+    nq = STAGE_NQ['warmcold']
+    block = resolve_block(chip_id, nq, token, block, exclude, tag='wcprobe',
+                          verbose=verbose)
+    dump_raw = dump_raw or unique_dump_path('wcprobe', chip_id)
+    write_meta_sidecar(dump_raw, meta, gates, 'wcprobe', chip_id, block, shots,
+                       mapping=mapping, use_options=use_options)
+    if verbose:
+        print('[wcprobe] chip=%s block=%s 1 circuit x %d shots = %.1f s at %.3f '
+              'ms/shot; mapping=%s; this measures w, it does NOT test warm vs cold'
+              % (chip_id, block, shots, bill['cost_s'], bill['ms_per_shot'],
+                 mapping), flush=True)
+    t0 = time.time()
+    results = q.submit_cloud(gates, token, chip_id=chip_id, shots=shots, batch=True,
+                             dump_raw=dump_raw, chunk=1, job_timeout=job_timeout,
+                             use_options=use_options, block=block, mapping=mapping)
+    wall = time.time() - t0
+    if not results or not results[0]:
+        print('[wcprobe] INCONCLUSIVE: no counts returned, so w is unmeasured and '
+              'the A/B is NOT cleared.  An absent probe is not a passing one.',
+              flush=True)
+        return _save_probe_sidecar(dict(
+            kind='wcprobe', chip_id=chip_id, block=block, shots_requested=shots,
+            shots_returned=0, dump_raw=dump_raw, wall_s=wall, billing=bill,
+            pipeline=dict(ok=False, problems=['no counts returned']),
+            verdict='INCONCLUSIVE', exit_code=4), verbose=verbose)
+    # ms_per_shot here is what the CALLER supplied -- None unless --ms-per-shot was
+    # given -- and NOT bill['ms_per_shot'].  check_budget resolves None to the
+    # pessimistic constant MS_PER_SHOT, and handing that already-resolved number to
+    # analyze_wc_probe made wc_probe_power stamp 'dashboard-measured' onto a rate
+    # nobody had measured: probe A of 2026-10-15 recorded 14.000 ms/shot as
+    # dashboard-measured when it was the assumed constant (corrected in its
+    # hw_evidence log).  wc_probe_power resolves None itself, so every number is
+    # unchanged and only the provenance label is fixed; `bill` keeps its own true
+    # label, and the two now agree instead of contradicting each other.
+    out = analyze_wc_probe(
+        results[0], m0, gates[0], phi_warm, shots_requested=shots, chip_id=chip_id,
+        block=block, billing=bill, ms_per_shot=ms_per_shot,
+        budget_remaining_after=bill['budget_remaining_after'], verbose=verbose)
+    out['dump_raw'] = dump_raw
+    out['wall_s'] = wall
+    out['shots_used'] = [int(sum(results[0].values()))]
+    out['gates'] = gates
+    return _save_probe_sidecar(out, verbose=verbose)
+
+
+def probe_sidecar_path(dump_raw):
+    """Where a probe's analysed verdict is stored, next to its raw counts.
+
+    The artifact keeps ONE art['wcprobe'] key, so plan A's two probes -- one per
+    chip -- would overwrite each other there and the chip decision would be made
+    from a file that no longer says which chip it came from.  The sidecar is named
+    after the (already unique, timestamped) raw dump, so N probes leave N verdicts on
+    disk and --mode wcpick can read all of them."""
+    return str(dump_raw) + '.probe.json'
+
+
+def _save_probe_sidecar(out, verbose=True):
+    """Write the probe verdict to its sidecar and record the path on the dict.
+
+    The circuit gates stay out of the sidecar: they are already in the .meta.json
+    next to the dump, and the A/B's own submission re-derives them."""
+    path = probe_sidecar_path(out['dump_raw'])
+    with open(path, 'w') as f:
+        json.dump({k: v for k, v in out.items() if k != 'gates'}, f, indent=1,
+                  default=str, ensure_ascii=False)
+    out['probe_json'] = path
+    if verbose:
+        print('[wcprobe] verdict sidecar %s  (feed it to --mode wcpick '
+              '--probe-json; the artifact keeps only the LAST probe, so two probes '
+              'need two sidecars)' % os.path.basename(path), flush=True)
+    return out
+
+
+# Plan A's chip rule, declared BEFORE any of today's paid data was seen
+# (QCLOUD_SETUP.md 9.7): the two offline priors contradict each other -- the vendor
+# calibration says WK_C180_2's two-qubit gate error is 3.7x lower, the one measured w
+# says WK_C180's survival is 10x higher -- so both chips are probed and the tie is
+# broken by measurement.  When NEITHER w reaches the detection bar the A/B goes here,
+# on the chip whose block the 2026-10-12 INVALID was measured on, so the rerun closes
+# that record on the same hardware instead of on a different one.
+WC_PICK_BOUND_CHIP = 'WK_C180_2'
+
+
+def min_w_for_detection(shots, min_sigma=WC_PROBE_MIN_SIGMA,
+                        gap_ideal=WARMCOLD_GAP_IDEAL_SIGNAL, tol=1e-9):
+    """The smallest data-register survival w whose A/B reaches `min_sigma` at `shots`.
+
+    Inverts warmcold_power's own z by bisection instead of restating a threshold in
+    prose: the 0.045 quoted in QCLOUD_SETUP.md 9.7 is an OUTPUT of this function at
+    S=2000, so the chip rule cannot drift away from the power model selftest (l)
+    locks.  Returns None if even a perfect device (w=1) misses the bar at that shot
+    count, which is the case where the A/B is unbuyable at any w.
+
+    sigma_z is monotone non-decreasing in w -- the gap grows as w while the pooled
+    binomial noise grows only as sqrt(pbar(1-pbar)) -- so bisection is exact to `tol`.
+    selftest (p) checks that monotonicity on a grid rather than trusting this
+    comment."""
+    hi_z = warmcold_power(w=1.0, shots=shots, gap_ideal=gap_ideal)['sigma_z']
+    if not hi_z or hi_z < min_sigma:
+        return None
+    lo, hi = 0.0, 1.0
+    while hi - lo > tol:
+        mid = 0.5 * (lo + hi)
+        z = warmcold_power(w=mid, shots=shots, gap_ideal=gap_ideal)['sigma_z'] or 0.0
+        if z >= min_sigma:
+            hi = mid
+        else:
+            lo = mid
+    return hi
+
+
+def _wc_pick_decision(usable, ref, ms_per_shot, budget_remaining, refused=()):
+    """Steps 2-4 of pick_wc_chip's rule, given at least one usable probe and an S*."""
+    s_star = ref['s_star']
+    w_min = min_w_for_detection(s_star)
+    best = max(usable, key=lambda p: float(p['w']['point']))
+    w_best = float(best['w']['point'])
+    if w_min is not None and w_best >= w_min:
+        chosen, mode = best, 'DETECTION'
+        reason = ('best usable w=%.4f on %s clears the %.0f sigma bar at S*=%d, which '
+                  'needs w>=%.4f, so the A/B is a DETECTION experiment there'
+                  % (w_best, best['chip_id'], WC_PROBE_MIN_SIGMA, s_star, w_min))
+    else:
+        pref = [p for p in usable if p['chip_id'] == WC_PICK_BOUND_CHIP]
+        chosen, mode = (pref[0] if pref else best), 'BOUND'
+        reason = ('no usable w reached the %s that the %.0f sigma bar needs at S*=%d '
+                  '(best was %.4f on %s), so the A/B reports a 95%% CL upper bound on '
+                  'w and runs on %s'
+                  % ('%.4f' % w_min if w_min is not None else 'UNREACHABLE w',
+                     WC_PROBE_MIN_SIGMA, s_star, w_best, best['chip_id'],
+                     chosen['chip_id']))
+        if not pref:
+            # Two DIFFERENT situations used to share one sentence, and that sentence
+            # asserted the stronger of them: that the bound chip's probe "was refused",
+            # i.e. that it ran and failed its pipeline gate.  When no probe for that
+            # chip is among the inputs at all -- never bought, or still sitting in the
+            # vendor's queue, as WK_C180_2's did for 77 minutes on 2026-10-15 --
+            # `refused` is EMPTY, and the record nonetheless told a reader that a
+            # measurement had rejected that chip.  It had not.  A missing probe and a
+            # failed probe are different claims about the world, and this string is
+            # evidence rather than a comment on evidence, so they are now worded
+            # differently and each says which of the two it is.
+            if any(r.get('chip_id') == WC_PICK_BOUND_CHIP for r in refused):
+                reason += (", which is NOT %s because that chip's probe was REFUSED by "
+                           "its pipeline gate and is therefore excluded (see `refused`)"
+                           % WC_PICK_BOUND_CHIP)
+            else:
+                reason += (", which is NOT %s because NO probe for that chip is among "
+                           "the %d input(s): it was not run or did not return.  That is "
+                           "NOT a pipeline refusal -- `refused` is empty -- and no "
+                           "measurement of that chip is implied by this choice"
+                           % (WC_PICK_BOUND_CHIP, len(usable) + len(refused)))
+        elif w_min is None:
+            reason += ('; note the bar is unreachable at S*=%d even for a perfect '
+                       'device' % s_star)
+    pw = wc_probe_power(float(chosen['w']['point']), float(chosen['w']['lo95']),
+                        ms_per_shot, budget_remaining)
+    assert pw['s_star'] == s_star, ('S* must depend on the budget and the rate only, '
+                                    'not on w', pw['s_star'], s_star)
+    return dict(mode=mode, exit_code=0 if mode == 'DETECTION' else 5,
+                chip_id=chosen['chip_id'], block=chosen['block'], s_star=s_star,
+                w_min_for_detection=w_min, w_best_usable=w_best,
+                best_w_chip=best['chip_id'], reason=reason, power=pw,
+                chosen_w=float(chosen['w']['point']),
+                chosen_w_ci=[float(chosen['w']['lo95']), float(chosen['w']['hi95'])],
+                chosen_probe_shots=chosen.get('shots_returned'),
+                chosen_dump_raw=chosen.get('dump_raw'))
+
+
+def pick_wc_chip(probes, budget_remaining, ms_per_shot=None, verbose=True):
+    """Apply the pre-registered chip rule to the probes that came back.  FREE.
+
+    Submits nothing and reads no token: it is arithmetic on probe sidecars, so where
+    the last ~200 s goes is reproducible from the evidence on disk instead of being a
+    judgement call made at the terminal.
+
+    THE RULE (QCLOUD_SETUP.md 9.7, written before today's paid data):
+      1. a probe that failed its pipeline gate (exit 4) is NOT a candidate -- an
+         unusable block or a truncated return says nothing about w;
+      2. S* is the largest ladder rung that fits `budget_remaining` at the operative
+         rate.  It depends on the budget and the rate ONLY, not on w, which is what
+         makes step 3 a threshold rather than a trade-off;
+      3. if the best usable w >= min_w_for_detection(S*), the A/B is a DETECTION
+         experiment and goes on that chip;
+      4. otherwise the A/B reports a 95% CL upper bound on w wherever it runs, so it
+         goes on WC_PICK_BOUND_CHIP -- the 2026-10-12 chip and block -- falling back
+         to the best-w chip only if that one was refused (disclosed in `reason`).
+
+    WHY THIS DOES NOT INFLATE THE A/B'S TYPE-I ERROR: the probes' shots are disjoint
+    from the A/B's, and the null branch's ideal gap is 3e-6 on any chip, so choosing a
+    chip on an independent measurement cannot manufacture a signal.  What it DOES cost
+    is a winner's curse on w -- the probe resolves w to about +-0.0064 at 1000 shots --
+    so w's interval must come from the A/B's own counts, never from the probe that
+    selected the chip.  Both facts ride along in the returned dict, so they land in
+    the evidence JSON next to the decision they qualify."""
+    if budget_remaining is None:
+        raise BudgetError(
+            'wcpick: --budget-remaining is REQUIRED.  S* is the largest rung that fits '
+            'the CURRENT dashboard reading, and each probe priced its ladder against '
+            'its own post-probe remainder, which is already stale.')
+    usable, refused = [], []
+    for p in probes:
+        cid = p.get('chip_id')
+        if not cid or 'w' not in p or 'exit_code' not in p:
+            raise ValueError(
+                'wcpick: the input is not a --wc-probe verdict sidecar (needs chip_id, '
+                'w and exit_code); pass the .probe.json files the probes wrote: %r'
+                % (sorted(p)[:6] if isinstance(p, dict) else p))
+        pl = p.get('pipeline') or {}
+        if p.get('exit_code') == 4 or not pl.get('ok'):
+            refused.append(dict(chip_id=cid, block=p.get('block'),
+                                verdict=p.get('verdict'),
+                                problems=list(pl.get('problems') or [])))
+            continue
+        usable.append(p)
+    ref = wc_probe_power(0.0, 0.0, ms_per_shot, budget_remaining)
+    base = dict(kind='wcpick', budget_remaining=float(budget_remaining),
+                ms_per_shot=ref['ms_per_shot'],
+                ms_per_shot_source=ref['ms_per_shot_source'],
+                margin_s=ref['margin_s'], n_probes=len(probes), refused=refused,
+                bound_chip=WC_PICK_BOUND_CHIP,
+                rule=('QCLOUD_SETUP.md 9.7: probe both chips; detect on the higher w '
+                      'if it clears the %.0f sigma bar at S*, else bound on %s'
+                      % (WC_PROBE_MIN_SIGMA, WC_PICK_BOUND_CHIP)),
+                winners_curse=('w must be reported from the A/B counts, not from the '
+                               'probe that selected the chip'),
+                usable=[dict(chip_id=p['chip_id'], block=p.get('block'),
+                             w=float(p['w']['point']),
+                             w_ci=[float(p['w']['lo95']), float(p['w']['hi95'])],
+                             shots_returned=p.get('shots_returned'),
+                             verdict=p.get('verdict')) for p in usable])
+    if not usable:
+        base.update(mode='STOP', exit_code=4, chip_id=None, block=None, s_star=None,
+                    reason='every probe failed its pipeline gate, so no w was measured '
+                           'and the A/B is NOT cleared')
+    elif ref['s_star'] is None:
+        base.update(mode='STOP', exit_code=4, chip_id=None, block=None, s_star=None,
+                    reason='no rung of the shot ladder fits %.1f s minus the %.0f s '
+                           'cut-off margin, so the A/B cannot be bought at any w'
+                           % (float(budget_remaining), ref['margin_s']))
+    else:
+        base.update(_wc_pick_decision(usable, ref, ms_per_shot, budget_remaining,
+                                      refused))
+    if verbose:
+        _wcpick_report(base)
+    return base
+
+
+def _wcpick_report(out):
+    """Print the chip decision as a record: the readings it was applied to, the shot
+    count it produced, and the exact command that spends the money."""
+    print('[wcpick] %d probe(s) read; budget %.1f s at %.3f ms/shot (%s); %.0f s held '
+          'back as cut-off margin'
+          % (out['n_probes'], out['budget_remaining'], out['ms_per_shot'],
+             out['ms_per_shot_source'], out['margin_s']), flush=True)
+    for u in out.get('usable') or []:
+        print('[wcpick]   usable  %-11s block=%s  w=%+.4f [%+.4f, %+.4f] from %s shots'
+              '  %s' % (u['chip_id'], u['block'], u['w'], u['w_ci'][0], u['w_ci'][1],
+                        u['shots_returned'], u['verdict']), flush=True)
+    for r in out.get('refused') or []:
+        print('[wcpick]   REFUSED %-11s block=%s  %s: %s'
+              % (r['chip_id'], r['block'], r['verdict'],
+                 '; '.join(r['problems']) or 'pipeline gate failed'), flush=True)
+    if out['mode'] == 'STOP':
+        print('[wcpick] VERDICT: STOP -- %s.  Do NOT submit the A/B; no larger shot '
+              'count repairs this.' % out['reason'], flush=True)
+        return out
+    pw, s = out['power'], out['s_star']
+    cost = [r['cost_s'] for r in pw['ladder'] if r['shots_per_circuit'] == s][0]
+    print('[wcpick] detection needs w >= %.4f at S*=%d for the %.0f sigma bar; %s'
+          % (out['w_min_for_detection'], s, WC_PROBE_MIN_SIGMA, out['reason']),
+          flush=True)
+    print('[wcpick] VERDICT: %s on chip=%s block=%s at S*=%d shots/circuit '
+          '(%d circuits = %.1f s, %.1f s left after, z=%.2f at the probe\'s w, '
+          'w < %.4f at 95%% CL if it comes back null)'
+          % (out['mode'], out['chip_id'], out['block'], s, pw['n_circuits_in_ab'],
+             cost, out['budget_remaining'] - cost, pw['sigma_z_at_s_star'],
+             pw['w_bound95_at_s_star']), flush=True)
+    print('[wcpick]   %s' % out['winners_curse'], flush=True)
+    print('[wcpick] next: screen THIS chip first (%d circuits x %d shots = %.1f s), '
+          'then submit the A/B with\n'
+          '  CHIP=%s BUDGET=<post-screen reading> MSPS=%.3f SHOTS=%d%s \\\n'
+          '      bash launch_mixedness.sh warmcold'
+          % (WARMCOLD_N_CAL, CAL9_SCREEN_SHOTS,
+             cost_s(WARMCOLD_N_CAL * CAL9_SCREEN_SHOTS, out['ms_per_shot']),
+             out['chip_id'], out['ms_per_shot'], s,
+             (' BLOCK=%s' % ','.join(str(b) for b in out['block']))
+             if out['mode'] == 'BOUND' else ''), flush=True)
+    return out
 
 
 def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
               job_timeout=21600, use_options=True, dump_raw=None, phi=None,
-              verbose=True, phi_cold=None, mapping=True, cal_first=False):
+              verbose=True, phi_cold=None, mapping=True, cal_first=False,
+              budget_remaining=None, ms_per_shot=None, exclude=None):
     """Submit one stage, chunked, dumping the raw counts after every chunk.
 
     The chunking is not a convenience: the account is billed in real time and a job
@@ -2581,14 +3801,33 @@ def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
     It does not make the calibration cheaper: billing is per shot, not per
     instruction, so at a common shot count cal9 costs what any other circuit
     costs.  The default is False so the 2026-10-12 artifact stays reproducible
-    from the command line that produced it."""
+    from the command line that produced it.
+
+    `dump_raw` defaults to a NEW timestamped file, never to STAGE_RAW[stage]:
+    those names are frozen evidence (FROZEN_EVIDENCE) holding the counts the
+    manuscript's 2026-09/10-12/10-13 numbers are computed from, and submit_cloud
+    opens its dump with 'w' after every chunk.  `budget_remaining` is the seconds
+    left on the dashboard and is REQUIRED -- check_budget refuses the submission
+    without it, because a job that overruns is killed and returns nothing."""
     shots = shots or STAGE_SHOTS[stage]
-    dump_raw = dump_raw or os.path.join(ROOT, STAGE_RAW[stage])
+    dump_raw = dump_raw or unique_dump_path(stage, chip_id)
     gates, meta = stage_circuits(stage, phi, phi_cold, cal_first=cal_first)
+    bill = check_budget('stage %s' % stage, len(gates) * shots, budget_remaining,
+                        ms_per_shot, verbose=verbose)
     nq = STAGE_NQ[stage]
     if block is None and use_options:
+        # The SAME rule the screen and the probe use (resolve_block): the vendor's
+        # top-ranked block minus the ones rejected on measured grounds for this chip.
+        # The query_best_block this replaces had no exclusion, so on WK_C180_2 --
+        # whose best_qubit_blocks(9) returns exactly ONE block -- a rerun without
+        # --block would have landed on the very block whose dead data channel the
+        # screen exists to avoid.  A failed QUERY is tolerable (the server then
+        # chooses qubits); "every ranked block is rejected" is not, and propagates.
         try:
-            block = query_best_block(chip_id, nq, token)
+            block = resolve_block(chip_id, nq, token, None, exclude,
+                                  tag='stage %s' % stage, verbose=verbose)
+        except NoEligibleBlock:
+            raise
         except Exception as exc:
             print('[stage %s] best_qubit_blocks(%d) unavailable (%s); the server '
                   'will choose qubits' % (stage, nq, exc), flush=True)
@@ -2641,7 +3880,7 @@ def run_stage(stage, token, chip_id, shots=None, block=None, chunk=None,
                  min(used), max(used)), flush=True)
     return dict(results=results, meta=meta, gates=gates, shots_requested=shots,
                 shots_used=used, chip_id=chip_id, block=block, wall_s=wall,
-                dump_raw=dump_raw, stage=stage)
+                dump_raw=dump_raw, stage=stage, billing=bill)
 
 
 # ---------------------------------------------------------------------
@@ -3564,14 +4803,32 @@ def check_cal9_transferability(counts_by_name, cal9_out, rev=True,
     re-routing logical qubits differently per circuit.
 
     This matters because it detects vendor re-routing WITHOUT vendor cooperation,
-    using data the job already returned.  On the 2026-10-12 warmcold run it
-    fires: cal9 measured contrast -0.156 (e01=0.568, e10=0.589) at the channel it
-    labels logical q3, bounding P(read 0) to [0.432, 0.589], yet the science
-    circuits read 0.708 and 0.665 at the position their own key order assigns to
-    logical q3 -- above the bound.  cal9 therefore characterises a DIFFERENT
-    physical channel than the science circuits used, and cannot be used to
-    validate or invalidate their estimator.  That is exactly the transpiler
-    opacity confounder, measured rather than speculated about."""
+    using data the job already returned.
+
+    THE 2026-10-12 "IT FIRES" RESULT IS RETRACTED, and this docstring used to
+    assert it in the present tense.  It read: cal9 measured contrast -0.156
+    (e01=0.568, e10=0.589) at logical q3, bounding P(read 0) to [0.432, 0.589],
+    yet the science circuits read 0.708 and 0.665 there -- above the bound -- so
+    cal9 characterised a DIFFERENT physical channel and could not validate their
+    estimator.  Those comparisons were made at the WRONG key position: the lookup
+    used the classical bit the MEAS map assigns rather than the analysed position
+    (see the comment below), so it compared cal9's channel against a different
+    science channel and reported the mismatch as transpiler re-routing.  With the
+    position fixed, all 36 comparisons on that same run lie inside their bounds:
+    hw_mixedness.json records warmcold.cal9_transferability as n_comparisons=36,
+    n_violations=0, cal9_transferable=true, and warmcold.verdict.cal9_transferable
+    true.  selftest (m3) locks both directions -- a marginal of 0.80 against that
+    channel's bound is flagged, 0.50 and 0.97 are not.
+
+    cal9 therefore DOES characterise the science block, which is what makes a paid
+    cal9 screen a valid gate for it (stage_circuits' CAL-FIRST comment relies on
+    this), and what made the 2026-10-19 screen of WK_C180_2's block a real
+    clearance of the block the A/B would use rather than a statement about some
+    other qubits.  The dead channel itself was never in doubt -- it is measured,
+    not inferred -- only the claim that cal9 could not see the science circuits.
+    Leaving the retracted version in place was not harmless: it contradicted the
+    artifact in the same repository, and read as a reason to distrust a screen
+    that had just cost 2 hours of queue."""
     if not cal9_out.get('available') or not counts_by_name:
         return dict(available=False,
                     note='needs both cal9 circuits and at least one science '
@@ -3770,6 +5027,161 @@ def _warmcold_healthy_subset(counts_by_name, cal9_out, rev=True, phi=None):
                                  'analysis, not the pre-registered test',
                 note='%d of %d data channels kept; %d excluded as broken'
                      % (len(keep), len(all_pos), len(excluded)))
+
+
+def _gap_z(p_warm, n_warm, p_cold, n_cold):
+    """(gap, sigma, z) for a warm-minus-cold difference of two independent
+    proportions -- the same unpaired binomial error bar _warmcold_pair uses, so the
+    family table and the headline verdict cannot disagree about what sigma means."""
+    gap = p_warm - p_cold
+    var = 0.0
+    for p, n in ((p_warm, n_warm), (p_cold, n_cold)):
+        n = max(int(n), 1)
+        var += p * (1.0 - p) / n
+    sg = math.sqrt(var)
+    if sg <= 0:
+        return gap, 0.0, (0.0 if gap == 0 else float('inf'))
+    return gap, sg, gap / sg
+
+
+def warmcold_estimator_family(counts_by_name, cal9_out=None, gates_by_name=None,
+                              rev=True, anc=None):
+    """Every plausible A/B estimator on ONE set of counts, scored on the signal
+    branch AND on the matched null.
+
+    WHY THIS IS A FUNCTION AND NOT A PARAGRAPH.  The primary estimator is
+    P(data=00000) over all five data channels, and that choice is defensible only if
+    the alternatives are visibly worse on the NULL branch, where the ideal gap is
+    3e-6 and so any |z| above ~3 is a false signal by construction.  Ranking
+    estimators by how significant the SIGNAL branch looks is exactly how a dead
+    readout channel gets promoted into a discovery: on the frozen 2026-10-12 counts
+    the single-bit marginals and the full-key estimator show null-branch deviations
+    far larger than the primary's, while the primary restricted to the four channels
+    cal9 cleared sits at -0.10 sigma.  This table is the evidence that the estimator
+    was not chosen by which one worked, and selftest (n) re-derives it from the
+    frozen dump and asserts the ordering.
+
+    Members: the primary (all five data channels zero), the cal9-cleared subset, the
+    five single-bit marginals, the full expected key, and the post-selected F_s the
+    2026-09 feasibility run reported.  `gates_by_name` is needed for the
+    expected-key member only; without it that member is skipped rather than guessed.
+    """
+    if anc is None:
+        anc, rev = layout_from_meas(science_meas_layer())
+    ds = _data_slice_for(anc)
+    all_pos = list(range(ds.start, ds.stop))
+
+    def _rev(counts):
+        return {(k[::-1] if rev else k): v for k, v in counts.items()}
+
+    def _p(counts, pred):
+        keys = _rev(counts)
+        n = int(sum(keys.values()))
+        hit = int(sum(v for k, v in keys.items() if pred(k)))
+        return (hit / n if n else None), n, hit
+
+    kept = all_pos
+    if cal9_out and cal9_out.get('available') and cal9_out.get('kept_positions'):
+        kept = list(cal9_out['kept_positions'])
+    members = {}
+    members['P_data_zero_all%d' % len(all_pos)] = dict(
+        kind='primary', detail='all %d data channels read 0' % len(all_pos),
+        pred=lambda k: all(k[p] == '0' for p in all_pos))
+    if kept != all_pos:
+        members['P_data_zero_cal9_cleared%d' % len(kept)] = dict(
+            kind='subset', detail='positions %s: the ones cal9 did not flag' % kept,
+            pred=lambda k: all(k[p] == '0' for p in kept))
+    for p in all_pos:
+        members['P_bit%d_zero' % p] = dict(
+            kind='single_bit', detail='data position %d alone' % p,
+            pred=lambda k, _p=p: k[_p] == '0')
+    if gates_by_name:
+        ek_by_role = {}
+        for role in ('signal', 'null'):
+            g = gates_by_name.get('%s|warm' % role)
+            if g is None:
+                continue
+            ek, _ = expected_vendor_key(g)
+            ek_by_role[role] = ek[::-1] if rev else ek
+        if len(ek_by_role) == 2:
+            # ONE member, evaluated against each branch's OWN pre-registered key.  A
+            # statistic that changes with the branch is still null-controllable --
+            # that is what makes the pair (signal z, null z) meaningful -- whereas
+            # applying the signal branch's key to the null branch would be zero by
+            # construction and would fake a clean null.
+            members['P_expected_key'] = dict(
+                kind='full_key',
+                detail='the full %d-bit key each branch pre-registers' % q.NQ,
+                pred_by_role={r: (lambda k, _e=e: k == _e)
+                              for r, e in ek_by_role.items()},
+                pred=None, keys=ek_by_role)
+    rows = {}
+    for name, spec in members.items():
+        pbr = spec.get('pred_by_role') or {}
+        per, pairs = {}, {}
+        for cname, counts in sorted(counts_by_name.items()):
+            r = cname.split('|')[0]
+            pred = pbr.get(r, spec['pred'])
+            if pred is None:
+                continue
+            p, n, hit = _p(counts, pred)
+            per[cname] = dict(P=p, n=n, n_hit=hit)
+        for r, ideal in (('signal', WARMCOLD_GAP_IDEAL_SIGNAL),
+                         ('null', WARMCOLD_GAP_IDEAL_NULL)):
+            w, c = per.get('%s|warm' % r), per.get('%s|cold' % r)
+            if not w or not c or w['P'] is None or c['P'] is None:
+                pairs[r] = dict(complete=False)
+                continue
+            gap, sg, z = _gap_z(w['P'], w['n'], c['P'], c['n'])
+            pairs[r] = dict(complete=True, gap=gap, sigma=sg, z=z, gap_ideal=ideal,
+                            P_warm=w['P'], P_cold=c['P'])
+        rows[name] = dict(kind=spec['kind'], detail=spec['detail'],
+                          per_circuit=per, pairs=pairs)
+    # the post-selected secondary, scored as a member of the SAME family rather than
+    # as a separate analysis: same counts, same arms, same error bar, and its own
+    # branch's syndrome as the selection (which is what makes it null-controllable)
+    fs_per, fs_pairs = {}, {}
+    for role, s in (('signal', WARMCOLD_SIGNAL_S), ('null', WARMCOLD_NULL_S)):
+        for arm in ('warm', 'cold'):
+            counts = counts_by_name.get('%s|%s' % (role, arm))
+            if not counts:
+                continue
+            n_sel, n_hit = q.counts_to_branch_stats(counts, s, anc, rev)
+            n = int(sum(counts.values()))
+            fs_per['%s|%s' % (role, arm)] = dict(
+                P=(n_hit / n_sel if n_sel else None), n=n_sel, n_hit=n_hit,
+                n_total=n, selected_fraction=(n_sel / n if n else None))
+        w, c = fs_per.get('%s|warm' % role), fs_per.get('%s|cold' % role)
+        ideal = (WARMCOLD_GAP_IDEAL_SIGNAL if role == 'signal'
+                 else WARMCOLD_GAP_IDEAL_NULL)
+        if w and c and w['P'] is not None and c['P'] is not None:
+            gap, sg, z = _gap_z(w['P'], w['n'], c['P'], c['n'])
+            fs_pairs[role] = dict(complete=True, gap=gap, sigma=sg, z=z,
+                                  gap_ideal=ideal, P_warm=w['P'], P_cold=c['P'])
+        else:
+            fs_pairs[role] = dict(complete=False)
+    if fs_per:
+        rows['F_s_postselected'] = dict(
+            kind='postselected', per_circuit=fs_per, pairs=fs_pairs,
+            detail='P(data=00000 | this branch\'s syndrome), the 2026-09 '
+                   'feasibility estimator; it conditions on the ancilla and so '
+                   'discards most shots')
+    nulls = {k: v['pairs']['null']['z'] for k, v in rows.items()
+             if v['pairs'].get('null', {}).get('complete')}
+    sigs = {k: v['pairs']['signal']['z'] for k, v in rows.items()
+            if v['pairs'].get('signal', {}).get('complete')}
+    return dict(rev=rev, anc_slice=[anc.start, anc.stop],
+                data_slice=[ds.start, ds.stop], members=rows, n_members=len(rows),
+                null_z_by_member=nulls, signal_z_by_member=sigs,
+                max_abs_null_z=(max(abs(z) for z in nulls.values())
+                                if nulls else None),
+                max_abs_null_member=(max(nulls, key=lambda k: abs(nulls[k]))
+                                     if nulls else None),
+                max_abs_signal_member=(max(sigs, key=lambda k: abs(sigs[k]))
+                                       if sigs else None),
+                primary_member='P_data_zero_all%d' % len(all_pos))
+
+
 def analyze_warmcold(results, meta, phi_warm, phi_cold, shots_requested=None,
                      verbose=True):
     """The warm-vs-cold A/B: two arms x (one signal branch + one null branch).
@@ -3895,10 +5307,30 @@ def analyze_warmcold(results, meta, phi_warm, phi_cold, shots_requested=None,
         counts_by_name, out['cal9'], rev, phi=phi_warm)
     out['posthoc_healthy_subset'] = _warmcold_healthy_subset(
         counts_by_name, out['cal9'], rev, phi=phi_warm)
+    # PROVENANCE, spelled out because the key name invites a misreading that the
+    # 2026-10-21 WK_C180_2 run actually produced: `measured_w` is NOT measured by
+    # THIS run.  It is a FORWARD projection at warmcold_power's default w, i.e. the
+    # frozen 2026-09 constant WARMCOLD_W_MEASURED_2026_09 = +0.0936.  This run's
+    # own transmission estimate is verdict.signal_transmission_w, which came out
+    # -0.0937 -- the SAME magnitude with the OPPOSITE sign, because the pre-
+    # registered prediction failed on direction.  Two numbers that nearly cancel
+    # sitting in one file under names that both suggest "measured" is exactly how a
+    # manuscript ends up quoting the historical constant as if it were the result.
+    # Read the actual measurement from out['verdict'].
     out['power_prediction'] = dict(
         measured_w=warmcold_power(shots=shots_requested),
         pessimistic_w=warmcold_power(w=WARMCOLD_W_PESSIMISTIC,
-                                     shots=shots_requested))
+                                     shots=shots_requested),
+        provenance=(
+            'FORWARD PROJECTION ONLY, not this run\'s measurement.  measured_w uses '
+            'warmcold_power\'s default w = WARMCOLD_W_MEASURED_2026_09 (%+.5f), the '
+            'frozen 2026-09 constant; pessimistic_w uses WARMCOLD_W_PESSIMISTIC '
+            '(half of it).  This run\'s own transmission estimate is '
+            'verdict.signal_transmission_w, and the model\'s shared-w assumption is '
+            'what that number tests -- invert p = w + (1-w)/32 (warm) or '
+            'p = 0.5w + (1-w)/32 (cold) on per_circuit to see that the two arms do '
+            'not share one w.'
+            % WARMCOLD_W_MEASURED_2026_09))
     out['verdict'] = _warmcold_verdict(out)
     if verbose:
         for ln in _warmcold_report(out):
@@ -4271,7 +5703,50 @@ def stage_record(run):
                 n_circuits=len(run['results']),
                 instruction_counts=sorted({len(g) for g in run['gates']}),
                 attempts=run.get('attempts', []),
+                billing=run.get('billing'),
                 meta=run['meta'])
+
+
+ARCHIVE_KEY = 'hardware_run_archive'
+
+
+def archive_previous(art, stage, new_dump=None, verbose=True):
+    """Move a PREVIOUS hardware run's record for `stage` into art[ARCHIVE_KEY]
+    instead of overwriting it.
+
+    WHY.  art['warmcold'] currently holds the 2026-10-12 analysis whose verdict is
+    INVALID, and main.tex quotes its numbers (signal_z=-0.7314, null_z=+2.8379,
+    data3 contrast -0.156).  A new run writes the same key, so without this the
+    manuscript would cite an artifact that no longer contains what it cites -- the
+    same class of silent evidence loss as overwriting the raw dump, one level up.
+
+    Idempotent by construction: the archive label is the previous record's own dump
+    basename, and re-analysing THAT dump is not a new run, so it neither archives
+    nor duplicates.  Records with no identifiable dump are left alone rather than
+    archived under a made-up label."""
+    prev_a, prev_r = art.get(stage), (art.get('runs') or {}).get(stage)
+    src = None
+    for rec in (prev_a, prev_r):
+        if isinstance(rec, dict):
+            src = src or rec.get('source_dump') or rec.get('dump_raw')
+    if not src:
+        return None
+    base = os.path.basename(str(src))
+    if new_dump and os.path.basename(str(new_dump)) == base:
+        return None
+    label = '%s@%s' % (stage, base)
+    arch = art.setdefault(ARCHIVE_KEY, {})
+    if label not in arch:
+        arch[label] = dict(archived_utc=_now(), source_dump=str(src),
+                           analysis=prev_a, run=prev_r)
+        if verbose:
+            print('[archive] the previous %s record came from %s and a manuscript '
+                  'number may cite it, so it is preserved under %s[%r] rather than '
+                  'overwritten' % (stage, base, ARCHIVE_KEY, label), flush=True)
+    art.pop(stage, None)
+    if isinstance(art.get('runs'), dict):
+        art['runs'].pop(stage, None)
+    return label
 
 
 def dry_run(shots=4000, n_boot=200, seed=7, vendor=None, verbose=True):
@@ -4722,18 +6197,26 @@ def make_figure(art, tag):
 # 11) stage plumbing shared by --mode cloud and --mode analyze, and the CLI
 # ---------------------------------------------------------------------
 def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
-                  vendor=None, n_boot=2000, verbose=True, phi_cold=None):
+                  vendor=None, n_boot=2000, verbose=True, phi_cold=None,
+                  source_dump=None):
     """Push one stage's counts through the analysis and merge the result into `art`.
 
     The tomo stage depends on the probe stage for the bit order and the assignment
     matrix.  If no probe is available the layout is recovered from the tomography
     circuits themselves -- which determines the logical position and leaves the four
     code-space positions tied, provably harmlessly (selftest (f)) -- and mitigation
-    is skipped, with the fallback recorded in the artifact rather than hidden."""
+    is skipped, with the fallback recorded in the artifact rather than hidden.
+
+    `source_dump` is the file these counts came from.  It is recorded on the result
+    and used by archive_previous to tell a NEW run from a re-analysis of the same
+    run, so re-running --mode analyze is idempotent while a genuinely new dump
+    preserves the record a manuscript number may already cite."""
+    archive_previous(art, 'tomo' if stage == 'ladder' else stage,
+                     new_dump=source_dump, verbose=verbose)
     if stage == 'probe':
         sigma, out = analyze_probe(results, meta, shots_requested, verbose=verbose)
         art['probe'] = dict(analysis=out, shots_requested=shots_requested,
-                            n_circuits=len(results))
+                            n_circuits=len(results), source_dump=source_dump)
         art.setdefault('meta', {})['layout_sigma'] = list(sigma)
         return out
     if stage in ('tomo', 'ladder'):
@@ -4771,7 +6254,7 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
             art['tomo'] = dict(assignment=own_cal, n_circuits=len(results),
                                n_tomo_circuits=0, inputs_complete=[],
                                inputs_incomplete=list(TOMO_STATES),
-                               not_analysable=msg)
+                               source_dump=source_dump, not_analysable=msg)
             if own_cal is not None:
                 print('[%s] readout assignment matrix recovered anyway: e01=%s '
                       'e10=%s' % (stage, [round(x, 4) for x in own_cal['e01']],
@@ -4806,6 +6289,7 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
         out, lines = analyze_tomo(results, meta, sigma, cal, shots_requested,
                                   n_boot=n_boot, vendor=vendor, verbose=False)
         out['calibration_source'] = source
+        out['source_dump'] = source_dump
         art['tomo'] = out
         art.setdefault('meta', {})['layout_sigma'] = list(sigma)
         if verbose:
@@ -4815,6 +6299,7 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
     if stage == 'bench':
         assert phi is not None
         out = analyze_bench(results, meta, phi, shots_requested, verbose=verbose)
+        out['source_dump'] = source_dump
         art['bench'] = out
         return out
     if stage == 'warmcold':
@@ -4823,13 +6308,15 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
             'analyse an A/B with only one arm defined')
         out = analyze_warmcold(results, meta, phi, phi_cold, shots_requested,
                                verbose=verbose)
+        out['source_dump'] = source_dump
         art['warmcold'] = out
         return out
     raise ValueError(stage)
 
 
-def _load_dump(stage):
-    path = os.path.join(ROOT, STAGE_RAW[stage])
+def _load_dump(stage, path=None):
+    """Counts from a dump file: the stage's frozen legacy dump, or `path`."""
+    path = path or os.path.join(ROOT, STAGE_RAW[stage])
     with open(path) as f:
         raw = json.load(f)
     return [{str(k): int(v) for k, v in d.items()} for d in raw]
@@ -4851,7 +6338,12 @@ def write_meta_sidecar(dump_path, meta, gates, stage, chip_id=None, block=None,
     The sidecar makes the pairing explicit and checkable.
 
     It is written BEFORE submission, not after, so that a mid-job cut-off still
-    leaves meta on disk describing the prefix that submit_cloud dumped."""
+    leaves meta on disk describing the prefix that submit_cloud dumped.
+
+    It is also the single choke point that refuses to clobber frozen evidence:
+    every paid submission calls this before it calls submit_cloud, and submit_cloud
+    is what opens `dump_path` with 'w'."""
+    assert_writable_dump(dump_path)
     path = _meta_sidecar_path(dump_path)
     with open(path, 'w') as f:
         json.dump(dict(
@@ -4974,6 +6466,7 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
     wc_shots_tot = wc_row[8]
     wc_pow = warmcold_power()
     wc_pow_p = warmcold_power(w=WARMCOLD_W_PESSIMISTIC)
+    wc_pow_10 = warmcold_power(w=WARMCOLD_W_MEASURED_2026_10_12)
     # recomputed rather than quoted: the Z-basis vanishing of the effect is what
     # makes psi='+' load-bearing, and a number this load-bearing should not be a
     # literal in a print statement
@@ -5008,12 +6501,37 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
           % wc_cost)
     print('     %.6f in the noiseless limit on branch s=%d, and that survives'
           % (WARMCOLD_GAP_IDEAL_SIGNAL, WARMCOLD_SIGNAL_S))
-    print('     the data-register survival w=%.4f MEASURED in 2026-09 as'
-          % wc_pow['w'])
-    print('     %.4f +- %.4f = %.1f sigma (%.1f sigma even at w=%.2f).  At equal'
-          % (wc_pow['observable_gap'], wc_pow['sigma_pair'], wc_pow['sigma_z'],
-             wc_pow_p['sigma_z'], WARMCOLD_W_PESSIMISTIC))
-    print('     cost a claim beats a null.  tomo stays implemented for a top-up.')
+    print('     the data-register survival w -- BUT w IS NOT ONE NUMBER, and an')
+    print('     earlier version of this plan quoted a single sigma as if it were.')
+    print('     Two committed measurements exist, on different chips AND with')
+    print('     different compiler options, and they straddle the detection bar:')
+    for _lab, _pz, _w in (
+            ('2026-09 WK_C180   no QCloudOptions', WARMCOLD_P_DATA_ZERO_2026_09,
+             WARMCOLD_W_MEASURED_2026_09),
+            ('2026-10 WK_C180_2 with options    ',
+             WARMCOLD_P_DATA_ZERO_2026_10_12, WARMCOLD_W_MEASURED_2026_10_12)):
+        _pw = warmcold_power(w=_w, shots=STAGE_SHOTS['warmcold'])
+        print('       %s  P(data=00000)=%.4f -> w=%.4f  gap %.4f +- %.4f = %5.1f'
+              ' sigma' % (_lab, _pz, _w, _pw['observable_gap'], _pw['sigma_pair'],
+                          _pw['sigma_z']))
+    print('     Which world a rerun lands in is not computable offline, and the')
+    print('     difference is a DETECTION versus a BOUND.  So the plan is three')
+    print('     gated submissions rather than one:')
+    print('       1. --cal9-screen %6d shots %6.1f s  is the block usable at all?'
+          % (2 * CAL9_SCREEN_SHOTS, cost_s(2 * CAL9_SCREEN_SHOTS)))
+    print('       2. --wc-probe    %6d shots %6.1f s  how large is w, and what does'
+          % (WC_PROBE_SHOTS, cost_s(WC_PROBE_SHOTS)))
+    print('          the remaining budget buy with it?  It prints the shot ladder,')
+    print('          the z each rung is worth, the w bound a null would report, and')
+    print('          the largest rung S* that fits --budget-remaining.')
+    print('       3. --stage warmcold --cal-first --shots S*.')
+    print('     Every step requires --budget-remaining (the dashboard figure; the')
+    print('     API cannot answer it) and refuses to overrun it, and the dashboard')
+    print('     delta across a step is the BILLED ms/shot, which is what should then')
+    print('     replace the pessimistic %.0f every cost above is priced at.  At'
+          % MS_PER_SHOT)
+    print('     equal cost a claim beats a null, and a characterised bound beats an')
+    print('     uncharacterised one either way.  tomo stays implemented for a top-up.')
     print()
     print('WARMCOLD SALVAGE LADDER -- chunk=%d, so a cut-off after any boundary'
           % STAGE_CHUNK['warmcold'])
@@ -5030,8 +6548,10 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
         cal_ok = len([m for m in pre if m.get('kind') == 'cal9']) == 2
         got = []
         if have_sig:
-            got.append('the SIGNAL A/B (headline, %.1f sigma predicted)'
-                       % wc_pow['sigma_z'])
+            got.append('the SIGNAL A/B (headline, %.1f sigma at w=%.4f but only '
+                       '%.1f at w=%.4f -- see the two-world table above)'
+                       % (wc_pow['sigma_z'], WARMCOLD_W_MEASURED_2026_09,
+                          wc_pow_10['sigma_z'], WARMCOLD_W_MEASURED_2026_10_12))
         if have_nul:
             got.append('the NULL control (without it the result is UNCONTROLLED)')
         if cal_ok:
@@ -5105,11 +6625,22 @@ def print_plan(phi, budget_s=BUDGET_S, vendor=None):
           % WARMCOLD_GAP_IDEAL_SIGNAL)
     print('      is invisible in the Z basis (gap %.1e) and maximal in X/Y.'
           % wc_z_gap)
-    print('      Through the data survival w=%.4f measured in 2026-09 that is'
+    print('      Through the data survival w the gap is w*%.3f, and w is the ONE'
+          % WARMCOLD_GAP_IDEAL_SIGNAL)
+    print('      input this plan cannot compute offline.  The two committed')
+    print('      measurements bracket it: w=%.4f (2026-09 WK_C180, no vendor'
           % WARMCOLD_W_MEASURED_2026_09)
-    print('      %.4f +- %.4f = %.1f sigma; at w=%.2f it is still %.1f sigma.'
+    print('      options) gives %.4f +- %.4f = %.1f sigma, while w=%.4f'
           % (wc_pow['observable_gap'], wc_pow['sigma_pair'], wc_pow['sigma_z'],
-             WARMCOLD_W_PESSIMISTIC, wc_pow_p['sigma_z']))
+             WARMCOLD_W_MEASURED_2026_10_12))
+    print('      (2026-10-12 WK_C180_2, WITH options) gives %.4f +- %.4f = %.1f'
+          % (wc_pow_10['observable_gap'], wc_pow_10['sigma_pair'],
+             wc_pow_10['sigma_z']))
+    print('      sigma; at half the larger w it is still %.1f sigma.  --wc-probe'
+          % wc_pow_p['sigma_z'])
+    print('      settles which world today is for %.0f s, before six circuits are'
+          % cost_s(WC_PROBE_SHOTS))
+    print('      bought.')
     print('  W2  A MATCHED NULL.  s=%d (frame %s) has an ideal warm/cold gap of'
           % (WARMCOLD_NULL_S, WARMCOLD_NULL_FRAME))
     print('      %.1e, so it must come out at zero.  A signal with a dirty null'
@@ -5213,7 +6744,7 @@ def main(argv=None):
         formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--mode', default='verify',
                     choices=['verify', 'sample', 'selftest', 'simulate', 'preflight',
-                             'plan', 'cloud', 'analyze'])
+                             'plan', 'wcpick', 'cloud', 'analyze'])
     ap.add_argument('--stage', default='all',
                     choices=['probe', 'tomo', 'bench', 'ladder', 'warmcold',
                              'all'])
@@ -5294,6 +6825,54 @@ def main(argv=None):
                          'warm-vs-cold run is not purchasable on this chip at any '
                          'shot count.  Deliberately not the default: it spends real '
                          'money on a block this file declares unusable.')
+    ap.add_argument('--wc-probe', action='store_true',
+                    help='buy ONE science circuit -- the stage\'s signal|warm entry, '
+                         'byte-identical to the pre-registered one -- at %d shots '
+                         '(%.1f s at the pessimistic %.0f ms/shot) and measure the '
+                         'data-register survival w that sets the A/B\'s power, '
+                         'BEFORE the six-circuit stage is bought.  Reports the '
+                         'pipeline verdict, w with its 95%% interval, a ladder of '
+                         'shot counts with the z each would buy and the w bound a '
+                         'null would report, and the largest rung that fits '
+                         '--budget-remaining.  Exit 0 if a detection is affordable, '
+                         '5 if the A/B would only set a bound, 4 if the pipeline '
+                         'failed.  Makes no warm-versus-cold claim: one arm cannot '
+                         'form a gap.'
+                         % (WC_PROBE_SHOTS, cost_s(WC_PROBE_SHOTS), MS_PER_SHOT))
+    ap.add_argument('--budget-remaining', type=float, default=None,
+                    help='seconds of QPU time the account dashboard says are LEFT.  '
+                         'REQUIRED for every paid submission (--cal9-screen, '
+                         '--wc-probe, --mode cloud): the remaining allocation '
+                         'cannot be queried from the API, so this is the only way '
+                         'the hard budget gate in check_budget can work, and a job '
+                         'that overruns is killed and returns nothing.  Also read '
+                         'the dashboard again AFTER each submission -- the delta '
+                         'over a known shot count is the billed ms/shot, which is '
+                         'what --ms-per-shot should then be set to.')
+    ap.add_argument('--ms-per-shot', type=float, default=None,
+                    help='billed milliseconds per shot, measured from a dashboard '
+                         'delta across a known shot count.  Default: the pessimistic '
+                         'constant MS_PER_SHOT=%.0f, which is NOT reproducible from '
+                         'anything on disk (the 2026-09 wall clock implies ~1.0).  '
+                         'Passing a measured value lets the probe\'s ladder price the '
+                         'A/B at the real rate instead of the worst case.'
+                         % MS_PER_SHOT)
+    ap.add_argument('--probe-json', action='append', default=None,
+                    help='a --wc-probe verdict sidecar (the .probe.json written next '
+                         'to that probe\'s raw counts).  Repeat it once per probe.  '
+                         'Used by --mode wcpick, which applies the pre-registered '
+                         'chip rule of QCLOUD_SETUP.md 9.7 to the probes that came '
+                         'back and prints the chip, the block, the S* the current '
+                         '--budget-remaining buys and the command that spends it.  '
+                         'Free: it submits nothing and needs no token.')
+    ap.add_argument('--dump-raw', default=None,
+                    help='raw-counts file.  For a PAID mode this is where the counts '
+                         'are WRITTEN (default: a new timestamped file, because the '
+                         'legacy names in STAGE_RAW are frozen evidence holding the '
+                         'counts the manuscript\'s 2026-09/10-12/10-13 numbers come '
+                         'from).  For --mode analyze it is the dump to READ, which is '
+                         'how a new run is analysed without touching the frozen one; '
+                         'it requires a single --stage, not all.')
     ap.add_argument('--n-boot', type=int, default=2000)
     ap.add_argument('--seeds', type=int, default=1,
                     help='for --mode simulate: repeat the power study over this '
@@ -5440,11 +7019,69 @@ def main(argv=None):
             out['vendor_prediction'] = vendor_prediction(*vendor)
             print('[preflight] what the quoted vendor fidelities predict: %s'
                   % json.dumps(out['vendor_prediction']), flush=True)
-        path = os.path.join(ROOT, 'hw_mixedness_preflight.json')
+        # A preflight snapshot is evidence about a DAY: QCLOUD_SETUP.md 8.8 quotes
+        # the measured calibration of B5 out of the 2026-10-11 file, so today's free
+        # queries must land in their own timestamped file rather than overwrite it.
+        path = os.path.join(ROOT, 'hw_mixedness_preflight_%s.json' % _utc_stamp())
+        assert_writable_dump(path)
         with open(path, 'w') as f:
             json.dump(out, f, indent=1, default=str, ensure_ascii=False)
-        print('[out] %s' % path, flush=True)
+        print('[out] %s  (the legacy hw_mixedness_preflight.json is FROZEN: it is '
+              'the 2026-10-11 snapshot QCLOUD_SETUP.md 8.8 cites)' % path, flush=True)
         return 0
+
+    if a.mode == 'wcpick':
+        # FREE, and deliberately outside the --mode cloud branch: it submits nothing
+        # and needs no token, so where the last ~200 s goes can be re-derived from
+        # the probe sidecars on disk at any time -- including by a reader who does
+        # not trust this transcript.  Exit code carries the verdict like the probe's:
+        # 0 detection affordable, 5 bound only (a human decision to spend), 4 stop.
+        if not a.probe_json:
+            print('ERROR: --mode wcpick needs at least one --probe-json, the '
+                  '.probe.json sidecar each --wc-probe run wrote next to its raw '
+                  'counts (printed as "[wcprobe] verdict sidecar ...").')
+            return 2
+        probes = []
+        for pj in a.probe_json:
+            p = pj if os.path.isabs(pj) else os.path.join(ROOT, pj)
+            if not os.path.exists(p):
+                print('ERROR: no such probe sidecar: %s' % p, flush=True)
+                return 2
+            with open(p) as f:
+                probes.append(json.load(f))
+        try:
+            pick = pick_wc_chip(probes, a.budget_remaining, a.ms_per_shot)
+        except BudgetError as exc:
+            print('ERROR: %s' % exc, flush=True)
+            return 3
+        except ValueError as exc:
+            print('ERROR: %s' % exc, flush=True)
+            return 2
+        if not os.path.isdir(RUN_LOG_DIR):
+            os.makedirs(RUN_LOG_DIR)
+        # The decision record must never be silently overwritten.  Two wcpick calls
+        # inside the same second used to build the SAME filename and the second
+        # clobbered the first -- observed on 2026-10-15, where a DETECTION verdict
+        # priced at the measured 1.0 ms/shot was replaced on disk by a BOUND verdict
+        # priced at the pessimistic 14.0, leaving an evidence file that contradicted
+        # the terminal which had just printed it.  So uniqueness is asserted by probing
+        # the filesystem rather than assumed from a clock with 1-second resolution --
+        # the discipline unique_dump_path already applies to raw counts -- and
+        # assert_writable_dump's refusal to land on committed evidence applies here too.
+        base_name = '%s_wcpick.json' % _utc_stamp()
+        out_path, n = os.path.join(RUN_LOG_DIR, base_name), 1
+        while os.path.exists(out_path):
+            out_path = os.path.join(RUN_LOG_DIR,
+                                    '%s_%d.json' % (base_name[:-5], n))
+            n += 1
+        out_path = assert_writable_dump(out_path)
+        with open(out_path, 'w') as f:
+            json.dump(pick, f, indent=1, default=str, ensure_ascii=False)
+        print('[out] %s  (the decision record.  It is NOT written into %s: the '
+              'artifact holds the measurements the manuscript quotes, not the '
+              'routing decision made between two of them.)'
+              % (out_path, os.path.basename(a.json)), flush=True)
+        return int(pick['exit_code'])
 
     # ---- cloud / analyze ----
     phi = q.load_angles(a.noise)
@@ -5480,19 +7117,60 @@ def main(argv=None):
         python=sys.version.split()[0], numpy=np.__version__))
 
     if a.mode == 'analyze':
+        # --dump-raw names ONE file, so it cannot mean "analyse every stage"
+        if a.dump_raw and a.stage == 'all':
+            print('ERROR: --dump-raw names a single file, so --mode analyze needs a '
+                  'single --stage with it.  Without --dump-raw the frozen legacy '
+                  'dumps in STAGE_RAW are read and --stage all is fine.', flush=True)
+            return 2
+        dump_arg = None
+        if a.dump_raw:
+            dump_arg = (a.dump_raw if os.path.isabs(a.dump_raw)
+                        else os.path.join(ROOT, a.dump_raw))
+            side0 = read_meta_sidecar(dump_arg)
+            if side0 and side0.get('stage') == 'wcprobe':
+                # A probe dump is ONE circuit, not a stage prefix, so it has its own
+                # analysis path; re-running it is what makes the quoted w
+                # reproducible from the file rather than from the run's stdout.
+                gates_p, meta_p = stage_circuits('warmcold', phi_warm, phi_cold)
+                sel = [i for i, m in enumerate(meta_p)
+                       if m.get('kind') == 'warmcold' and m.get('role') == 'signal'
+                       and m.get('arm') == 'warm']
+                raw = _load_dump('warmcold', dump_arg)
+                out = analyze_wc_probe(
+                    raw[0], meta_p[sel[0]], gates_p[sel[0]], phi_warm,
+                    shots_requested=(side0.get('shots') or WC_PROBE_SHOTS),
+                    chip_id=side0.get('chip_id'), block=side0.get('block'),
+                    ms_per_shot=a.ms_per_shot,
+                    budget_remaining_after=a.budget_remaining, verbose=True)
+                out['dump_raw'] = dump_arg
+                art['wcprobe'] = out
+                save_artifact(art, a.json)
+                return out['exit_code']
         loaded = {}
         for stage in stages:
-            path = os.path.join(ROOT, STAGE_RAW[stage])
+            path = dump_arg or os.path.join(ROOT, STAGE_RAW[stage])
             if not os.path.exists(path):
                 print('[analyze] %s: no dump at %s -- skipped (that job was '
                       'dropped by the abort rules, or has not run yet)'
-                      % (stage, STAGE_RAW[stage]), flush=True)
+                      % (stage, os.path.basename(path)), flush=True)
                 continue
-            results = _load_dump(stage)
+            results = _load_dump(stage, path)
             if stage == 'bench':
                 _g, meta = stage_circuits(stage, phi)
             elif stage == 'warmcold':
-                _g, meta = stage_circuits(stage, phi_warm, phi_cold)
+                # --cal-first REORDERS this stage (the two cal9 circuits move to the
+                # front), so the rebuild must be told about it, or it disagrees with
+                # the submission-time sidecar and a perfectly good dump is refused.
+                # That is exactly what happened to the 2026-10-21 WK_C180_2 run: it
+                # was submitted --cal-first, and the recovery command the launcher
+                # printed at submission time omitted the flag, so re-analysis died on
+                # a meta mismatch.  Honouring the flag does NOT weaken the check
+                # below -- a genuinely reordered dump still fails it, and a cal-first
+                # dump analysed without the flag still fails it with a message that
+                # names the fix.
+                _g, meta = stage_circuits(stage, phi_warm, phi_cold,
+                                          cal_first=a.cal_first)
             else:
                 _g, meta = stage_circuits(stage)
             # The dump stores counts only, so its meta has to come from somewhere.
@@ -5500,7 +7178,7 @@ def main(argv=None):
             # reconstructing meta from the current builders is only safe while no
             # builder has reordered circuits, and the length check below cannot
             # detect a reordering.
-            side = read_meta_sidecar(os.path.join(ROOT, STAGE_RAW[stage]))
+            side = read_meta_sidecar(path)
             if side is None:
                 print('[analyze] %s: no meta sidecar -- this dump predates '
                       'sidecar writing, so its meta is RECONSTRUCTED from the '
@@ -5513,12 +7191,25 @@ def main(argv=None):
                 diff = [i for i in range(n_cmp) if sm[i] != meta[i]]
                 if diff:
                     i = diff[0]
+                    # Name the fix when the mismatch is the cal9/warmcold swap that
+                    # --cal-first produces.  "the meta does not match" alone gives the
+                    # reader nothing to do about it, and the flag is easy to omit --
+                    # the launcher's own printed recovery command once did, on the run
+                    # it had just submitted with it.
+                    hint = ''
+                    if {sm[i].get('kind'), meta[i].get('kind')} == {'cal9',
+                                                                   'warmcold'}:
+                        hint = ('\n  This is the --cal-first reordering: the dump was '
+                                'SUBMITTED with the two cal9 circuits first but is '
+                                'being REBUILT without them.  Re-run with --cal-first. '
+                                'The sidecar records the order that was actually '
+                                'bought, so the rebuild has to match it.')
                     raise AssertionError(
                         '%s: the meta recorded at submission time (%s) does not '
                         'match what the current builders produce, so this dump '
                         'cannot be labelled reliably.  First difference at '
-                        'circuit %d:\n  submitted: %r\n  rebuilt:   %r'
-                        % (stage, side.get('written_utc'), i, sm[i], meta[i]))
+                        'circuit %d:\n  submitted: %r\n  rebuilt:   %r%s'
+                        % (stage, side.get('written_utc'), i, sm[i], meta[i], hint))
                 meta = sm
                 print('[analyze] %s: meta VERIFIED against the submission-time '
                       'sidecar (%s, %d circuits, block %s)'
@@ -5575,21 +7266,27 @@ def main(argv=None):
                 'shots_requested') or STAGE_SHOTS[stage]
             analyze_stage(stage, results, meta, sr, art,
                           phi=phi_warm if stage == 'warmcold' else phi,
-                          vendor=vendor, n_boot=a.n_boot, phi_cold=phi_cold)
+                          vendor=vendor, n_boot=a.n_boot, phi_cold=phi_cold,
+                          source_dump=path)
     else:
-        # --cal9-screen submits no stage at all (it short-circuits below, before
-        # the stage loop), so the one-stage-only rule that protects the allocation
-        # from a four-stage sweep does not apply to it and must not swallow it.
-        if a.stage == 'all' and not a.cal9_screen:
+        # --cal9-screen and --wc-probe submit no stage at all (they short-circuit
+        # below, before the stage loop), so the one-stage-only rule that protects the
+        # allocation from a four-stage sweep does not apply to them and must not
+        # swallow them.
+        if a.stage == 'all' and not a.cal9_screen and not a.wc_probe:
             print('ERROR: --mode cloud refuses --stage all.  QPU time is billed in '
-                  'real time, the allocation is ~%.0f s, and ONE stage consumes it '
-                  '(QCLOUD_SETUP.md 8).  Submitting all of them would bill the '
-                  'first, be cut off part way through, and leave the account '
-                  'disabled with nothing to show for the rest.  Submit ONE '
-                  'stage:\n'
+                  'real time, the allocation is ~%.0f s offline (pass '
+                  '--budget-remaining with the dashboard figure: the live one is '
+                  'not queryable), and ONE stage consumes it (QCLOUD_SETUP.md 8).  '
+                  'Submitting all of them would bill the first, be cut off part way '
+                  'through, and leave the account disabled with nothing to show for '
+                  'the rest.  Submit ONE stage:\n'
                   '  bash launch_mixedness.sh warmcold  # THE PLAN: %d circuits at '
-                  '%d shots = %.0f s, %.1f sigma on the warm/cold gap, chunked so '
-                  'the signal pair alone survives a cut-off\n'
+                  '%d shots = %.0f s -- but the warm/cold gap is worth %.1f sigma '
+                  'at the 2026-09 no-options survival w=%.4f and only %.1f sigma at '
+                  'the 2026-10 with-options w=%.4f, so run --wc-probe FIRST to find '
+                  'out which world today is; chunked so the signal pair alone '
+                  'survives a cut-off\n'
                   'only if the allocation is ever topped up:\n'
                   '  bash launch_mixedness.sh tomo      # 266 s, but r<1 is only '
                   '%.2f sigma on this block\'s measured calibration -- it buys a '
@@ -5605,7 +7302,10 @@ def main(argv=None):
                      STAGE_SHOTS['warmcold'],
                      (WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL)
                      * STAGE_SHOTS['warmcold'] * MS_PER_SHOT / 1000.0,
-                     warmcold_power()['sigma_z'],
+                     warmcold_power(w=WARMCOLD_W_MEASURED_2026_09)['sigma_z'],
+                     WARMCOLD_W_MEASURED_2026_09,
+                     warmcold_power(w=WARMCOLD_W_MEASURED_2026_10_12)['sigma_z'],
+                     WARMCOLD_W_MEASURED_2026_10_12,
                      (1.0 - vendor_prediction(MEASURED_F1Q, MEASURED_F2Q,
                                               MEASURED_FREAD)['radius'])
                      / (CI_HALF_WIDTH_AT_1000 * (
@@ -5621,24 +7321,71 @@ def main(argv=None):
             return 3
         block = ([int(x) for x in a.block.split(',') if x.strip()]
                  if a.block else None)
+        excl = () if a.allow_rejected_block else None    # None -> this chip's list
+        if a.dump_raw:
+            # Refuse a clobbering path BEFORE anything is queried or spent: the
+            # legacy dump names are frozen evidence, and finding that out after a
+            # block query (or worse, after a submission) is finding it too late.
+            try:
+                assert_writable_dump(a.dump_raw if os.path.isabs(a.dump_raw)
+                                     else os.path.join(ROOT, a.dump_raw))
+            except RuntimeError as exc:
+                print('ERROR: %s' % exc, flush=True)
+                return 3
         if a.cal9_screen:
             # SCREEN ONLY.  Deliberately short-circuits the stage loop: the whole
             # point is that no science circuit is submitted until a human has read
             # this verdict, so --cal9-screen must not be combinable with a stage run
             # in the same process.  Cost is 2 x shots (28 s at the pessimistic rate
-            # for the default 1000), which is inside even the worst-case reading of
-            # the remaining allocation.
-            scr = run_cal9_screen(tok, a.chip_id,
-                                  shots=a.shots or CAL9_SCREEN_SHOTS,
-                                  block=block,
-                                  exclude=() if a.allow_rejected_block else
-                                  (WARMCOLD_BLOCK_REJECTED_2026_10_12,),
+            # for the default 1000).
+            try:
+                scr = run_cal9_screen(tok, a.chip_id,
+                                      shots=a.shots or CAL9_SCREEN_SHOTS,
+                                      block=block, exclude=excl,
+                                      dump_raw=a.dump_raw,
+                                      job_timeout=a.job_timeout,
+                                      use_options=not a.no_options,
+                                      mapping=not a.no_mapping, verbose=True,
+                                      budget_remaining=a.budget_remaining,
+                                      ms_per_shot=a.ms_per_shot)
+            except BudgetError as exc:
+                print('ERROR: %s' % exc, flush=True)
+                return 3
+            record_billing(art, scr.get('billing'))
+            art['cal9_screen'] = {k: v for k, v in scr.items()
+                                  if k not in ('cal9',)}
+            art['cal9_screen']['cal9_per_qubit'] = (
+                (scr.get('cal9') or {}).get('per_qubit'))
+            save_artifact(art, a.json)
+            print('[cal9screen] dump %s (screen only -- no warm-vs-cold claim is '
+                  'made or implied).  Read the dashboard again: the delta over %d '
+                  'shots is the billed ms/shot to pass as --ms-per-shot next.'
+                  % (os.path.basename(scr['dump_raw']),
+                     2 * (a.shots or CAL9_SCREEN_SHOTS)), flush=True)
+            return 0 if scr.get('block_usable') else 4
+        if a.wc_probe:
+            # PROBE ONLY, gate 2 of 3.  Short-circuits for the same reason the screen
+            # does: the human reads w and the shot ladder before the six-circuit A/B
+            # is bought.  Exit code carries the verdict so a launcher can gate on it.
+            try:
+                pr = run_wc_probe(tok, a.chip_id, phi_warm, phi_cold,
+                                  shots=a.shots or WC_PROBE_SHOTS, block=block,
+                                  exclude=excl, dump_raw=a.dump_raw,
                                   job_timeout=a.job_timeout,
                                   use_options=not a.no_options,
-                                  mapping=not a.no_mapping, verbose=True)
-            print('[cal9screen] dump %s (screen only -- no warm-vs-cold claim is '
-                  'made or implied)' % os.path.basename(scr['dump_raw']), flush=True)
-            return 0 if scr.get('block_usable') else 4
+                                  mapping=not a.no_mapping, verbose=True,
+                                  budget_remaining=a.budget_remaining,
+                                  ms_per_shot=a.ms_per_shot)
+            except BudgetError as exc:
+                print('ERROR: %s' % exc, flush=True)
+                return 3
+            record_billing(art, pr.get('billing'))
+            art['wcprobe'] = {k: v for k, v in pr.items() if k != 'gates'}
+            save_artifact(art, a.json)
+            print('[wcprobe] dump %s (one arm only -- this is a measurement of w, '
+                  'not a warm-versus-cold result)'
+                  % os.path.basename(pr.get('dump_raw') or ''), flush=True)
+            return pr.get('exit_code', 4)
         for stage in stages:
             shots = a.shots or STAGE_SHOTS[stage]
             attempts, run = [], None
@@ -5650,8 +7397,21 @@ def main(argv=None):
                                     mapping=not a.no_mapping,
                                     cal_first=a.cal_first,
                                     phi=phi_warm if stage == 'warmcold' else phi,
-                                    phi_cold=phi_cold)
+                                    phi_cold=phi_cold, dump_raw=a.dump_raw,
+                                    budget_remaining=a.budget_remaining,
+                                    ms_per_shot=a.ms_per_shot, exclude=excl)
                     break
+                except (BudgetError, NoEligibleBlock) as exc:
+                    # A refusal to SPEND is not a refusal BY the platform.  Halving
+                    # --shots would silently substitute a different stage for the
+                    # pre-registered one, and re-picking a block would defeat the
+                    # exclusion, so neither retry applies: stop, record, and say so.
+                    print('ERROR: %s' % exc, flush=True)
+                    attempts.append(dict(stage=stage, shots=shots,
+                                         error=repr(exc)[:400]))
+                    art.setdefault('refused_attempts', []).extend(attempts)
+                    save_artifact(art, a.json)
+                    return 3
                 except Exception as exc:
                     attempts.append(dict(stage=stage, shots=shots,
                                          error=repr(exc)[:400]))
@@ -5666,11 +7426,17 @@ def main(argv=None):
                           % (stage, shots, repr(exc)[:160], nxt), flush=True)
                     shots = nxt
             run['attempts'] = attempts
-            art.setdefault('runs', {})[stage] = stage_record(run)
+            record_billing(art, run.get('billing'))
+            # analyze_stage ARCHIVES the previous record for this stage (see
+            # archive_previous), so it must run before the new run record is written
+            # into art['runs'] -- the other way round it would archive the run it
+            # was given and leave the artifact with no current record at all.
             analyze_stage(stage, run['results'], run['meta'],
                           run['shots_requested'], art,
                           phi=phi_warm if stage == 'warmcold' else phi,
-                          vendor=vendor, n_boot=a.n_boot, phi_cold=phi_cold)
+                          vendor=vendor, n_boot=a.n_boot, phi_cold=phi_cold,
+                          source_dump=run['dump_raw'])
+            art.setdefault('runs', {})[stage] = stage_record(run)
             # save after EVERY stage: a quota refusal on a later one then costs
             # nothing that was already measured
             save_artifact(art, a.json)

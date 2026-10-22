@@ -244,7 +244,13 @@ def _t_hwmixedness():
     null by construction, the six-circuit job costs 252 s of the 300 s budget with
     the signal pair submitted first, and the unconditioned primary estimator is
     justified by the near-uniform ancilla marginal re-derived from the 2026-09
-    raw counts on every run."""
+    raw counts on every run;
+    (p) plan A's chip choice is code rather than a judgement call at the terminal:
+    the detection threshold is obtained by INVERTING that power model (w >= 0.0467
+    at S=2000), S* follows the budget passed in rather than the stale remainder a
+    probe carried, a probe that failed its pipeline gate is not a candidate, and
+    when neither chip clears the bar the A/B goes to the chip the 2026-10-12
+    INVALID was measured on even though the other one read a higher w."""
     import hw_mixedness as hm
     hm.setup()
     st = hm.selftests()
@@ -288,11 +294,46 @@ def _t_hwmixedness():
     assert wc['power_at_measured_w']['sigma_z'] >= 5.0, wc
     assert wc['power_at_pessimistic_w']['sigma_z'] >= 3.0, wc
     assert wc['angles'] == hm.WARMCOLD_ANGLES, wc
+    # power is a RANGE across two platforms, and the with-options end sits far below
+    # the detection bar while the no-options end sits above it.  That straddle is the
+    # fact --wc-probe exists to resolve before six circuits are bought, and it is
+    # asserted here so no future prose can quote one end as if it were the answer.
+    assert wc['power_at_with_options_w']['sigma_z'] < 1.5, wc
+    assert (wc['power_at_with_options_w']['sigma_z'] < hm.WC_PROBE_MIN_SIGMA
+            < wc['power_at_measured_w']['sigma_z']), wc
+    assert abs(wc['w_measured_2026_09']
+               - hm.w_from_p_data_zero(wc['p_data_zero_2026_09'])) < 1e-12, wc
+    assert abs(wc['w_measured_2026_10_12']
+               - hm.w_from_p_data_zero(wc['p_data_zero_2026_10_12'])) < 1e-12, wc
+    assert 5 * wc['w_measured_2026_10_12'] < wc['w_measured_2026_09'], wc
+    assert wc['probe_gate']['min_sigma'] == hm.WC_PROBE_MIN_SIGMA, wc
+    assert wc['probe_gate']['cost_s'] <= 0.1 * hm.BUDGET_S, wc
     if wc['measured_2026_09']:
         # the estimator choice is justified by data on disk, re-derived every run
         assert wc['measured_2026_09']['ancilla_entropy_bits_min'] > 3.0, wc
-        assert (wc['measured_2026_09']['data_survival_mean']
+        assert (wc['measured_2026_09']['p_data_zero_mean']
                 > 2 * hm.WARMCOLD_W_FLOOR_UNIFORM), wc
+        assert abs(wc['measured_2026_09']['p_data_zero_mean']
+                   - hm.WARMCOLD_P_DATA_ZERO_2026_09) < 5e-3, wc
+        assert abs(wc['measured_2026_09']['w_implied_mean']
+                   - hm.w_from_p_data_zero(
+                       wc['measured_2026_09']['p_data_zero_mean'])) < 1e-12, wc
+    # (p) plan A's chip rule is code, not a judgement call at the terminal: the
+    # threshold is inverted FROM the power model above, S* follows the budget ARGUMENT
+    # rather than the stale remainder each probe carried, and the bound branch goes to
+    # the chip the 2026-10-12 INVALID was measured on even when the other read higher
+    pk = st['wcpick_rule']
+    assert abs(pk['w_min_at_2000'] - 0.0467) < 2e-3, pk
+    assert pk['w_min_at_2500'] < pk['w_min_at_2000'], pk
+    assert pk['detection_chip'] == 'WK_C180', pk
+    assert pk['bound_chip'] == hm.WC_PICK_BOUND_CHIP == 'WK_C180_2', pk
+    assert pk['s_star_follows_argument'] == 2000, pk
+    assert pk['s_star_in_probe_was'] == 2500, pk
+    for _k in ('sigma_z_monotone_in_w', 'refused_probe_excluded',
+               'fallback_disclosed', 'stop_when_none_usable',
+               'stop_when_no_rung_fits', 'budget_required'):
+        assert pk[_k] is True, (_k, pk)
+
 
 
 def _t_envelope():
@@ -361,8 +402,15 @@ TESTS = [
      'sigma null and the significance-maximising block is rejected as the worst '
      'device on the chip, and the warm-vs-cold A/B that the allocation buys instead '
      'has exactly one effect branch out of sixteen (ideal gap 0.500000), a matched '
-     'null, a load-bearing psi=\'+\', a 252 s cost inside the 300 s budget, and '
-     '7.3 sigma of power at the data survival measured in 2026-09'),
+     'null, a load-bearing psi=\'+\', and a 252 s cost inside the 300 s budget.  Its '
+     'power is asserted as a RANGE, not a number: 6.1 sigma at the data survival the '
+     '2026-09 run measured without vendor options (w=0.0936), 3.7 sigma at half '
+     'that, and 1.0 sigma at the only WITH-OPTIONS survival on record (w=0.0098) -- '
+     'the straddle is why --wc-probe measures w before six circuits are bought.  '
+     'The estimator family re-derived from the frozen 2026-10-12 counts locks the '
+     'primary estimator too: no member of the nine is both >=3 sigma in the '
+     'pre-registered direction and clean on the matched null, while a single-bit '
+     'marginal reaches -17.0 sigma on a branch whose ideal gap is 3e-6'),
     ('ancilla',     _t_ancilla, True,
      'Kraus-rank ladder, five self-tests: rank(C)=1 reproduces the production '
      'unitary ceiling and rank(C)=4 the production CPTP ceiling, the Choi '

@@ -1,0 +1,218 @@
+{
+ "kind": "wcpick",
+ "budget_remaining": 391.0,
+ "ms_per_shot": 14.0,
+ "ms_per_shot_source": "pessimistic constant MS_PER_SHOT",
+ "margin_s": 30.0,
+ "n_probes": 1,
+ "refused": [],
+ "bound_chip": "WK_C180_2",
+ "rule": "QCLOUD_SETUP.md 9.7: probe both chips; detect on the higher w if it clears the 3 sigma bar at S*, else bound on WK_C180_2",
+ "winners_curse": "w must be reported from the A/B counts, not from the probe that selected the chip",
+ "usable": [
+  {
+   "chip_id": "WK_C180",
+   "block": [
+    52,
+    61,
+    62,
+    70,
+    71,
+    79,
+    80,
+    88,
+    89
+   ],
+   "w": 0.011757000163746518,
+   "w_ci": [
+    0.0004629261010073706,
+    0.026719352377098198
+   ],
+   "shots_returned": 985,
+   "verdict": "BOUND EXPERIMENT"
+  }
+ ],
+ "mode": "BOUND",
+ "exit_code": 5,
+ "chip_id": "WK_C180",
+ "block": [
+  52,
+  61,
+  62,
+  70,
+  71,
+  79,
+  80,
+  88,
+  89
+ ],
+ "s_star": 4000,
+ "w_min_for_detection": 0.030008645728230476,
+ "w_best_usable": 0.011757000163746518,
+ "best_w_chip": "WK_C180",
+ "reason": "no usable w reached the 0.0300 that the 3 sigma bar needs at S*=4000 (best was 0.0118 on WK_C180), so the A/B reports a 95% CL upper bound on w and runs on WK_C180, which is NOT WK_C180_2 because NO probe for that chip is among the 1 input(s): it was not run or did not return.  That is NOT a pipeline refusal -- `refused` is empty -- and no measurement of that chip is implied by this choice",
+ "power": {
+  "ladder": [
+   {
+    "shots_per_circuit": 1000,
+    "n_shots_total": 6000,
+    "cost_s": 84.0,
+    "cost_s_pessimistic": 84.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 0.673211204427893,
+    "sigma_z_at_w_lo95": 0.029594493803656037,
+    "sigma_pair": 0.008732036024259147,
+    "w_bound95_if_null": 0.03422955555311374
+   },
+   {
+    "shots_per_circuit": 1500,
+    "n_shots_total": 9000,
+    "cost_s": 126.0,
+    "cost_s_pessimistic": 126.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 0.8245119699864165,
+    "sigma_z_at_w_lo95": 0.03624570450745789,
+    "sigma_pair": 0.007129677558345328,
+    "w_bound95_if_null": 0.027948315075793033
+   },
+   {
+    "shots_per_circuit": 2000,
+    "n_shots_total": 12000,
+    "cost_s": 168.0,
+    "cost_s_pessimistic": 168.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 0.9520644156434523,
+    "sigma_z_at_w_lo95": 0.04185293450869689,
+    "sigma_pair": 0.006174481886318864,
+    "w_bound95_if_null": 0.024203950848608376
+   },
+   {
+    "shots_per_circuit": 2500,
+    "n_shots_total": 15000,
+    "cost_s": 210.0,
+    "cost_s_pessimistic": 210.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 1.064440376168687,
+    "sigma_z_at_w_lo95": 0.0467930033096465,
+    "sigma_pair": 0.005522624489460043,
+    "w_bound95_if_null": 0.021648671768620818
+   },
+   {
+    "shots_per_circuit": 3000,
+    "n_shots_total": 18000,
+    "cost_s": 252.0,
+    "cost_s_pessimistic": 252.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 1.1660360102937484,
+    "sigma_z_at_w_lo95": 0.05125916689221457,
+    "sigma_pair": 0.005041443349179529,
+    "w_bound95_if_null": 0.01976244311283147
+   },
+   {
+    "shots_per_circuit": 4000,
+    "n_shots_total": 24000,
+    "cost_s": 336.0,
+    "cost_s_pessimistic": 336.0,
+    "fits_remaining_budget": true,
+    "sigma_z_at_w_point": 1.346422408855786,
+    "sigma_z_at_w_lo95": 0.059188987607312074,
+    "sigma_pair": 0.0043660180121295735,
+    "w_bound95_if_null": 0.01711477777655687
+   },
+   {
+    "shots_per_circuit": 5000,
+    "n_shots_total": 30000,
+    "cost_s": 420.0,
+    "cost_s_pessimistic": 420.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 1.505346016315276,
+    "sigma_z_at_w_lo95": 0.0661752999046712,
+    "sigma_pair": 0.0039050852264440913,
+    "w_bound95_if_null": 0.015307922611273549
+   },
+   {
+    "shots_per_circuit": 6000,
+    "n_shots_total": 36000,
+    "cost_s": 504.0,
+    "cost_s_pessimistic": 504.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 1.649023939972833,
+    "sigma_z_at_w_lo95": 0.07249140901491578,
+    "sigma_pair": 0.003564838779172664,
+    "w_bound95_if_null": 0.013974157537896516
+   },
+   {
+    "shots_per_circuit": 8000,
+    "n_shots_total": 48000,
+    "cost_s": 672.0,
+    "cost_s_pessimistic": 672.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 1.9041288312869047,
+    "sigma_z_at_w_lo95": 0.08370586901739378,
+    "sigma_pair": 0.003087240943159432,
+    "w_bound95_if_null": 0.012101975424304188
+   },
+   {
+    "shots_per_circuit": 10000,
+    "n_shots_total": 60000,
+    "cost_s": 840.0,
+    "cost_s_pessimistic": 840.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 2.128880752337374,
+    "sigma_z_at_w_lo95": 0.093586006619293,
+    "sigma_pair": 0.0027613122447300215,
+    "w_bound95_if_null": 0.010824335884310409
+   },
+   {
+    "shots_per_circuit": 12000,
+    "n_shots_total": 72000,
+    "cost_s": 1008.0,
+    "cost_s_pessimistic": 1008.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 2.3320720205874967,
+    "sigma_z_at_w_lo95": 0.10251833378442914,
+    "sigma_pair": 0.0025207216745897643,
+    "w_bound95_if_null": 0.009881221556415735
+   },
+   {
+    "shots_per_circuit": 15000,
+    "n_shots_total": 90000,
+    "cost_s": 1260.0,
+    "cost_s_pessimistic": 1260.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 2.607335783229466,
+    "sigma_z_at_w_lo95": 0.11461898164099843,
+    "sigma_pair": 0.002254602006695927,
+    "w_bound95_if_null": 0.008838033240352743
+   },
+   {
+    "shots_per_circuit": 20000,
+    "n_shots_total": 120000,
+    "cost_s": 1680.0,
+    "cost_s_pessimistic": 1680.0,
+    "fits_remaining_budget": false,
+    "sigma_z_at_w_point": 3.010692032630552,
+    "sigma_z_at_w_lo95": 0.1323505998093424,
+    "sigma_pair": 0.0019525426132220457,
+    "w_bound95_if_null": 0.0076539613056367745
+   }
+  ],
+  "n_circuits_in_ab": 6,
+  "ms_per_shot": 14.0,
+  "ms_per_shot_source": "pessimistic constant MS_PER_SHOT",
+  "budget_remaining_after": 391.0,
+  "margin_s": 30.0,
+  "s_star": 4000,
+  "sigma_z_at_s_star": 1.346422408855786,
+  "w_bound95_at_s_star": 0.01711477777655687,
+  "min_sigma": 3.0,
+  "detection_affordable": false
+ },
+ "chosen_w": 0.011757000163746518,
+ "chosen_w_ci": [
+  0.0004629261010073706,
+  0.026719352377098198
+ ],
+ "chosen_probe_shots": 985,
+ "chosen_dump_raw": "/home/yqc/github/QEC/qcloud_raw_wcprobe_WK_C180_20261015T142737Z.json"
+}

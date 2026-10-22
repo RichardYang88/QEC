@@ -19,6 +19,13 @@ build/
 # TRACKED; gitignore does not untrack them.  `git rm --cached *.log` happens in
 # the pre-archive repository cleanup, not here.
 *.log
+# ... EXCEPT the hardware run logs.  They are the only record of what a paid
+# submission actually did: the wall time, the shots returned per chunk, the
+# dashboard readings that bracket it and the verdict printed at the time.  The
+# manuscript's hardware section quotes them, so they are evidence and are tracked.
+!hw_evidence/
+!hw_evidence/*.log
+!hw_evidence/*.txt
 .env
 .originq_token
 # never let a credentials file be committed under any name

@@ -1,0 +1,499 @@
+{
+ "attempted_utc": "2026-10-14T16:48:47Z",
+ "chip_ids": [
+  "WK_C180",
+  "WK_C180_2"
+ ],
+ "spends_qpu_time": false,
+ "backends": [
+  {
+   "HanYuan_01": false,
+   "PQPUMESH8": true,
+   "WK_C180": true,
+   "WK_C180_2": true,
+   "WK_C180_3": true,
+   "full_amplitude": true,
+   "partial_amplitude": true,
+   "single_amplitude": true
+  }
+ ],
+ "blocks": {
+  "WK_C180|5": [
+   [
+    13,
+    14,
+    22,
+    23,
+    32
+   ]
+  ],
+  "WK_C180|9": [
+   [
+    52,
+    61,
+    62,
+    70,
+    71,
+    79,
+    80,
+    88,
+    89
+   ]
+  ],
+  "WK_C180_2|5": [
+   [
+    39,
+    48,
+    49,
+    58,
+    67
+   ]
+  ],
+  "WK_C180_2|9": [
+   [
+    39,
+    48,
+    49,
+    57,
+    58,
+    66,
+    67,
+    75,
+    85
+   ]
+  ]
+ },
+ "calibration": {
+  "WK_C180": {
+   "attempted_utc": "2026-10-14T16:48:49Z",
+   "chip_id": "WK_C180",
+   "block": [
+    52,
+    61,
+    62,
+    70,
+    71,
+    79,
+    80,
+    88,
+    89
+   ],
+   "block_source": "live best_qubit_blocks(9)",
+   "available": true,
+   "spends_qpu_time": false,
+   "single_gate_timing_ns": 40,
+   "double_gate_timing_ns": 40,
+   "basic_gates": [
+    "RPhi",
+    "CZ"
+   ],
+   "qubits_num": 180,
+   "qubits_calibrated": 166,
+   "qubit_id_range": [
+    0,
+    179
+   ],
+   "block_qubits": {
+    "52": {
+     "readout_fidelity": 0.9718,
+     "single_gate_fidelity": 0.9992,
+     "t1_us": 45.905,
+     "t2_us": 9.42,
+     "frequency_hz": 5413.673
+    },
+    "61": {
+     "readout_fidelity": 0.9687,
+     "single_gate_fidelity": 0.9989,
+     "t1_us": 18.629,
+     "t2_us": 2.266,
+     "frequency_hz": 4989.896
+    },
+    "62": {
+     "readout_fidelity": 0.9652,
+     "single_gate_fidelity": 0.9978,
+     "t1_us": 25.57,
+     "t2_us": 3.214,
+     "frequency_hz": 4911.205
+    },
+    "70": {
+     "readout_fidelity": 0.8565,
+     "single_gate_fidelity": 0.9988,
+     "t1_us": 36.738,
+     "t2_us": 4.248,
+     "frequency_hz": 5323.044
+    },
+    "71": {
+     "readout_fidelity": 0.7295,
+     "single_gate_fidelity": 0.9987,
+     "t1_us": 39.832,
+     "t2_us": 4.739,
+     "frequency_hz": 4838.366
+    },
+    "79": {
+     "readout_fidelity": 0.9497,
+     "single_gate_fidelity": 0.9978,
+     "t1_us": 69.054,
+     "t2_us": 4.156,
+     "frequency_hz": 4865.005
+    },
+    "80": {
+     "readout_fidelity": 0.9883,
+     "single_gate_fidelity": 0.9984,
+     "t1_us": 37.525,
+     "t2_us": 3.572,
+     "frequency_hz": 5296.29
+    },
+    "88": {
+     "readout_fidelity": 0.9851,
+     "single_gate_fidelity": 0.9985,
+     "t1_us": 24.933,
+     "t2_us": 4.025,
+     "frequency_hz": 5244.893
+    },
+    "89": {
+     "readout_fidelity": 0.9684,
+     "single_gate_fidelity": 0.9985,
+     "t1_us": 44.262,
+     "t2_us": 3.891,
+     "frequency_hz": 5048.655
+    }
+   },
+   "block_edges": {
+    "79-88": 0.9816,
+    "79-89": 0.9904,
+    "80-89": 0.986,
+    "52-61": 0.9787,
+    "61-70": 0.9974,
+    "61-71": 0.9877,
+    "62-71": 0.9797,
+    "70-79": 0.9654,
+    "71-80": 0.9772
+   },
+   "block_matches_chip": true
+  },
+  "WK_C180_2": {
+   "attempted_utc": "2026-10-14T16:48:50Z",
+   "chip_id": "WK_C180_2",
+   "block": [
+    39,
+    48,
+    49,
+    57,
+    58,
+    66,
+    67,
+    75,
+    85
+   ],
+   "block_source": "live best_qubit_blocks(9)",
+   "available": true,
+   "spends_qpu_time": false,
+   "single_gate_timing_ns": 30,
+   "double_gate_timing_ns": 40,
+   "basic_gates": [
+    "RPhi",
+    "CZ"
+   ],
+   "qubits_num": 180,
+   "qubits_calibrated": 17,
+   "qubit_id_range": [
+    39,
+    86
+   ],
+   "block_qubits": {
+    "39": {
+     "readout_fidelity": 0.9687,
+     "single_gate_fidelity": 0.9986,
+     "t1_us": 32.173,
+     "t2_us": 2.136,
+     "frequency_hz": 5067.203
+    },
+    "48": {
+     "readout_fidelity": 0.9661,
+     "single_gate_fidelity": 0.9994,
+     "t1_us": 36.468,
+     "t2_us": 6.157,
+     "frequency_hz": 5235.582
+    },
+    "49": {
+     "readout_fidelity": 0.9473,
+     "single_gate_fidelity": 0.9993,
+     "t1_us": 33.812,
+     "t2_us": 2.976,
+     "frequency_hz": 5196.946
+    },
+    "57": {
+     "readout_fidelity": 0.9381,
+     "single_gate_fidelity": 0.9979,
+     "t1_us": 48.36,
+     "t2_us": 3.987,
+     "frequency_hz": 5180.71
+    },
+    "58": {
+     "readout_fidelity": 0.9228,
+     "single_gate_fidelity": 0.9995,
+     "t1_us": 41.632,
+     "t2_us": 8.894,
+     "frequency_hz": 5453.947
+    },
+    "66": {
+     "readout_fidelity": 0.9014,
+     "single_gate_fidelity": 0.9988,
+     "t1_us": 19.197,
+     "t2_us": 6.111,
+     "frequency_hz": 4821.464
+    },
+    "67": {
+     "readout_fidelity": 0.9499,
+     "single_gate_fidelity": 0.9993,
+     "t1_us": 48.249,
+     "t2_us": 5.308,
+     "frequency_hz": 5307.555
+    },
+    "75": {
+     "readout_fidelity": 0.9547,
+     "single_gate_fidelity": 0.9984,
+     "t1_us": 14.545,
+     "t2_us": 3.795,
+     "frequency_hz": 5404.668
+    },
+    "85": {
+     "readout_fidelity": 0.9612,
+     "single_gate_fidelity": 0.9994,
+     "t1_us": 32.986,
+     "t2_us": 3.652,
+     "frequency_hz": 5353.781
+    }
+   },
+   "block_edges": {
+    "57-66": 0.9841,
+    "66-75": 0.9835,
+    "57-67": 0.9894,
+    "58-67": 0.9977,
+    "48-57": 0.9814,
+    "49-58": 0.9875,
+    "39-48": 0.9922,
+    "39-49": 0.9936,
+    "75-85": 0.9896
+   },
+   "block_matches_chip": true
+  }
+ },
+ "measured_block": {
+  "WK_C180": {
+   "chip_id": "WK_C180",
+   "block": [
+    13,
+    14,
+    22,
+    23,
+    32
+   ],
+   "shots": 1000,
+   "attempted_utc": "2026-10-14T16:48:50Z",
+   "available": true,
+   "chip_info": {
+    "qubits_num": 180,
+    "single_gate_timing_ns": 40,
+    "double_gate_timing_ns": 40,
+    "basic_gates": [
+     "RPhi",
+     "CZ"
+    ],
+    "n_qubits_calibrated": 166,
+    "n_edges_calibrated": 168
+   },
+   "per_qubit": {
+    "13": {
+     "readout_fidelity": 0.9576,
+     "single_gate_fidelity": 0.9984,
+     "t1_us": 29.056,
+     "t2_us": 1.611,
+     "frequency_hz": 5043.17
+    },
+    "14": {
+     "readout_fidelity": 0.9429,
+     "single_gate_fidelity": 0.9992,
+     "t1_us": 26.161,
+     "t2_us": 3.897,
+     "frequency_hz": 4779.922
+    },
+    "22": {
+     "readout_fidelity": 0.9082,
+     "single_gate_fidelity": 0.9991,
+     "t1_us": 35.383,
+     "t2_us": 6.2,
+     "frequency_hz": 4869.185
+    },
+    "23": {
+     "readout_fidelity": 0.9642,
+     "single_gate_fidelity": 0.9989,
+     "t1_us": 11.097,
+     "t2_us": 3.303,
+     "frequency_hz": 5229.112
+    },
+    "32": {
+     "readout_fidelity": 0.9716,
+     "single_gate_fidelity": 0.9988,
+     "t1_us": 17.95,
+     "t2_us": 6.778,
+     "frequency_hz": 5365.254
+    }
+   },
+   "edges": {
+    "13-22": 0.9565,
+    "14-23": 0.985,
+    "22-32": 0.971,
+    "23-32": 0.9787
+   },
+   "connected": true,
+   "n_edges": 4,
+   "f1q": 0.99888,
+   "f2q": 0.9728,
+   "fread": 0.9489000000000001,
+   "measured_prediction": {
+    "f1q": 0.99888,
+    "f2q": 0.9728,
+    "fread": 0.9489000000000001,
+    "rounds": 1,
+    "n_instructions": 72,
+    "n_cnot": 36,
+    "two_qubit_survival": 0.3705512046067701,
+    "codespace_weight": 0.19634363158093252,
+    "radius": 0.7057353132420592,
+    "radius_as_measured": 0.6336091642287208,
+    "logical_contrast": 0.8978000000000002,
+    "codespace_bits_all_read_correct": 0.8107403470936644,
+    "combined_signal": 0.5136925137285198
+   },
+   "quoted_prediction": {
+    "f1q": 0.9993,
+    "f2q": 0.9831,
+    "fread": 0.9612,
+    "rounds": 1,
+    "n_instructions": 72,
+    "n_cnot": 36,
+    "two_qubit_survival": 0.5413985143293153,
+    "codespace_weight": 0.3396203470817551,
+    "radius": 0.8550284420015775,
+    "radius_as_measured": 0.7886782349022552,
+    "logical_contrast": 0.9224000000000001,
+    "codespace_bits_all_read_correct": 0.8536012620615938,
+    "combined_signal": 0.6732167366730751
+   },
+   "codespace_survival": 0.8107403470936644,
+   "n_effective_shots": 810.7403470936644,
+   "ci_half_width": 0.08773769042702165,
+   "sigma_r_below_1": 3.353914210936564,
+   "sigma_if_quoted_table_were_true": 1.6523293158600614
+  },
+  "WK_C180_2": {
+   "chip_id": "WK_C180_2",
+   "block": [
+    39,
+    48,
+    49,
+    58,
+    67
+   ],
+   "shots": 1000,
+   "attempted_utc": "2026-10-14T16:48:51Z",
+   "available": true,
+   "chip_info": {
+    "qubits_num": 180,
+    "single_gate_timing_ns": 30,
+    "double_gate_timing_ns": 40,
+    "basic_gates": [
+     "RPhi",
+     "CZ"
+    ],
+    "n_qubits_calibrated": 17,
+    "n_edges_calibrated": 20
+   },
+   "per_qubit": {
+    "39": {
+     "readout_fidelity": 0.9687,
+     "single_gate_fidelity": 0.9986,
+     "t1_us": 32.173,
+     "t2_us": 2.136,
+     "frequency_hz": 5067.203
+    },
+    "48": {
+     "readout_fidelity": 0.9661,
+     "single_gate_fidelity": 0.9994,
+     "t1_us": 36.468,
+     "t2_us": 6.157,
+     "frequency_hz": 5235.582
+    },
+    "49": {
+     "readout_fidelity": 0.9473,
+     "single_gate_fidelity": 0.9993,
+     "t1_us": 33.812,
+     "t2_us": 2.976,
+     "frequency_hz": 5196.946
+    },
+    "58": {
+     "readout_fidelity": 0.9228,
+     "single_gate_fidelity": 0.9995,
+     "t1_us": 41.632,
+     "t2_us": 8.894,
+     "frequency_hz": 5453.947
+    },
+    "67": {
+     "readout_fidelity": 0.9499,
+     "single_gate_fidelity": 0.9993,
+     "t1_us": 48.249,
+     "t2_us": 5.308,
+     "frequency_hz": 5307.555
+    }
+   },
+   "edges": {
+    "39-48": 0.9922,
+    "39-49": 0.9936,
+    "49-58": 0.9875,
+    "58-67": 0.9977
+   },
+   "connected": true,
+   "n_edges": 4,
+   "f1q": 0.99922,
+   "f2q": 0.99275,
+   "fread": 0.95096,
+   "measured_prediction": {
+    "f1q": 0.99922,
+    "f2q": 0.99275,
+    "fread": 0.95096,
+    "rounds": 1,
+    "n_instructions": 72,
+    "n_cnot": 36,
+    "two_qubit_survival": 0.7695489438766391,
+    "codespace_weight": 0.6087183205358915,
+    "radius": 0.9478373963880861,
+    "radius_as_measured": 0.8548735045503426,
+    "logical_contrast": 0.90192,
+    "codespace_bits_all_read_correct": 0.8178035638268463,
+    "combined_signal": 0.6991185986424159
+   },
+   "quoted_prediction": {
+    "f1q": 0.9993,
+    "f2q": 0.9831,
+    "fread": 0.9612,
+    "rounds": 1,
+    "n_instructions": 72,
+    "n_cnot": 36,
+    "two_qubit_survival": 0.5413985143293153,
+    "codespace_weight": 0.3396203470817551,
+    "radius": 0.8550284420015775,
+    "radius_as_measured": 0.7886782349022552,
+    "logical_contrast": 0.9224000000000001,
+    "codespace_bits_all_read_correct": 0.8536012620615938,
+    "combined_signal": 0.6732167366730751
+   },
+   "codespace_survival": 0.8178035638268463,
+   "n_effective_shots": 817.8035638268462,
+   "ci_half_width": 0.08735798175309292,
+   "sigma_r_below_1": 0.5971131952126071,
+   "sigma_if_quoted_table_were_true": 1.6595113015335865
+  }
+ },
+ "errors": []
+}

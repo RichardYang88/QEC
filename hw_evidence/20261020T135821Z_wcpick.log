@@ -1,0 +1,15 @@
+# launch_mixedness.sh wcpick  (FREE: no submission, no token read)
+# utc=20261020T135821Z budget_after_probes=389.136s ms_per_shot=0.373
+# probes=qcloud_raw_wcprobe_WK_C180_20261015T142737Z.json.probe.json qcloud_raw_wcprobe_WK_C180_2_20261015T150408Z.json.probe.json
+# rule=QCLOUD_SETUP.md 9.7 (declared before the probes were bought)
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[wcpick] 2 probe(s) read; budget 389.1 s at 0.373 ms/shot (dashboard-measured); 30 s held back as cut-off margin
+[wcpick]   usable  WK_C180     block=[52, 61, 62, 70, 71, 79, 80, 88, 89]  w=+0.0118 [+0.0005, +0.0267] from 985 shots  BOUND EXPERIMENT
+[wcpick]   usable  WK_C180_2   block=[39, 48, 49, 57, 58, 66, 67, 75, 85]  w=+0.0169 [+0.0049, +0.0325] from 987 shots  BOUND EXPERIMENT
+[wcpick] detection needs w >= 0.0117 at S*=20000 for the 3 sigma bar; best usable w=0.0169 on WK_C180_2 clears the 3 sigma bar at S*=20000, which needs w>=0.0117, so the A/B is a DETECTION experiment there
+[wcpick] VERDICT: DETECTION on chip=WK_C180_2 block=[39, 48, 49, 57, 58, 66, 67, 75, 85] at S*=20000 shots/circuit (6 circuits = 44.8 s, 344.4 s left after, z=4.15 at the probe's w, w < 0.0080 at 95% CL if it comes back null)
+[wcpick]   w must be reported from the A/B counts, not from the probe that selected the chip
+[wcpick] next: screen THIS chip first (2 circuits x 1000 shots = 0.7 s), then submit the A/B with
+  CHIP=WK_C180_2 BUDGET=<post-screen reading> MSPS=0.373 SHOTS=20000 \
+      bash launch_mixedness.sh warmcold
+[out] /home/yqc/github/QEC/hw_evidence/20261020T135822Z_wcpick.json  (the decision record.  It is NOT written into hw_mixedness.json: the artifact holds the measurements the manuscript quotes, not the routing decision made between two of them.)

@@ -1,0 +1,39 @@
+{
+ "block": [
+  39,
+  48,
+  49,
+  57,
+  58,
+  66,
+  67,
+  75,
+  85
+ ],
+ "chip_id": "WK_C180_2",
+ "instruction_counts": [
+  206
+ ],
+ "kinds": [
+  "warmcold"
+ ],
+ "mapping": true,
+ "meta": [
+  {
+   "angles": "vscr_angles_paper_dep.npz",
+   "arm": "warm",
+   "frame": "IZIII",
+   "kind": "warmcold",
+   "measure": "late",
+   "p": 0.0,
+   "psi": "+",
+   "role": "signal",
+   "s": 5
+  }
+ ],
+ "n_circuits": 1,
+ "shots": 1000,
+ "stage": "wcprobe",
+ "use_options": true,
+ "written_utc": "2026-10-15T15:04:08Z"
+}
