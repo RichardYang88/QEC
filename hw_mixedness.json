@@ -89,7 +89,7 @@
   "python": "3.11.15",
   "numpy": "2.4.6"
  },
- "updated_utc": "2026-10-21T14:55:32Z",
+ "updated_utc": "2026-10-22T15:50:40Z",
  "warmcold_dry_run": {
   "shots": 4000,
   "spends_qpu_time": false,
@@ -748,6 +748,23 @@
    "budget_remaining_after": 165.45600000000002,
    "margin_s": 30.0,
    "utc": "20261021T010404Z"
+  },
+  {
+   "kind": "settlement",
+   "settles": "stage warmcold 2026-10-21 WK_C180_2",
+   "n_shots": 120000,
+   "ms_per_shot": 0.309,
+   "ms_per_shot_source": "dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.",
+   "cost_s": 37.074,
+   "cost_s_pessimistic": 1680.0,
+   "budget_remaining_before": 389.136,
+   "budget_remaining_after": 352.062,
+   "margin_s": 30.0,
+   "reserved_at_submission_s": 223.68,
+   "reserved_ms_per_shot": 1.864,
+   "refund_s": 186.606,
+   "utc": "20261022T155040Z",
+   "note": "Releases the difference between what the warmcold submission RESERVED at its pre-flight rate (1.864 ms/shot -> 223.68 s) and what the vendor actually BILLED (37.074 s over the same 120 000 shots, i.e. 0.3090 ms/shot).  The reservation is left on the ledger above because it is what the submission was gated on; this entry is the settlement of it.  Dashboard readings: 389.136 s before (2026-10-21T01:04Z, at submission) and 352.062 s after (2026-10-21T14:36Z, all 3 submissions FINISHED, 6/6 circuits returned, so the shot denominator is certain).  Without this entry a future check_budget() reading the ledger would see 165.456 s and refuse work the account can pay for."
   }
  ],
  "wcprobe": {

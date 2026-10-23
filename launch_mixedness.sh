@@ -143,9 +143,9 @@
 # selftest (k) asserts both the direction of the correction and the rejection.
 cd /home/yqc/github/QEC
 CHIP=${CHIP:-WK_C180_2}
-STAGE=${1:?"usage: bash launch_mixedness.sh {screen|wcprobe|wcpick|warmcold|tomo|probe|bench|ladder}"}
+STAGE=${1:?"usage: bash launch_mixedness.sh {screen|wcprobe|wcpick|warmcold|suppl|tomo|probe|bench|ladder}"}
 case "$STAGE" in
-  screen|wcprobe|wcpick|warmcold|probe|tomo|bench|ladder) ;;
+  screen|wcprobe|wcpick|warmcold|suppl|probe|tomo|bench|ladder) ;;
   *) echo "unknown stage '$STAGE' (there is deliberately no 'all': see 8.3)"; exit 2 ;;
 esac
 # THE BUDGET IS AN INPUT, NOT A GUESS.  QPU time is billed in real time, a job
@@ -158,7 +158,7 @@ BUDGET=${BUDGET:?"BUDGET=<seconds left on the OriginQ dashboard> is required -- 
 # the block they land on.  The widths are STAGE_NQ in hw_mixedness.py.  Guard it
 # here so the mistake is caught before it costs QPU time instead of after.
 NQ_STAGE=5
-case "$STAGE" in screen|wcprobe|warmcold|bench) NQ_STAGE=9 ;; esac
+case "$STAGE" in screen|wcprobe|warmcold|bench|suppl) NQ_STAGE=9 ;; esac
 if [ -n "$BLOCK" ]; then
   NQ_BLOCK=$(echo "$BLOCK" | tr ',' '\n' | grep -c .)
   if [ "$NQ_BLOCK" -ne "$NQ_STAGE" ]; then
@@ -264,6 +264,34 @@ case "$STAGE" in
     # calibration pair first is what lets a budget cut-off still leave the block's
     # readout screen on disk.  CAL_FIRST=0 reproduces the 2026-10-12 order.
     [ "${CAL_FIRST:-1}" = "1" ] && GATE_ARG="--cal-first" ;;
+  suppl)
+    # The psi='0' reproduction of the 2026-09 feasibility set (see the SUPPL_GRID
+    # comment).  It carries NO gate argument and deliberately no in-job cal9:
+    # billing is per SHOT rather than per instruction, so two calibration circuits
+    # inside a 20 000-shot submission cost 40 000 shots -- which is exactly what
+    # the 2026-10-21 A/B spent a third of its budget on.  Run `screen` first as its
+    # own 1 000-shot submission (0.6 s at the measured rate) and only buy this if
+    # it passes:
+    #   CHIP=<chip> BUDGET=<s> MSPS=0.309 bash launch_mixedness.sh screen
+    #   CHIP=<chip> BUDGET=<s> MSPS=0.309 bash launch_mixedness.sh suppl
+    # MSPS is REQUIRED here.  At the falsified 14 ms/shot default this stage prices
+    # at 1 120 s and the budget gate refuses it; at the measured 0.3090 ms/shot it
+    # is 24.7 s.  selftest (q) and `--mode sample --stage suppl` must both pass
+    # before this is bought.
+    #
+    # BLOCK IS LOAD-BEARING FOR THIS STAGE, unlike every other one.  best_qubit_blocks(9)
+    # returns exactly ONE block per chip (all four preflight records agree:
+    # WK_C180 -> [52,61,62,70,71,79,80,88,89], WK_C180_2 -> [39,48,49,57,58,66,67,75,85]),
+    # but the 2026-09 feasibility run whose numbers this stage reproduces ran on
+    # WK_C180 block [147,155,157,164,165,166,174,175,176] -- a DIFFERENT physical
+    # block on the same chip.  Running only on the ranked block would control psi
+    # and leave block confounded, so the reproduction is bought on the September
+    # block explicitly and the ranked block is run beside it as a within-chip
+    # contrast.  Run `screen` on that block FIRST: it is 0.62 s, and it is the only
+    # offline-unanswerable question here -- whether the platform still accepts a
+    # block its own ranking no longer returns.  An explicit --block bypasses
+    # resolve_block entirely, so nothing validates it before the job does.
+    ;;
 esac
 # Logs are EVIDENCE and hw_evidence/ is TRACKED (see .gitignore): the wall time, the
 # per-chunk returns, the dashboard readings that bracket the spend and the verdict
@@ -324,8 +352,8 @@ echo "# timestamped dump named in the log (the legacy names are frozen evidence)
 # re-analyse it in the one way that could not work.
 CF_HINT=""
 [ "${CAL_FIRST:-1}" = "1" ] && [ "$STAGE" = "warmcold" ] && CF_HINT=" --cal-first"
-echo "#   ./qenv/bin/python hw_mixedness.py --mode analyze --stage warmcold${CF_HINT} \\"
-echo "#       --dump-raw <the qcloud_raw_warmcold_${CHIP}_*.json this run wrote>"
+echo "#   ./qenv/bin/python hw_mixedness.py --mode analyze --stage ${PY_STAGE}${CF_HINT} \\"
+echo "#       --dump-raw <the qcloud_raw_${PY_STAGE}_${CHIP}_*.json this run wrote>"
 # An if-block, not `[ ... ] && echo`, because this is the LAST command in the
 # script: a short-circuited && would make the launcher exit 1 whenever CAL_FIRST=0,
 # and a caller that checks $? would read a successful submission as a failure.

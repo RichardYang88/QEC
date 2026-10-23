@@ -203,7 +203,7 @@ IDEAL_BLOCH = {'0': (0.0, 0.0, 1.0), '1': (0.0, 0.0, -1.0),
 BASIS_AXIS = {'X': 0, 'Y': 1, 'Z': 2}   # which Bloch component basis B reads
 
 STAGE_SHOTS = {'probe': 300, 'tomo': 1000, 'bench': 2000, 'ladder': 4000,
-               'warmcold': 3000}
+               'warmcold': 3000, 'suppl': 20000}
 # THE COST MODEL IS NOW MEASURED, NOT HYPOTHESISED.  The account holder confirmed
 # (2026-10) that QPU time is billed in real time, that exhausting it immediately
 # disables the account, and that a job CANNOT overrun its allocation.  So the
@@ -253,7 +253,12 @@ QPU_REFUSAL_MARKERS = ('qpu time', 'insufficient', 'not enough', 'quota')
 # analyze_tomo requires all three bases of a state to report that state's radius,
 # and all four states for M2, so a state-grouped order means no chunk boundary can
 # leave a half-measured state behind.  3 is the finest chunking with that property.
-STAGE_CHUNK = {'probe': 8, 'tomo': 3, 'bench': 4, 'ladder': 4, 'warmcold': 2}
+STAGE_CHUNK = {'probe': 8, 'tomo': 3, 'bench': 4, 'ladder': 4, 'warmcold': 2,
+               # suppl: chunk 1 = the two LATE circuits (the decisive S1 pair that
+               # reproduces the 2026-09 device point), chunk 2 = the two MID ones
+               # (the S2 re-test of "dead mid-circuit measurement").  A cut-off
+               # therefore costs the re-test, never the reproduction.
+               'suppl': 2}
 # Order the depth-1 tomography by input state so |0>_L -- the state the paper's
 # headline mixedness number is about, and the one whose Z circuit M3 needs -- is
 # measured first and survives a kill that happens later.
@@ -292,6 +297,57 @@ MS_PER_SHOT = 14.0
 # remaining-QPU-time figure before and after the first chunk.  Until then the
 # conservative constant stands and the margin it leaves is the point.
 MS_PER_SHOT_WALL_OBSERVED_2026_09 = 1.0
+
+# --- THE RATE IS NOW MEASURED.  The 14 ms/shot above is FALSIFIED by 45x. -------
+# The note directly above this line said the multiplier between wall and billed
+# time was UNVERIFIED and that "the cheapest way to settle it is to read the
+# account's own remaining-QPU-time figure before and after the first chunk."
+# That has now been done, three independent times, on two chips, and the answer
+# is the same each time within a factor of three:
+#
+#   date        chip        shots      dashboard delta   ms/shot   denominator
+#   2026-10-15  WK_C180       1 000     ~14 s reserved    --       (reserved at 14.0, never settled)
+#   2026-10-15  WK_C180_2     1 000     0.373-0.621 s    0.373-0.621  attribution RANGE (two probes shared a window)
+#   2026-10-21  WK_C180_2   120 000     37.074 s         0.3090   CERTAIN: 389.136 -> 352.062 over
+#                                                                   6/6 FINISHED circuits, so the shot
+#                                                                   denominator is not in doubt
+#
+# The 0.3090 figure is the one to plan with: it is the only reading whose shot
+# denominator is certain, and it is the LARGEST sample by 120x.  14.0 is retained
+# above under its own name purely as the historical pessimistic bound that
+# check_budget() still defaults to, so that an offline cost printed without
+# --ms-per-shot remains an upper bound rather than silently becoming an estimate.
+# Nothing should read 14.0 as a live figure any more.
+MS_PER_SHOT_MEASURED = 0.3090
+MS_PER_SHOT_MEASURED_PROVENANCE = (
+    'dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, '
+    '2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits '
+    'returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 '
+    'by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger '
+    'and is retained only as a historical upper bound.')
+
+
+def ms_per_shot_source_label(ms_per_shot):
+    """An honest provenance string for a billing rate.
+
+    The label used to be a two-way branch on `ms_per_shot is None`, which stamped
+    'dashboard-measured' onto ANY explicitly passed value -- including 14.0, the
+    assumed constant nobody had measured.  That is how probe A of 2026-10-15 came
+    to record the pessimistic constant as a dashboard reading, and the value drove
+    that record's BOUND verdict.  A rate's provenance is a fact about where the
+    number came from, not about whether the caller bothered to pass it, so it is
+    resolved by VALUE against the constants this module actually owns."""
+    if ms_per_shot is None:
+        return ('pessimistic constant MS_PER_SHOT=%.1f (assumed, FALSIFIED by '
+                '%.0fx; NOT a dashboard reading)'
+                % (MS_PER_SHOT, MS_PER_SHOT / MS_PER_SHOT_MEASURED))
+    ms = float(ms_per_shot)
+    if ms == MS_PER_SHOT:
+        return ('explicit value equal to the pessimistic constant MS_PER_SHOT=%.1f'
+                '; NOT a dashboard reading' % MS_PER_SHOT)
+    if abs(ms - MS_PER_SHOT_MEASURED) < 1e-9:
+        return 'dashboard-measured 2026-10-21: %s' % MS_PER_SHOT_MEASURED_PROVENANCE
+    return 'caller-supplied dashboard delta (%.4f ms/shot)' % ms
 
 # --- measured calibration of the block the vendor's own optimiser picks ---------
 # Recorded from the FREE preflight of 2026-10-11T01:00:25Z on WK_C180_2 -- the
@@ -383,12 +439,13 @@ BLOCK_SELECTION_RULE = ('vendor best_qubit_blocks(nq); never ranked by the '
 SEED_BANK = (20260921, 11, 202, 3003, 40004, 777777, 5, 606, 8080, 91,
              1234, 24680, 13579, 99991, 424242, 8888)
 STAGE_NQ = {'probe': NQ5, 'tomo': NQ5, 'bench': q.NQ, 'ladder': NQ5,
-            'warmcold': q.NQ}
+            'warmcold': q.NQ, 'suppl': q.NQ}
 STAGE_RAW = {'probe': 'qcloud_raw_probe.json',
              'tomo': 'qcloud_raw_mixedness.json',
              'bench': 'qcloud_raw_bench.json',
              'ladder': 'qcloud_raw_ladder.json',
-             'warmcold': 'qcloud_raw_warmcold.json'}
+             'warmcold': 'qcloud_raw_warmcold.json',
+             'suppl': 'qcloud_raw_suppl.json'}
 # The ladder stage re-runs the DEPTH_SCAN grid at deeper rounds, so the measured
 # radius becomes a curve in depth rather than two points.  rounds=4 is 293
 # instructions / 144 CNOT and rounds=8 is 581 / 288 (both verified constructible);
@@ -400,7 +457,8 @@ LADDER_ROUNDS = (4,)
 # 5-qubit stages and the 9-qubit bench necessarily use different blocks (a
 # submission has one block), and which two were used is recorded in the artifact
 # rather than assumed to be comparable.
-STAGE_JOB = {'probe': 1, 'tomo': 2, 'bench': 3, 'ladder': 4, 'warmcold': 5}
+STAGE_JOB = {'probe': 1, 'tomo': 2, 'bench': 3, 'ladder': 4, 'warmcold': 5,
+             'suppl': 6}
 # the bench stage reuses the frame the WK_C180 feasibility run used, so the new
 # full-branch point and the old 4-circuit point are the same physical situation
 BENCH_FRAME = 'IIIII'
@@ -528,7 +586,8 @@ def check_budget(kind, n_shots, budget_remaining, ms_per_shot=None,
         print('[budget] %s: %d shots = %.1f s at %.3f ms/shot%s; %.1f s remain, '
               '%.0f s margin held back -> %.1f s left after this submission'
               % (kind, n_shots, c, ms,
-                 '' if ms_per_shot is None else ' (dashboard-measured)',
+                 '' if ms_per_shot is None
+                 else ' (%s)' % ms_per_shot_source_label(ms_per_shot).split(';')[0],
                  float(budget_remaining), margin_s, allowed - c), flush=True)
         if c_pes > allowed:
             print('[budget] WARNING: at the pessimistic %.0f ms/shot this same '
@@ -538,8 +597,7 @@ def check_budget(kind, n_shots, budget_remaining, ms_per_shot=None,
                   'completed chunks survive on disk.'
                   % (MS_PER_SHOT, c_pes), flush=True)
     return dict(kind=kind, n_shots=int(n_shots), ms_per_shot=ms,
-                ms_per_shot_source=('dashboard-measured' if ms_per_shot is not None
-                                    else 'pessimistic constant MS_PER_SHOT'),
+                ms_per_shot_source=ms_per_shot_source_label(ms_per_shot),
                 cost_s=c, cost_s_pessimistic=c_pes,
                 budget_remaining_before=float(budget_remaining),
                 budget_remaining_after=float(budget_remaining) - c,
@@ -906,6 +964,165 @@ def build_warmcold(phi_warm, phi_cold):
     return out, meta
 
 
+# ---------------------------------------------------------------------
+# The supplementary stage: the psi='0' grid that reproduces the 2026-09
+# feasibility set bit-exactly, on a chip and at a shot count that can
+# settle whether its device point still holds.
+# ---------------------------------------------------------------------
+# WHY THIS STAGE EXISTS.  Every hardware number the manuscript quotes from the
+# 2026-09 feasibility run -- F_12 = 0.80 [0.68, 0.88], the +6.8 sigma syndrome
+# excess, the 1.75 relaxation satellite, eps_instr = 1.04e-2 and its sibling
+# 1.81e-2, "0 hits in 735 shots", "0 of 369" -- re-derives EXACTLY from the
+# archived raw counts in raw_verify_options.json (checked: 44/55, 9/25, 0/44,
+# 0/369, satellite 96/55 = 1.7455, z = +6.82, rank 2 of 16).  The arithmetic is
+# not in doubt.  What is in doubt is what those numbers are numbers ABOUT, and two
+# facts found after the run force the question.
+#
+#   1. THAT RUN WAS psi='0', AND NOTHING SINCE HAS BEEN.  Inverting the recorded
+#      ideal references identifies the input state bit-exactly:
+#      ideal_data_zero_prob('0','IIIII',0,cold) = 0.9999997714222 against the
+#      artifact's 0.9999997714222045 (diff 5.4e-15), and ('0','IIXII',12) gives
+#      0.9999957389415 against 0.9999957389414843 (diff 4.9e-15).  No other psi
+#      comes within 1e-7.  Every 2026-10 circuit -- both probes, the INVALID A/B
+#      and the FAILED A/B -- ran at psi='+', whose ideal for the same branch is
+#      0.9999967267587.  So the manuscript's device point and the 2026-10
+#      measurements are not the same experiment, and they differ in the one
+#      respect that matters most: this file's own design note for the warmcold
+#      stage says the cold recovery's failure is a LOGICAL Z, "invisible in the Z
+#      basis and maximal in the X/Y bases".  psi='0' IS the Z basis.  The device
+#      point was measured in the basis that hides the failure mode the paper
+#      itself identifies as the dominant one.  At psi='+' the same nominal branch
+#      (late, IIXII, s=12, cold angles) returns F_s = 137/1133 = 0.121
+#      [0.102, 0.140] and eps_instr = 2.39e-2, against psi='0' 0.80 [0.68, 0.88]
+#      and 1.04e-2.
+#
+#   2. IT IS NOT CHIP DRIFT.  The 2026-10-15 probe on WK_C180 -- the SAME chip
+#      that produced 0.80 -- and the 2026-10-21 signal|warm circuit on WK_C180_2
+#      are bit-identical (both ideal 0.9999999999999947, matching to 1e-16) and
+#      agree to 1.23x: p_hw = 2/985 = 0.002030 against 50/19994 = 0.002501.  The
+#      two chips agree with each other in October; neither is near the September
+#      psi='0' figure.  So the discrepancy tracks the input state, not the chip.
+#
+# The open question is therefore narrow and cheap: AT ITS OWN INPUT STATE, does
+# the September branch still return F_s ~ 0.80?  This stage asks it on both chips
+# at 54x the original shots, with each circuit verified bit-exact against the
+# archived ideal reference BEFORE anything is bought (the assert in build_suppl).
+# Either answer is publishable and they mean opposite things:
+#   F_s ~ 0.80 at psi='0'  -> the September device point is real but BASIS-BOUND.
+#       Layer 4 must then say so and quote the psi='+' value beside it, because
+#       the envelope prices a certified non-Pauli headroom the Z basis cannot see,
+#       and a device point measured where the dominant failure is invisible is not
+#       the device point the envelope should be drawn against.
+#   F_s ~ 0.12 at psi='0'  -> the September number was a 371-shot artefact or the
+#       block drifted, the device point moves to 2.4e-2, and the envelope verdict
+#       goes from 1.35x outside its loose end to 3.1x outside it.
+# Both strengthen the paper's negative hardware conclusion; neither leaves the
+# abstract's "1.04% effective per-instruction error" quotable as it stands.
+#
+# THE MID-CIRCUIT PAIR RIDES ALONG.  "dead mid-circuit measurement" is an ABSTRACT
+# claim resting on 735 shots from this same run (A: 0 of 369 syndromes, a 5.0
+# sigma deficit; B: 44 syndromes but 0 data hits).  Re-running both at 20 000
+# shots on two chips detects a hit rate down to 5e-5.  It is re-tested rather than
+# assumed because a platform capability can be repaired in a month, and if it was,
+# the late-measurement workaround this whole hardware protocol is built on loses
+# its stated reason.  Note what is and is not being claimed: the 2026-09-10
+# raw_trial_batch.json (31 755 shots, also mid-measure) has a pooled
+# P(data=00000) = 0.1219, 92.8 sigma over the 1/32 floor -- but that is the
+# UNCONDITIONED data marginal, whereas "0 hits in 735" is the POST-SELECTED one.
+# A structured data marginal beside a dead post-selected fidelity is exactly the
+# pattern the manuscript describes, so there is no contradiction to resolve, only
+# a statistic to keep straight.
+#
+# cal9 IS DELIBERATELY NOT IN THIS STAGE.  The 2026-10-21 A/B spent 40 000 of its
+# 120 000 shots on two calibration circuits, because every circuit in one
+# submission gets the same shot count.  Here the screen is a separate
+# --cal9-screen submission at 1 000 shots each -- what its own docstring
+# recommends -- so it costs 0.6 s instead of 12.4 s and none of the science budget
+# goes on it.
+SUPPL_GRID = (
+    # label, measure, frame, s   -- label is the 2026-09 circuit it reproduces
+    ('C', 'late', 'IIIII', 0),
+    ('D', 'late', 'IIXII', 12),
+    ('A', 'mid', 'IIIII', 0),
+    ('B', 'mid', 'IIXII', 12),
+)
+SUPPL_PSI = '0'
+# The 2026-09 values this stage reproduces or refutes.  A/B/C/D are the labels
+# hw_error_budget.json already uses, so a reader can go straight to the source.
+SUPPL_TARGETS = {
+    'A': dict(shots_used=369, n_sel=0, n_hit=0, F_s=None,
+              ideal=0.9999997714222045, implied_eps=None),
+    'B': dict(shots_used=366, n_sel=44, n_hit=0, F_s=0.0,
+              ideal=0.9999957389414843, implied_eps=None),
+    'C': dict(shots_used=370, n_sel=25, n_hit=9, F_s=0.36,
+              ideal=0.9999997714222045, implied_eps=0.018140238890985816),
+    'D': dict(shots_used=371, n_sel=55, n_hit=44, F_s=0.80,
+              ideal=0.9999957389414843, implied_eps=0.010396618939971347),
+}
+SUPPL_IDEAL_TOL = 1e-12
+
+
+def suppl_gate_inventory():
+    """The 2026-09 gate inventory, read from the artifact that records it.
+
+    Deliberately NOT restated as literals beside SUPPL_TARGETS: a circuit whose
+    size is checked against a copy of the number it is supposed to reproduce can
+    drift from the real one without anything looking wrong, which is the same
+    failure mode warmcold_frame_of avoids by reaching into SYND_TABLE."""
+    path = os.path.join(ROOT, 'hw_error_budget.json')
+    with open(path) as f:
+        return json.load(f)['gate_inventory']
+
+
+def build_suppl(phi_cold):
+    """The four 2026-09 feasibility circuits, rebuilt from the same builder.
+
+    Cold angles only, and psi is fixed to SUPPL_PSI='0' rather than taken from
+    WARMCOLD_PSI: the point of this stage is to reproduce a specific archived run,
+    and that run's input state was identified from its own ideal references, not
+    guessed.  Passing WARMCOLD_PSI here would silently rebuild a DIFFERENT
+    experiment and compare it to the September numbers anyway -- exactly the psi
+    confound this stage exists to remove.  The ideal reference is checked against
+    the archived value at build time, so a circuit that is not bit-exact cannot be
+    submitted at all."""
+    out, meta = [], []
+    inv = suppl_gate_inventory()
+    for label, measure, frame, s in SUPPL_GRID:
+        assert warmcold_frame_of(s) == frame, (label, s, frame, warmcold_frame_of(s))
+        gates = q.build_branch_circuit(q.ENC5, SUPPL_PSI, frame, s, phi_cold,
+                                       late_measure=(measure == 'late'))
+        ideal = ideal_data_zero_prob(SUPPL_PSI, frame, s, phi_cold)
+        tgt = SUPPL_TARGETS[label]['ideal']
+        assert abs(ideal - tgt) < SUPPL_IDEAL_TOL, (
+            '%s: rebuilt ideal %.16f does not match the 2026-09 artifact\'s '
+            '%.16f (diff %.2e >= %.0e), so this is NOT the same circuit and '
+            'comparing it to the September numbers would be meaningless'
+            % (label, ideal, tgt, abs(ideal - tgt), SUPPL_IDEAL_TOL))
+        # Size and entangling content, against the archived inventory.  The ideal
+        # reference alone would not catch a rebuild that reached the same number
+        # by a different route -- a different decomposition of R_zz, or a vendor
+        # option that inserts gates -- and the whole point is that this is the
+        # SAME circuit at the same depth, so that any difference in the outcome
+        # is in the device or the month, not in the compilation.
+        ref = inv[label]
+        n_cnot = sum(1 for x in gates if x[0] == 'CNOT')
+        assert len(gates) == ref['instructions'], (
+            '%s: rebuilt at %d instructions, the 2026-09 inventory says %d'
+            % (label, len(gates), ref['instructions']))
+        assert n_cnot == ref['two_qubit_gates'], (
+            '%s: rebuilt with %d CNOT, the 2026-09 inventory says %d two-qubit '
+            'gates' % (label, n_cnot, ref['two_qubit_gates']))
+        out.append(gates)
+        meta.append(dict(kind='suppl', label=label, reproduces_2026_09=label,
+                         psi=SUPPL_PSI, p=0.0, frame=frame, s=s, measure=measure,
+                         angles=WARMCOLD_ANGLES['cold'],
+                         n_instructions=len(gates), n_cnot=n_cnot,
+                         matches_2026_09_inventory=True,
+                         ideal_P_data_zero=ideal,
+                         ideal_matches_2026_09_to=abs(ideal - tgt)))
+    return out, meta
+
+
 def stage_circuits(stage, phi=None, phi_cold=None, cal_first=False):
     """(gate_lists, meta) for one cloud job.  meta entries are plain dicts so they
     survive the JSON dump and can be rebuilt identically in --mode analyze."""
@@ -1006,6 +1223,12 @@ def stage_circuits(stage, phi=None, phi_cold=None, cal_first=False):
         order = sorted(range(len(meta)),
                        key=lambda i: (0 if meta[i].get('kind') == 'cal9' else 1, i))
         return ([gates[i] for i in order], [meta[i] for i in order])
+    if stage == 'suppl':
+        assert phi_cold is not None, (
+            'the suppl stage reproduces the 2026-09 feasibility set, which ran the '
+            'COLD angle set (%s) only; it needs --angles or the default cold file'
+            % WARMCOLD_ANGLES['cold'])
+        return build_suppl(phi_cold)
     raise ValueError(stage)
 
 
@@ -1760,9 +1983,18 @@ def selftests(verbose=True):
     _z = np.zeros((16, 60))
     sizes = {s: len(stage_circuits(s, phi=_z, phi_cold=_z)[0])
              for s in ('probe', 'tomo', 'bench', 'ladder', 'warmcold')}
+    # suppl is sized with the REAL cold angles, not the placeholder zeros every
+    # other stage accepts.  It rebuilds the archived 2026-09 circuits and asserts
+    # each one's ideal reference against hw_error_budget.json, so with phi=0 the
+    # recovery is not the cold recovery and build_suppl (correctly) refuses to call
+    # the result the same circuit.  Sizing it with zeros would therefore raise --
+    # which is the assertion doing its job, not a bug to route around.
+    sizes['suppl'] = len(stage_circuits(
+        'suppl', phi=_z, phi_cold=load_angle_set('cold'))[0])
     assert sizes == {'probe': 8, 'tomo': 19, 'bench': 34,
                      'ladder': 4 * len(LADDER_ROUNDS),
-                     'warmcold': WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL}, sizes
+                     'warmcold': WARMCOLD_N_SCIENCE + WARMCOLD_N_CAL,
+                     'suppl': len(SUPPL_GRID)}, sizes
     res['stage_sizes'] = sizes
     res['n_circuits_total'] = sum(sizes.values())
     res['shots_total'] = sum(sizes[s] * STAGE_SHOTS[s] for s in sizes)
@@ -2680,6 +2912,114 @@ def selftests(verbose=True):
         % (_wmin, min_w_for_detection(2500), WC_PROBE_MIN_SIGMA, _d['s_star'],
            WC_PICK_BOUND_CHIP))
 
+    # (q) THE SUPPL STAGE IS CHECKED AGAINST THE DATA IT CLAIMS TO REPRODUCE.
+    # build_suppl asserts bit-exactness at build time, but an assertion that the
+    # right circuit was BUILT says nothing about whether the analysis reads it back
+    # correctly.  So the archived 2026-09 counts are fed through analyze_suppl and
+    # every number is required to equal hw_error_budget.json's own, exactly -- the
+    # comparison is against the artifact, not a restatement of it, so the two cannot
+    # agree by having been copied from a common source.  The verdict rule is then
+    # tested on synthetic F_s values placed on both sides of each threshold, a route
+    # sharing nothing with the count-level check.
+    _sup_raw_path = os.path.join(ROOT, 'raw_verify_options.json')
+    assert os.path.exists(_sup_raw_path), (
+        'raw_verify_options.json is the archived raw counts of the 2026-09 '
+        'feasibility run and is tracked in git; selftest (q) cannot verify the '
+        'suppl analysis without it')
+    with open(_sup_raw_path) as _f:
+        _sup_raw = json.load(_f)
+    _cold_ang = load_angle_set('cold')
+    # NOTE: (n) rebinds `_z` to a nested helper, so this block uses its own name.
+    _zq = np.zeros((16, 60))
+    _sg, _sm = stage_circuits('suppl', phi=_zq, phi_cold=_cold_ang)
+    _eb = json.load(open(os.path.join(ROOT, 'hw_error_budget.json')))
+    _ORD = {'A': 0, 'B': 1, 'C': 2, 'D': 3}
+    _sup = analyze_suppl([_sup_raw[_ORD[m['label']]] for m in _sm], _sm,
+                         _cold_ang, shots_requested=400, verbose=False)
+    _exact = {}
+    for _lab in ('A', 'B', 'C', 'D'):
+        _c, _r = _sup['per_circuit'][_lab], _eb['circuits'][_lab]
+        _nsel_ref = int(round(_r['syndrome_channel']['joint_all_correct']
+                              * _r['shots_used']))
+        assert _c['n_selected'] == _nsel_ref, (_lab, _c['n_selected'], _nsel_ref)
+        assert _c['n_total'] == _r['shots_used'], (_lab, _c['n_total'])
+        _nh_ref = _r['data_channel'].get('n_hit')
+        # n_sel = 0 makes F_s undefined, which the artifact records as n_hit=None;
+        # the analysis still knows zero shots hit, so the two agree on the physics
+        # and differ only in whether an undefined conditional is None or 0.
+        assert _nh_ref is None or _c['n_selected_hit'] == _nh_ref, (_lab, _nh_ref)
+        if _nh_ref is not None:
+            assert abs(_c['F_s'] - _r['data_channel']['F_s']) < 1e-12, _lab
+        _eps_ref = _r['budget']['implied_mean_instruction_error']
+        if _eps_ref is not None:
+            assert abs(_c['implied_eps_instr'] - _eps_ref) < 1e-12, (
+                _lab, _c['implied_eps_instr'], _eps_ref)
+        _exact[_lab] = dict(n_sel=_c['n_selected'], n_hit=_c['n_selected_hit'],
+                            F_s=_c['F_s'], eps=_c['implied_eps_instr'],
+                            rank=_c['syndrome_rank'],
+                            z=_c['syndrome_z_vs_code_blind'],
+                            satellite=_c['relaxation_satellite_ratio'])
+    # The numbers main.tex quotes from this run, re-derived here rather than cited.
+    assert _exact['D']['F_s'] == 0.8 and _exact['D']['n_hit'] == 44, _exact['D']
+    assert _exact['D']['rank'] == 2, _exact['D']
+    assert abs(_exact['D']['z'] - 6.82) < 0.01, _exact['D']['z']
+    assert abs(_exact['D']['satellite'] - 1.7455) < 1e-3, _exact['D']['satellite']
+    assert _exact['A']['n_sel'] == 0 and abs(_exact['A']['z'] + 4.96) < 0.01
+    assert _exact['B']['n_hit'] == 0 and abs(_exact['B']['z'] - 4.56) < 0.01
+    assert _sup['comparison']['verdict'] == 'REPRODUCED', _sup['comparison']
+
+    # The verdict rule, on synthetic values either side of each threshold.
+    def _mk(fs):
+        return {'D': {'F_s': fs, 'implied_eps_instr': 0.0239}}
+    assert suppl_verdict(_mk(0.80))['verdict'] == 'REPRODUCED'
+    assert suppl_verdict(_mk(0.40))['verdict'] == 'REPRODUCED'      # at target/2
+    assert suppl_verdict(_mk(0.39))['verdict'] == 'INCONCLUSIVE'    # just below
+    assert suppl_verdict(_mk(0.19))['verdict'] == 'INCONCLUSIVE'
+    assert suppl_verdict(_mk(0.18))['verdict'] == 'NOT REPRODUCED'  # at 1.5x psi='+'
+    assert suppl_verdict(_mk(0.12))['verdict'] == 'NOT REPRODUCED'
+    assert suppl_verdict({})['verdict'] == 'NOT ANALYSABLE'
+    assert suppl_verdict({'D': {'F_s': None}})['verdict'] == 'NOT ANALYSABLE'
+    # build_suppl must REFUSE angles that do not reproduce the archived ideal.
+    try:
+        build_suppl(_zq)
+        raise AssertionError('build_suppl accepted placeholder zero angles, so the '
+                             'bit-exactness gate is not actually gating')
+    except AssertionError as _exc:
+        assert 'does not match the 2026-09' in str(_exc), str(_exc)
+    res['suppl_reproduction'] = dict(
+        psi=SUPPL_PSI, grid=[list(x) for x in SUPPL_GRID],
+        exact_on_archived_counts=_exact,
+        verdict_on_own_source_data=_sup['comparison']['verdict'],
+        layouts_all_agree=bool(len({tuple(_sup['per_circuit'][l]['anc_slice'])
+                                    + (_sup['per_circuit'][l]['rev'],)
+                                    for l in 'ABCD'}) == 1),
+        verdict_rule_thresholds=dict(
+            reproduced_at_or_above=SUPPL_TARGETS['D']['F_s'] / 2.0,
+            not_reproduced_at_or_below=0.12092 * 1.5),
+        refuses_non_reproducing_angles=True)
+    say('(q) the suppl stage reproduces the 2026-09 feasibility run EXACTLY when fed '
+        'that run\'s own archived counts: D returns 44/55 at F_s=%.4f, eps=%.10f '
+        'against the artifact\'s %.10f, syndrome rank %d at z=%+.2f and satellite '
+        '%.4f; C returns 9/25 at %.4f; A returns n_sel=0 at z=%.2f and B n_hit=0 at '
+        'z=%+.2f -- Layer 4\'s "0 of 369" and "4.6 sigma", re-derived rather than '
+        'restated.  All four derive the same window (anc=[5,9] rev=True), so mid and '
+        'late share a classical-bit order here and the per-circuit derivation is '
+        'defensive rather than load-bearing.  The circuits are bit-exact at BUILD '
+        'time as well: ideal references match to %.1e and %.1e and the instruction '
+        'and CNOT counts are checked against the archived inventory, and build_suppl '
+        'REFUSES placeholder angles (diff 2.3e-07) instead of submitting a circuit '
+        'that is not the one it claims.  The verdict rule is pre-declared in code and '
+        'tested on both sides of each threshold: >=%.2f REPRODUCED, <=%.5f NOT '
+        'REPRODUCED, between them INCONCLUSIVE, and no post-selected shot NOT '
+        'ANALYSABLE.'
+        % (_exact['D']['F_s'], _exact['D']['eps'],
+           _eb['circuits']['D']['budget']['implied_mean_instruction_error'],
+           _exact['D']['rank'], _exact['D']['z'], _exact['D']['satellite'],
+           _exact['C']['F_s'], _exact['A']['z'], _exact['B']['z'],
+           abs(_sm[0]['ideal_P_data_zero'] - SUPPL_TARGETS['C']['ideal']),
+           abs(_sm[1]['ideal_P_data_zero'] - SUPPL_TARGETS['D']['ideal']),
+           SUPPL_TARGETS['D']['F_s'] / 2.0, 0.12092 * 1.5))
+
     return res
 
 
@@ -3238,9 +3578,7 @@ def wc_probe_power(w_point, w_lo95, ms_per_shot=None, budget_remaining=None,
     return dict(ladder=rows, n_circuits_in_ab=n_ab,
                 ms_per_shot=(MS_PER_SHOT if ms_per_shot is None
                              else float(ms_per_shot)),
-                ms_per_shot_source=('pessimistic constant MS_PER_SHOT'
-                                    if ms_per_shot is None
-                                    else 'dashboard-measured'),
+                ms_per_shot_source=ms_per_shot_source_label(ms_per_shot),
                 budget_remaining_after=budget_remaining,
                 margin_s=BUDGET_MARGIN_S,
                 s_star=row['shots_per_circuit'] if row else None,
@@ -5182,6 +5520,163 @@ def warmcold_estimator_family(counts_by_name, cal9_out=None, gates_by_name=None,
                 primary_member='P_data_zero_all%d' % len(all_pos))
 
 
+def analyze_suppl(results, meta, phi_cold, shots_requested=None, verbose=True):
+    """Read the supplementary psi='0' grid against the 2026-09 values it rebuilds.
+
+    Every quantity here has a 2026-09 counterpart in hw_error_budget.json and the
+    point of the stage is the comparison, so the output is a table of pairs rather
+    than a fresh estimate: F_s, the end-to-end expected-key rate, the implied
+    per-instruction error, the syndrome's rank and significance against code-blind,
+    and the a1 relaxation satellite.
+
+    The layout is derived PER CIRCUIT from that circuit's own MEAS map rather than
+    once for the job.  On this grid the four circuits happen to agree -- both
+    variants emit the four ancilla measurements before the five data measurements,
+    so mid and late land on the same classical-bit order, and feeding the archived
+    2026-09 counts back through this function confirms it (all four derive
+    anc=[5,9] rev=True).  The per-circuit derivation is therefore defensive rather
+    than load-bearing here: it is what stops a future grid that DOES reorder the
+    measurements from being silently read on one shared window, which is the class
+    of error that produced the retracted -7.8 sigma signal."""
+    sci = [(r, m) for r, m in zip(results, meta) if m.get('kind') == 'suppl']
+    out = dict(psi=SUPPL_PSI, p=0.0, shots_requested=shots_requested,
+               reproduces='2026-09 feasibility set (raw_verify_options.json)',
+               per_circuit={})
+    if not sci:
+        out['not_analysable'] = ('this job returned no suppl circuit, so there is '
+                                 'nothing to compare against the 2026-09 set')
+        print('[suppl] NOT ANALYSABLE: %s' % out['not_analysable'], flush=True)
+        return out
+    inv = suppl_gate_inventory()
+    eb = json.load(open(os.path.join(ROOT, 'hw_error_budget.json')))
+    for r, m in sci:
+        lab, late = m['label'], (m['measure'] == 'late')
+        # Re-verify at ANALYSIS time as well as build time: the build assert proves
+        # the right circuit was submitted, this proves what came back is still being
+        # read as that circuit.
+        gates = q.build_branch_circuit(q.ENC5, m['psi'], m['frame'], m['s'],
+                                       phi_cold, late_measure=late)
+        assert len(gates) == inv[lab]['instructions'], (lab, len(gates))
+        anc, rev = layout_from_meas(gates)
+        n_sel, n_sel_hit = q.counts_to_branch_stats(r, m['s'], anc, rev)
+        n_zero, n_tot = data_zero_counts(r, anc, rev)
+        s_ia = format(m['s'], '04b')
+        syn = {}
+        for k, v in _counts_items(r):
+            rk = k[::-1] if rev else k
+            a = rk[anc.start:anc.stop]
+            syn[a] = syn.get(a, 0) + v
+        p_s = syn.get(s_ia, 0)
+        ordered = sorted(syn.values(), reverse=True)
+        pos = (ordered.index(p_s) + 1) if p_s in ordered else None
+        exp = n_tot / 16.0
+        sd = math.sqrt(n_tot * (1 / 16.) * (15 / 16.)) if n_tot else 0.0
+        z = ((p_s - exp) / sd) if sd else None
+        sb = list(s_ia)
+        sat = None
+        if sb[1] == '1':
+            sb[1] = '0'
+            sat = ''.join(sb)
+        e2e = (n_sel_hit / float(n_tot)) if n_tot else None
+        ref = eb['circuits'][lab]
+        out['per_circuit'][lab] = dict(
+            label=lab, measure=m['measure'], frame=m['frame'], s=m['s'],
+            n_total=n_tot, n_selected=n_sel, n_selected_hit=n_sel_hit,
+            n_data_zero=n_zero,
+            F_s=(n_sel_hit / float(n_sel)) if n_sel else None,
+            F_s_wilson95=(list(wilson(n_sel_hit, n_sel)) if n_sel else None),
+            P_expected_key=e2e,
+            implied_eps_instr=((1.0 - e2e ** (1.0 / inv[lab]['instructions']))
+                               if e2e else None),
+            n_instructions=inv[lab]['instructions'],
+            p_correct_syndrome=(p_s / float(n_tot)) if n_tot else None,
+            syndrome_rank=pos, syndrome_z_vs_code_blind=z,
+            relaxation_satellite_s=(int(sat, 2) if sat else None),
+            relaxation_satellite_ratio=(
+                (syn.get(sat, 0) / float(p_s)) if (sat and p_s) else None),
+            anc_slice=[anc.start, anc.stop], rev=rev,
+            ideal_P_data_zero=m.get('ideal_P_data_zero'),
+            target_2026_09=dict(
+                shots_used=ref['shots_used'],
+                n_sel=int(round(ref['syndrome_channel']['joint_all_correct']
+                                * ref['shots_used'])),
+                n_hit=ref['data_channel'].get('n_hit'),
+                F_s=ref['data_channel'].get('F_s'),
+                P_expected_key=ref['budget']['end_to_end_expected_key'],
+                implied_eps_instr=ref['budget']['implied_mean_instruction_error']))
+        if verbose:
+            c = out['per_circuit'][lab]
+            # An explicit None test, not `x or nan`: a noiseless circuit has
+            # implied_eps == 0.0, which is falsy, and printing that as nan would
+            # hide the one value that says the chain is exact.
+            _e = c['implied_eps_instr']
+            _er = ref['budget']['implied_mean_instruction_error']
+            print('[suppl] %s (%s, %s, s=%d) n=%d  F_s=%s vs 2026-09 %s  '
+                  'eps=%.4e vs %.4e  syndrome rank %s z=%+.1f  satellite=%s'
+                  % (lab, m['measure'], m['frame'], m['s'], n_tot,
+                     ('%.4f' % c['F_s']) if c['F_s'] is not None else 'n/a',
+                     ref['data_channel'].get('F_s'),
+                     _e if _e is not None else float('nan'),
+                     _er if _er is not None else float('nan'),
+                     pos, z if z is not None else float('nan'),
+                     ('%.3f' % c['relaxation_satellite_ratio'])
+                     if c['relaxation_satellite_ratio'] is not None else 'n/a'),
+                  flush=True)
+    out['comparison'] = suppl_verdict(out['per_circuit'])
+    if verbose:
+        print('[suppl] VERDICT: %s' % out['comparison']['verdict'], flush=True)
+        print('[suppl]   %s' % out['comparison']['reason'], flush=True)
+    return out
+
+
+def suppl_verdict(per):
+    """The pre-declared reading of the psi='0' reproduction.
+
+    Declared here, in code, before the data is bought -- the same discipline the
+    warmcold A/B's decision rule was held to, and the reason that A/B could be
+    called FAILED rather than reinterpreted.  The bar is a factor, not a vibe:
+    F_s within 2x of 0.80 reproduces the September device point, and anything at
+    or below the psi='+' value does not.  In between is reported as inconclusive
+    rather than rounded into whichever answer is convenient."""
+    d = per.get('D')
+    if not d or d.get('F_s') is None:
+        return dict(verdict='NOT ANALYSABLE',
+                    reason='circuit D returned no post-selected shot')
+    fs, tgt = d['F_s'], SUPPL_TARGETS['D']['F_s']
+    fs_plus = 0.12092          # the psi='+' value for the same nominal branch
+    eps = d.get('implied_eps_instr')
+    if fs >= tgt / 2.0:
+        v = 'REPRODUCED'
+        why = ('F_s = %.4f is within 2x of the 2026-09 %.2f at psi=\'0\', so the '
+               'September device point is real but BASIS-BOUND: it was measured '
+               'where the dominant logical-Z failure is invisible, and Layer 4 must '
+               'quote the psi=\'+\' value %.4f beside it.' % (fs, tgt, fs_plus))
+    elif fs <= fs_plus * 1.5:
+        v = 'NOT REPRODUCED'
+        # explicit None test: eps == 0.0 is falsy but is a real (ideal) value
+        _e = eps if eps is not None else float('nan')
+        why = ('F_s = %.4f at psi=\'0\' is at or below the psi=\'+\' value %.4f, so '
+               'the 2026-09 %.2f does not survive 54x the shots on its own input '
+               'state; the device point moves to eps=%.4e and the envelope verdict '
+               'goes from 1.35x outside its loose end to %.2fx outside it.'
+               % (fs, fs_plus, tgt, _e, _e / 7.70e-3))
+    else:
+        v = 'INCONCLUSIVE'
+        why = ('F_s = %.4f sits between the 2026-09 %.2f and the psi=\'+\' %.4f; '
+               'neither reading is supported, and the shot count must go up rather '
+               'than the interpretation bend.' % (fs, tgt, fs_plus))
+    return dict(verdict=v, reason=why, F_s_D=fs, target_2026_09=tgt,
+                psi_plus_value=fs_plus, implied_eps_D=eps,
+                rule=("REPRODUCED if F_s >= target/2; NOT REPRODUCED if "
+                      "F_s <= 1.5 x the psi='+' value; else INCONCLUSIVE.  "
+                      "Declared in code before purchase."))
+
+
+def _counts_items(r):
+    """Iterate (key, count) over whatever shape the platform returned."""
+    return list(r.items()) if isinstance(r, dict) else list(r)
+
+
 def analyze_warmcold(results, meta, phi_warm, phi_cold, shots_requested=None,
                      verbose=True):
     """The warm-vs-cold A/B: two arms x (one signal branch + one null branch).
@@ -5844,6 +6339,55 @@ def warmcold_dry_run(shots=4000, verbose=True):
     return out
 
 
+def suppl_dry_run(shots=2000, verbose=True):
+    """Sample the suppl grid on the local CPUQVM and push it through analyze_suppl.
+
+    Spends no QPU time and needs no account, and it is the last check before money
+    is committed: it proves the artifact assembles, that the layout each circuit
+    derives reads its own counts back correctly, and that the pre-declared verdict
+    rule fires on data whose answer is known in advance.
+
+    On a noiseless device the two LATE circuits are deterministic -- every shot
+    returns the correct syndrome, so n_sel == n_tot and F_s equals 1 within
+    sampling error -- which is asserted strictly.  The two MID circuits are sampled
+    and RECORDED but not asserted, and that asymmetry is deliberate rather than an
+    omission: whether mid-circuit measurement returns anything at all on this
+    platform is precisely what S2 exists to measure, the 2026-09 answer was "0 of
+    369", and a local simulator that models mid-circuit measurement ideally cannot
+    predict a vendor implementation that does not.  Asserting a number there would
+    be asserting the simulator's opinion about the device."""
+    phi_cold = load_angle_set('cold')
+    gates, meta = stage_circuits('suppl', phi_cold=phi_cold)
+    results = [q.cpuqvm_sample(g, shots) for g in gates]
+    out = analyze_suppl(results, meta, phi_cold, shots, verbose=verbose)
+    tol = 4.0 / math.sqrt(shots)
+    for lab, m in zip(('C', 'D', 'A', 'B'), meta):
+        c = out['per_circuit'][lab]
+        if m['measure'] != 'late':
+            if verbose:
+                print('[suppl-dry-run] %s (mid) sampled, NOT asserted: n_sel=%d/%d '
+                      'F_s=%s -- the platform\'s mid-circuit behaviour is what S2 '
+                      'measures and is not predictable offline'
+                      % (lab, c['n_selected'], c['n_total'], c['F_s']), flush=True)
+            continue
+        assert c['n_total'] == shots, (lab, c['n_total'], shots)
+        assert c['n_selected'] == shots, (
+            '%s: a noiseless circuit must return the correct syndrome on every '
+            'shot, got %d/%d -- so the window this circuit derived does not read '
+            'its own counts' % (lab, c['n_selected'], shots))
+        assert abs(c['F_s'] - 1.0) < tol, (lab, c['F_s'], tol)
+        assert abs(c['P_expected_key'] - c['ideal_P_data_zero']) < tol, lab
+    # On ideal data F_s = 1.0, so the pre-declared rule must return REPRODUCED.
+    # If this fails the rule is broken, not the device.
+    assert out['comparison']['verdict'] == 'REPRODUCED', out['comparison']
+    if verbose:
+        print('[suppl-dry-run] noiseless chain OK: both late circuits return all '
+              '%d shots on the correct syndrome at F_s=1.000, the verdict rule '
+              'fires REPRODUCED, and all four derive anc=[5,9] rev=True'
+              % shots, flush=True)
+    return out
+
+
 def warmcold_power_study(shots=None, w=WARMCOLD_W_MEASURED_2026_09,
                          n_draws=400, seeds=None, verbose=True):
     """Repeat binomial draws of the A/B at the OUTCOME level and report the
@@ -6311,6 +6855,15 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
         out['source_dump'] = source_dump
         art['warmcold'] = out
         return out
+    if stage == 'suppl':
+        assert phi_cold is not None, (
+            'the suppl stage reproduces the 2026-09 cold-angle feasibility set; '
+            'refusing to analyse it without the cold angle file it claims to use')
+        out = analyze_suppl(results, meta, phi_cold, shots_requested,
+                            verbose=verbose)
+        out['source_dump'] = source_dump
+        art.setdefault('suppl', []).append(out)
+        return out
     raise ValueError(stage)
 
 
@@ -6747,7 +7300,7 @@ def main(argv=None):
                              'plan', 'wcpick', 'cloud', 'analyze'])
     ap.add_argument('--stage', default='all',
                     choices=['probe', 'tomo', 'bench', 'ladder', 'warmcold',
-                             'all'])
+                             'suppl', 'all'])
     ap.add_argument('--rounds', default=None,
                     help='comma-separated extra depths for the ladder stage '
                          '(default %s; 8 costs 581 instructions/288 CNOT per circuit)'
@@ -6983,6 +7536,18 @@ def main(argv=None):
                     seeds=tuple(SEED_BANK[:min(a.seeds, len(SEED_BANK))]))
             save_artifact(art0, a.json)
             return 0
+        if a.stage == 'suppl':
+            sp = suppl_dry_run(shots=a.shots or 2000)
+            art0 = load_artifact(a.json)
+            art0['suppl_dry_run'] = dict(
+                shots=a.shots or 2000, spends_qpu_time=False,
+                note='noiseless local CPUQVM through the full suppl analysis chain; '
+                     'every value here is an ideal reference, NOT hardware, and the '
+                     'mid-circuit rows are recorded rather than asserted because the '
+                     'platform\'s mid behaviour is what S2 measures',
+                per_circuit=sp['per_circuit'], comparison=sp['comparison'])
+            save_artifact(art0, a.json)
+            return 0
         dry_run(shots=a.shots or 4000, vendor=vendor)
         return 0
 
@@ -7172,7 +7737,12 @@ def main(argv=None):
                 _g, meta = stage_circuits(stage, phi_warm, phi_cold,
                                           cal_first=a.cal_first)
             else:
-                _g, meta = stage_circuits(stage)
+                # phi/phi_cold are passed for every stage, not just warmcold:
+                # bench needs phi and suppl needs phi_cold, and a stage that needs
+                # neither ignores them.  Calling stage_circuits(stage) bare here
+                # made --mode analyze --stage suppl die on its own angle-set assert
+                # -- the stage could be bought but its data could not be read back.
+                _g, meta = stage_circuits(stage, phi_warm, phi_cold)
             # The dump stores counts only, so its meta has to come from somewhere.
             # Prefer the sidecar written at submission time and REFUSE a mismatch:
             # reconstructing meta from the current builders is only safe while no
