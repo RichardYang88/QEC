@@ -1,0 +1,27 @@
+# launch_mixedness.sh suppl
+# utc=20261024T120329Z chip=WK_C180 stage=suppl 
+# dashboard_before=351.444s ms_per_shot=0.309
+# block=147,155,157,164,165,166,174,175,176 shots=default cal_first=1
+# angles=/home/yqc/github/QEC/vscr_angles_paper_dep.npz vendor=0.9988,0.9790,0.9260
+# WHEN THE JOB LANDS: read the dashboard again and append the reading, so the
+# billed ms/shot stops being a hypothesis:
+#   echo 'dashboard_after=<seconds>' >> hw_evidence/20261024T120329Z_WK_C180_suppl.log
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[budget] stage suppl: 80000 shots = 24.7 s at 0.309 ms/shot (dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.); 351.4 s remain, 30 s margin held back -> 296.7 s left after this submission
+[budget] WARNING: at the pessimistic 14 ms/shot this same submission would cost 1120.0 s and NOT fit.  It is being allowed only because the rate was measured from a dashboard delta; if that measurement is wrong the job is cut off and only the completed chunks survive on disk.
+[stage suppl] 4 circuits on 9 qubits, 20000 shots each, block=[147, 155, 157, 164, 165, 166, 174, 175, 176], instruction counts {203: 2, 204: 2}
+[stage suppl] 4 circuits in 2 submission(s) of <=2, dumping to qcloud_raw_suppl_WK_C180_20261024T120330Z.json after each so a mid-run kill keeps every completed chunk
+[cloud] backend: WK_C180
+[cloud] options: amend=True, mapping=True, optimization=True, specified_block=[147, 155, 157, 164, 165, 166, 174, 175, 176]
+[cloud]   batch 1: submitting 2 circuits ...
+[cloud]   job JobStatus.WAITING after 0 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 11 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 75 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 139 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 203 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.FINISHED after 209 s (poll 5 s, timeout 21600 s)
+[cloud]   batch 1: received
+[cloud]   batch 2: submitting 2 circuits ...
+[cloud]   job JobStatus.WAITING after 0 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 11 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 75 s (poll 5 s, timeout 21600 s)

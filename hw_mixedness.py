@@ -6862,7 +6862,35 @@ def analyze_stage(stage, results, meta, shots_requested, art, phi=None,
         out = analyze_suppl(results, meta, phi_cold, shots_requested,
                             verbose=verbose)
         out['source_dump'] = source_dump
-        art.setdefault('suppl', []).append(out)
+        # WHICH BLOCK this was measured on, taken from the submission-time sidecar
+        # rather than from the environment: two suppl results can differ by nothing
+        # but the block (S5 is a block contrast), and without this the live entry
+        # and its archived twin are distinguishable only by dump filename.  Also
+        # records the truncation here rather than only in truncated_stages, so an
+        # entry read on its own says how many of its own circuits came back.
+        side = read_meta_sidecar(source_dump) if source_dump else None
+        if side:
+            n_sub = int(side.get('n_circuits') or 0)
+            out['chip_id'] = side.get('chip_id')
+            out['block'] = side.get('block')
+            out['submitted_utc'] = side.get('written_utc')
+            out['n_circuits_submitted'] = n_sub
+            out['n_circuits_received'] = len(results)
+            out['truncated'] = bool(n_sub and len(results) < n_sub)
+        entries = art.setdefault('suppl', [])
+        # suppl is the one LIST-valued stage, so archive_previous's "same dump means
+        # no-op" rule is not enough here: appending unconditionally made a second
+        # --mode analyze of the SAME dump leave two identical entries, contradicting
+        # the idempotence this function's docstring promises.  Replace in place when
+        # the dump basename matches, append when it is genuinely a new dump -- which
+        # is what lets two blocks (S5's contrast) coexist without duplicating one.
+        base = os.path.basename(str(source_dump)) if source_dump else None
+        if base:
+            for i, e in enumerate(entries):
+                if os.path.basename(str(e.get('source_dump') or '')) == base:
+                    entries[i] = out
+                    return out
+        entries.append(out)
         return out
     raise ValueError(stage)
 
@@ -7803,8 +7831,19 @@ def main(argv=None):
                 gone = meta[len(results):]
 
                 def _lab(m):
-                    return (m['cal'] if m.get('kind') == 'cal'
-                            else '%s|%s|r%d' % (m['psi'], m['basis'], m['rounds']))
+                    # One label per meta schema, not one assumed schema.  This ran
+                    # with warmcold's psi/basis/rounds hardcoded and so raised
+                    # KeyError: 'basis' the first time a TRUNCATED suppl dump was
+                    # analysed -- i.e. the reporting path for "your job was cut off,
+                    # here is what is missing" was itself broken for the stage most
+                    # likely to be cut off.  Label alone is not enough for suppl:
+                    # the same letter appears at two measurement depths.
+                    if m.get('kind') == 'cal':
+                        return m['cal']
+                    if m.get('kind') == 'suppl':
+                        return '%s|%s|%s|s%d' % (m['label'], m['measure'],
+                                                 m['frame'], m['s'])
+                    return '%s|%s|r%d' % (m['psi'], m['basis'], m['rounds'])
                 art.setdefault('truncated_stages', {})[stage] = dict(
                     received=len(results), defined=len(meta),
                     missing=[_lab(m) for m in gone])

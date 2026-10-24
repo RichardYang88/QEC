@@ -82,14 +82,14 @@
   "chip_id": "WK_C180_2",
   "mode": "analyze",
   "stages": [
-   "warmcold"
+   "suppl"
   ],
   "vendor": null,
   "angles": "vscr_angles_dep.npz",
   "python": "3.11.15",
   "numpy": "2.4.6"
  },
- "updated_utc": "2026-10-22T15:50:40Z",
+ "updated_utc": "2026-10-24T13:02:56Z",
  "warmcold_dry_run": {
   "shots": 4000,
   "spends_qpu_time": false,
@@ -765,6 +765,30 @@
    "refund_s": 186.606,
    "utc": "20261022T155040Z",
    "note": "Releases the difference between what the warmcold submission RESERVED at its pre-flight rate (1.864 ms/shot -> 223.68 s) and what the vendor actually BILLED (37.074 s over the same 120 000 shots, i.e. 0.3090 ms/shot).  The reservation is left on the ledger above because it is what the submission was gated on; this entry is the settlement of it.  Dashboard readings: 389.136 s before (2026-10-21T01:04Z, at submission) and 352.062 s after (2026-10-21T14:36Z, all 3 submissions FINISHED, 6/6 circuits returned, so the shot denominator is certain).  Without this entry a future check_budget() reading the ledger would see 165.456 s and refuse work the account can pay for."
+  },
+  {
+   "kind": "cal9screen",
+   "n_shots": 2000,
+   "ms_per_shot": 0.309,
+   "ms_per_shot_source": "dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.",
+   "cost_s": 0.618,
+   "cost_s_pessimistic": 28.0,
+   "budget_remaining_before": 326.724,
+   "budget_remaining_after": 326.106,
+   "margin_s": 30.0,
+   "utc": "20261024T120512Z"
+  },
+  {
+   "kind": "stage suppl",
+   "n_shots": 80000,
+   "ms_per_shot": 0.309,
+   "ms_per_shot_source": "dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.",
+   "cost_s": 24.72,
+   "cost_s_pessimistic": 1120.0,
+   "budget_remaining_before": 351.444,
+   "budget_remaining_after": 326.72400000000005,
+   "margin_s": 30.0,
+   "utc": "20261024T120934Z"
   }
  ],
  "wcprobe": {
@@ -1086,20 +1110,20 @@
  "cal9_screen": {
   "available": true,
   "block": [
-   39,
-   48,
-   49,
-   57,
-   58,
-   66,
-   67,
-   75,
-   85
+   52,
+   61,
+   62,
+   70,
+   71,
+   79,
+   80,
+   88,
+   89
   ],
-  "chip_id": "WK_C180_2",
+  "chip_id": "WK_C180",
   "shots": 1000,
-  "wall_s": 7196.34939956665,
-  "dump_raw": "/home/yqc/github/QEC/qcloud_raw_cal9screen_WK_C180_2_20261019T144220Z.json",
+  "wall_s": 60.094295501708984,
+  "dump_raw": "/home/yqc/github/QEC/qcloud_raw_cal9screen_WK_C180_20261024T120512Z.json",
   "n_returned": 2,
   "layout": {
    "anc_slice": [
@@ -1120,14 +1144,14 @@
   "billing": {
    "kind": "cal9screen",
    "n_shots": 2000,
-   "ms_per_shot": 14.0,
-   "ms_per_shot_source": "pessimistic constant MS_PER_SHOT",
-   "cost_s": 28.0,
+   "ms_per_shot": 0.309,
+   "ms_per_shot_source": "dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.",
+   "cost_s": 0.618,
    "cost_s_pessimistic": 28.0,
-   "budget_remaining_before": 349.0,
-   "budget_remaining_after": 321.0,
+   "budget_remaining_before": 326.724,
+   "budget_remaining_after": 326.106,
    "margin_s": 30.0,
-   "utc": "20261019T144220Z"
+   "utc": "20261024T120512Z"
   },
   "cal9_per_qubit": {
    "data0": {
@@ -1137,7 +1161,7 @@
     "logical_qubit": 0,
     "science_key_pos": 0,
     "n_zero": 998,
-    "n_one": 1000,
+    "n_one": 998,
     "n_e01": 0,
     "n_e10": 0,
     "e01": 0.0,
@@ -1153,7 +1177,7 @@
     "logical_qubit": 1,
     "science_key_pos": 1,
     "n_zero": 998,
-    "n_one": 1000,
+    "n_one": 998,
     "n_e01": 0,
     "n_e10": 0,
     "e01": 0.0,
@@ -1169,13 +1193,13 @@
     "logical_qubit": 2,
     "science_key_pos": 2,
     "n_zero": 998,
-    "n_one": 1000,
-    "n_e01": 0,
-    "n_e10": 0,
-    "e01": 0.0,
-    "e10": 0.0,
-    "readout_fidelity": 1.0,
-    "contrast": 1.0,
+    "n_one": 998,
+    "n_e01": 2,
+    "n_e10": 347,
+    "e01": 0.002004008016032064,
+    "e10": 0.34769539078156314,
+    "readout_fidelity": 0.8251503006012024,
+    "contrast": 0.6503006012024048,
     "broken": false
    },
    "data3": {
@@ -1185,13 +1209,13 @@
     "logical_qubit": 3,
     "science_key_pos": 3,
     "n_zero": 998,
-    "n_one": 1000,
-    "n_e01": 0,
-    "n_e10": 1,
-    "e01": 0.0,
-    "e10": 0.001,
-    "readout_fidelity": 0.9995,
-    "contrast": 0.999,
+    "n_one": 998,
+    "n_e01": 2,
+    "n_e10": 4,
+    "e01": 0.002004008016032064,
+    "e10": 0.004008016032064128,
+    "readout_fidelity": 0.996993987975952,
+    "contrast": 0.9939879759519038,
     "broken": false
    },
    "data4": {
@@ -1201,7 +1225,7 @@
     "logical_qubit": 4,
     "science_key_pos": 4,
     "n_zero": 998,
-    "n_one": 1000,
+    "n_one": 998,
     "n_e01": 0,
     "n_e10": 0,
     "e01": 0.0,
@@ -1217,13 +1241,13 @@
     "logical_qubit": 5,
     "science_key_pos": 5,
     "n_zero": 998,
-    "n_one": 1000,
-    "n_e01": 0,
+    "n_one": 998,
+    "n_e01": 27,
     "n_e10": 0,
-    "e01": 0.0,
+    "e01": 0.027054108216432865,
     "e10": 0.0,
-    "readout_fidelity": 1.0,
-    "contrast": 1.0,
+    "readout_fidelity": 0.9864729458917836,
+    "contrast": 0.9729458917835672,
     "broken": false
    },
    "anc1": {
@@ -1233,7 +1257,7 @@
     "logical_qubit": 6,
     "science_key_pos": 6,
     "n_zero": 998,
-    "n_one": 1000,
+    "n_one": 998,
     "n_e01": 0,
     "n_e10": 0,
     "e01": 0.0,
@@ -1249,13 +1273,13 @@
     "logical_qubit": 7,
     "science_key_pos": 7,
     "n_zero": 998,
-    "n_one": 1000,
-    "n_e01": 0,
-    "n_e10": 0,
-    "e01": 0.0,
-    "e10": 0.0,
-    "readout_fidelity": 1.0,
-    "contrast": 1.0,
+    "n_one": 998,
+    "n_e01": 2,
+    "n_e10": 10,
+    "e01": 0.002004008016032064,
+    "e10": 0.01002004008016032,
+    "readout_fidelity": 0.9939879759519038,
+    "contrast": 0.9879759519038076,
     "broken": false
    },
    "anc3": {
@@ -1265,13 +1289,13 @@
     "logical_qubit": 8,
     "science_key_pos": 8,
     "n_zero": 998,
-    "n_one": 1000,
+    "n_one": 998,
     "n_e01": 0,
-    "n_e10": 8,
+    "n_e10": 0,
     "e01": 0.0,
-    "e10": 0.008,
-    "readout_fidelity": 0.996,
-    "contrast": 0.992,
+    "e10": 0.0,
+    "readout_fidelity": 1.0,
+    "contrast": 1.0,
     "broken": false
    }
   }
@@ -2681,6 +2705,305 @@
      }
     ]
    }
+  },
+  "suppl@qcloud_raw_suppl_WK_C180_20261024T120934Z.json": {
+   "archived_utc": "2026-10-24T13:02:56Z",
+   "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T120934Z.json",
+   "analysis": [
+    {
+     "psi": "0",
+     "p": 0.0,
+     "shots_requested": 20000,
+     "reproduces": "2026-09 feasibility set (raw_verify_options.json)",
+     "per_circuit": {
+      "C": {
+       "label": "C",
+       "measure": "late",
+       "frame": "IIIII",
+       "s": 0,
+       "n_total": 19996,
+       "n_selected": 181,
+       "n_selected_hit": 24,
+       "n_data_zero": 775,
+       "F_s": 0.13259668508287292,
+       "F_s_wilson95": [
+        0.09074834863853101,
+        0.18971665491045364
+       ],
+       "P_expected_key": 0.001200240048009602,
+       "implied_eps_instr": 0.03258646739830573,
+       "n_instructions": 203,
+       "p_correct_syndrome": 0.009051810362072414,
+       "syndrome_rank": 16,
+       "syndrome_z_vs_code_blind": -31.223308264753097,
+       "relaxation_satellite_s": null,
+       "relaxation_satellite_ratio": null,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999997714221991,
+       "target_2026_09": {
+        "shots_used": 370,
+        "n_sel": 25,
+        "n_hit": 9,
+        "F_s": 0.36,
+        "P_expected_key": 0.024324324324324326,
+        "implied_eps_instr": 0.018140238890985816
+       }
+      },
+      "D": {
+       "label": "D",
+       "measure": "late",
+       "frame": "IIXII",
+       "s": 12,
+       "n_total": 19996,
+       "n_selected": 1936,
+       "n_selected_hit": 68,
+       "n_data_zero": 1368,
+       "F_s": 0.03512396694214876,
+       "F_s_wilson95": [
+        0.027800639490499348,
+        0.04428854552336983
+       ],
+       "P_expected_key": 0.0034006801360272052,
+       "implied_eps_instr": 0.027477109347350037,
+       "n_instructions": 204,
+       "p_correct_syndrome": 0.09681936387277455,
+       "syndrome_rank": 4,
+       "syndrome_z_vs_code_blind": 20.048650569999356,
+       "relaxation_satellite_s": 8,
+       "relaxation_satellite_ratio": 0.1978305785123967,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999957389414794,
+       "target_2026_09": {
+        "shots_used": 371,
+        "n_sel": 55,
+        "n_hit": 44,
+        "F_s": 0.8,
+        "P_expected_key": 0.11859838274932614,
+        "implied_eps_instr": 0.010396618939971347
+       }
+      },
+      "A": {
+       "label": "A",
+       "measure": "mid",
+       "frame": "IIIII",
+       "s": 0,
+       "n_total": 19993,
+       "n_selected": 345,
+       "n_selected_hit": 80,
+       "n_data_zero": 414,
+       "F_s": 0.2318840579710145,
+       "F_s_wilson95": [
+        0.19044987831600982,
+        0.2792234633955291
+       ],
+       "P_expected_key": 0.00400140049017156,
+       "implied_eps_instr": 0.026831066338880993,
+       "n_instructions": 203,
+       "p_correct_syndrome": 0.017256039613864852,
+       "syndrome_rank": 16,
+       "syndrome_z_vs_code_blind": -26.428587323447747,
+       "relaxation_satellite_s": null,
+       "relaxation_satellite_ratio": null,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999997714221991,
+       "target_2026_09": {
+        "shots_used": 369,
+        "n_sel": 0,
+        "n_hit": null,
+        "F_s": null,
+        "P_expected_key": 0.0,
+        "implied_eps_instr": null
+       }
+      },
+      "B": {
+       "label": "B",
+       "measure": "mid",
+       "frame": "IIXII",
+       "s": 12,
+       "n_total": 19990,
+       "n_selected": 2345,
+       "n_selected_hit": 185,
+       "n_data_zero": 346,
+       "F_s": 0.07889125799573561,
+       "F_s_wilson95": [
+        0.06865643731205112,
+        0.09050355031759577
+       ],
+       "P_expected_key": 0.009254627313656828,
+       "implied_eps_instr": 0.022692635865356636,
+       "n_instructions": 204,
+       "p_correct_syndrome": 0.11730865432716359,
+       "syndrome_rank": 3,
+       "syndrome_z_vs_code_blind": 32.01325909232282,
+       "relaxation_satellite_s": 8,
+       "relaxation_satellite_ratio": 0.1646055437100213,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999957389414794,
+       "target_2026_09": {
+        "shots_used": 366,
+        "n_sel": 44,
+        "n_hit": 0,
+        "F_s": 0.0,
+        "P_expected_key": 0.0,
+        "implied_eps_instr": null
+       }
+      }
+     },
+     "comparison": {
+      "verdict": "NOT REPRODUCED",
+      "reason": "F_s = 0.0351 at psi='0' is at or below the psi='+' value 0.1209, so the 2026-09 0.80 does not survive 54x the shots on its own input state; the device point moves to eps=2.7477e-02 and the envelope verdict goes from 1.35x outside its loose end to 3.57x outside it.",
+      "F_s_D": 0.03512396694214876,
+      "target_2026_09": 0.8,
+      "psi_plus_value": 0.12092,
+      "implied_eps_D": 0.027477109347350037,
+      "rule": "REPRODUCED if F_s >= target/2; NOT REPRODUCED if F_s <= 1.5 x the psi='+' value; else INCONCLUSIVE.  Declared in code before purchase."
+     },
+     "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T120934Z.json",
+     "chip_id": "WK_C180",
+     "block": [
+      52,
+      61,
+      62,
+      70,
+      71,
+      79,
+      80,
+      88,
+      89
+     ],
+     "submitted_utc": "2026-10-24T12:09:34Z",
+     "n_circuits_submitted": 4,
+     "n_circuits_received": 4,
+     "truncated": false
+    }
+   ],
+   "run": {
+    "stage": "suppl",
+    "chip_id": "WK_C180",
+    "block": [
+     52,
+     61,
+     62,
+     70,
+     71,
+     79,
+     80,
+     88,
+     89
+    ],
+    "shots_requested": 20000,
+    "shots_used": [
+     19996,
+     19996,
+     19993,
+     19990
+    ],
+    "shots_used_total": 79975,
+    "shots_expected_total": 80000,
+    "shots_return_fraction": 0.9996875,
+    "wall_s": 1694.4407947063446,
+    "dump_raw": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T120934Z.json",
+    "n_circuits": 4,
+    "instruction_counts": [
+     203,
+     204
+    ],
+    "attempts": [],
+    "billing": {
+     "kind": "stage suppl",
+     "n_shots": 80000,
+     "ms_per_shot": 0.309,
+     "ms_per_shot_source": "dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.",
+     "cost_s": 24.72,
+     "cost_s_pessimistic": 1120.0,
+     "budget_remaining_before": 351.444,
+     "budget_remaining_after": 326.72400000000005,
+     "margin_s": 30.0,
+     "utc": "20261024T120934Z"
+    },
+    "meta": [
+     {
+      "kind": "suppl",
+      "label": "C",
+      "reproduces_2026_09": "C",
+      "psi": "0",
+      "p": 0.0,
+      "frame": "IIIII",
+      "s": 0,
+      "measure": "late",
+      "angles": "vscr_angles_dep.npz",
+      "n_instructions": 203,
+      "n_cnot": 82,
+      "matches_2026_09_inventory": true,
+      "ideal_P_data_zero": 0.9999997714221991,
+      "ideal_matches_2026_09_to": 5.440092820663267e-15
+     },
+     {
+      "kind": "suppl",
+      "label": "D",
+      "reproduces_2026_09": "D",
+      "psi": "0",
+      "p": 0.0,
+      "frame": "IIXII",
+      "s": 12,
+      "measure": "late",
+      "angles": "vscr_angles_dep.npz",
+      "n_instructions": 204,
+      "n_cnot": 82,
+      "matches_2026_09_inventory": true,
+      "ideal_P_data_zero": 0.9999957389414794,
+      "ideal_matches_2026_09_to": 4.884981308350689e-15
+     },
+     {
+      "kind": "suppl",
+      "label": "A",
+      "reproduces_2026_09": "A",
+      "psi": "0",
+      "p": 0.0,
+      "frame": "IIIII",
+      "s": 0,
+      "measure": "mid",
+      "angles": "vscr_angles_dep.npz",
+      "n_instructions": 203,
+      "n_cnot": 82,
+      "matches_2026_09_inventory": true,
+      "ideal_P_data_zero": 0.9999997714221991,
+      "ideal_matches_2026_09_to": 5.440092820663267e-15
+     },
+     {
+      "kind": "suppl",
+      "label": "B",
+      "reproduces_2026_09": "B",
+      "psi": "0",
+      "p": 0.0,
+      "frame": "IIXII",
+      "s": 12,
+      "measure": "mid",
+      "angles": "vscr_angles_dep.npz",
+      "n_instructions": 204,
+      "n_cnot": 82,
+      "matches_2026_09_inventory": true,
+      "ideal_P_data_zero": 0.9999957389414794,
+      "ideal_matches_2026_09_to": 4.884981308350689e-15
+     }
+    ]
+   }
   }
  },
  "warmcold": {
@@ -3900,5 +4223,125 @@
    "note": "A/B FAILED: the signal gap is NEGATIVE (-0.0469): warm performed significantly WORSE than cold, the opposite of the pre-registered prediction; the null control moved (-33.9 sigma), so the apparatus is not clean. Null branch s=12 moved by -0.0803 +- 0.0024 (-33.9 sigma)"
   },
   "source_dump": "/home/yqc/github/QEC/qcloud_raw_warmcold_WK_C180_2_20261021T010404Z.json"
- }
+ },
+ "truncated_stages": {
+  "suppl": {
+   "received": 2,
+   "defined": 4,
+   "missing": [
+    "A|mid|IIIII|s0",
+    "B|mid|IIXII|s12"
+   ]
+  }
+ },
+ "suppl": [
+  {
+   "psi": "0",
+   "p": 0.0,
+   "shots_requested": 20000,
+   "reproduces": "2026-09 feasibility set (raw_verify_options.json)",
+   "per_circuit": {
+    "C": {
+     "label": "C",
+     "measure": "late",
+     "frame": "IIIII",
+     "s": 0,
+     "n_total": 20000,
+     "n_selected": 3424,
+     "n_selected_hit": 418,
+     "n_data_zero": 2574,
+     "F_s": 0.12207943925233646,
+     "F_s_wilson95": [
+      0.11153519930062475,
+      0.13347075430003172
+     ],
+     "P_expected_key": 0.0209,
+     "implied_eps_instr": 0.018873833250163896,
+     "n_instructions": 203,
+     "p_correct_syndrome": 0.1712,
+     "syndrome_rank": 3,
+     "syndrome_z_vs_code_blind": 63.50660480086566,
+     "relaxation_satellite_s": null,
+     "relaxation_satellite_ratio": null,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999997714221991,
+     "target_2026_09": {
+      "shots_used": 370,
+      "n_sel": 25,
+      "n_hit": 9,
+      "F_s": 0.36,
+      "P_expected_key": 0.024324324324324326,
+      "implied_eps_instr": 0.018140238890985816
+     }
+    },
+    "D": {
+     "label": "D",
+     "measure": "late",
+     "frame": "IIXII",
+     "s": 12,
+     "n_total": 20000,
+     "n_selected": 493,
+     "n_selected_hit": 48,
+     "n_data_zero": 2468,
+     "F_s": 0.0973630831643002,
+     "F_s_wilson95": [
+      0.0742234593930316,
+      0.12672911784687746
+     ],
+     "P_expected_key": 0.0024,
+     "implied_eps_instr": 0.02913711627398685,
+     "n_instructions": 204,
+     "p_correct_syndrome": 0.02465,
+     "syndrome_rank": 9,
+     "syndrome_z_vs_code_blind": -22.113385388341904,
+     "relaxation_satellite_s": 8,
+     "relaxation_satellite_ratio": 3.2190669371196754,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999957389414794,
+     "target_2026_09": {
+      "shots_used": 371,
+      "n_sel": 55,
+      "n_hit": 44,
+      "F_s": 0.8,
+      "P_expected_key": 0.11859838274932614,
+      "implied_eps_instr": 0.010396618939971347
+     }
+    }
+   },
+   "comparison": {
+    "verdict": "NOT REPRODUCED",
+    "reason": "F_s = 0.0974 at psi='0' is at or below the psi='+' value 0.1209, so the 2026-09 0.80 does not survive 54x the shots on its own input state; the device point moves to eps=2.9137e-02 and the envelope verdict goes from 1.35x outside its loose end to 3.78x outside it.",
+    "F_s_D": 0.0973630831643002,
+    "target_2026_09": 0.8,
+    "psi_plus_value": 0.12092,
+    "implied_eps_D": 0.02913711627398685,
+    "rule": "REPRODUCED if F_s >= target/2; NOT REPRODUCED if F_s <= 1.5 x the psi='+' value; else INCONCLUSIVE.  Declared in code before purchase."
+   },
+   "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T120330Z.json",
+   "chip_id": "WK_C180",
+   "block": [
+    147,
+    155,
+    157,
+    164,
+    165,
+    166,
+    174,
+    175,
+    176
+   ],
+   "submitted_utc": "2026-10-24T12:03:30Z",
+   "n_circuits_submitted": 4,
+   "n_circuits_received": 2,
+   "truncated": true
+  }
+ ]
 }

@@ -1,0 +1,33 @@
+# launch_mixedness.sh screen
+# utc=20261024T120511Z chip=WK_C180 stage=warmcold --cal9-screen
+# dashboard_before=326.724s ms_per_shot=0.309
+# block=52,61,62,70,71,79,80,88,89 shots=default cal_first=1
+# angles=/home/yqc/github/QEC/vscr_angles_paper_dep.npz vendor=0.9988,0.9790,0.9260
+# WHEN THE JOB LANDS: read the dashboard again and append the reading, so the
+# billed ms/shot stops being a hypothesis:
+#   echo 'dashboard_after=<seconds>' >> hw_evidence/20261024T120511Z_WK_C180_screen.log
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[budget] cal9screen: 2000 shots = 0.6 s at 0.309 ms/shot (dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.); 326.7 s remain, 30 s margin held back -> 296.1 s left after this submission
+[cal9screen] chip=WK_C180 block=[52, 61, 62, 70, 71, 79, 80, 88, 89] shots/circuit=1000 -> 2000 shots = 0.6 s at 0.309 ms/shot; mapping=True
+[cloud] backend: WK_C180
+[cloud] options: amend=True, mapping=True, optimization=True, specified_block=[52, 61, 62, 70, 71, 79, 80, 88, 89]
+[cloud]   batch 1: submitting 2 circuits ...
+[cloud]   job JobStatus.WAITING after 1 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 11 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.FINISHED after 59 s (poll 5 s, timeout 21600 s)
+[cloud]   batch 1: received
+[cal9screen] 998/1000 and 998/1000 shots; mean readout fidelity 0.9781 (0.9781 over healthy channels)
+[cal9screen]   data0  logical q0  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   data1  logical q1  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   data2  logical q2  e01=0.0020 e10=0.3477 fid=0.8252 contrast=+0.6503  ok
+[cal9screen]   data3  logical q3  e01=0.0020 e10=0.0040 fid=0.9970 contrast=+0.9940  ok
+[cal9screen]   data4  logical q4  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   anc0   logical q5  e01=0.0271 e10=0.0000 fid=0.9865 contrast=+0.9729  ok
+[cal9screen]   anc1   logical q6  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen]   anc2   logical q7  e01=0.0020 e10=0.0100 fid=0.9940 contrast=+0.9880  ok
+[cal9screen]   anc3   logical q8  e01=0.0000 e10=0.0000 fid=1.0000 contrast=+1.0000  ok
+[cal9screen] SCREEN: all 9 channels screened; 0 broken (0 data, 0 ancilla)
+[cal9screen] VERDICT: block [52, 61, 62, 70, 71, 79, 80, 88, 89] is USABLE -- primary estimator valid, post-selected F_s valid
+[cal9screen] -> science circuits MAY be bought on this block, but the NEXT gate is --wc-probe, not the A/B: 1 circuit x 1000 shots = 0.3 s, and it measures the data-register survival w that sets the A/B's power.  The full warmcold stage at STAGE_SHOTS=3000 is 6 circuits x 3000 shots = 252 s at the pessimistic 14 ms/shot, so buying it before w is known risks spending the allocation on a bound.  ALSO: read the dashboard again now -- (before - after) / 2000 shots is the billed ms/shot, the only measurement of it that exists.
+[out] /home/yqc/github/QEC/hw_mixedness.json
+[cal9screen] dump qcloud_raw_cal9screen_WK_C180_20261024T120512Z.json (screen only -- no warm-vs-cold claim is made or implied).  Read the dashboard again: the delta over 2000 shots is the billed ms/shot to pass as --ms-per-shot next.

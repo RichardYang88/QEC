@@ -1,0 +1,98 @@
+{
+ "block": [
+  147,
+  155,
+  157,
+  164,
+  165,
+  166,
+  174,
+  175,
+  176
+ ],
+ "chip_id": "WK_C180",
+ "instruction_counts": [
+  203,
+  204,
+  203,
+  204
+ ],
+ "kinds": [
+  "suppl",
+  "suppl",
+  "suppl",
+  "suppl"
+ ],
+ "mapping": true,
+ "meta": [
+  {
+   "angles": "vscr_angles_dep.npz",
+   "frame": "IIIII",
+   "ideal_P_data_zero": 0.9999997714221991,
+   "ideal_matches_2026_09_to": 5.440092820663267e-15,
+   "kind": "suppl",
+   "label": "C",
+   "matches_2026_09_inventory": true,
+   "measure": "late",
+   "n_cnot": 82,
+   "n_instructions": 203,
+   "p": 0.0,
+   "psi": "0",
+   "reproduces_2026_09": "C",
+   "s": 0
+  },
+  {
+   "angles": "vscr_angles_dep.npz",
+   "frame": "IIXII",
+   "ideal_P_data_zero": 0.9999957389414794,
+   "ideal_matches_2026_09_to": 4.884981308350689e-15,
+   "kind": "suppl",
+   "label": "D",
+   "matches_2026_09_inventory": true,
+   "measure": "late",
+   "n_cnot": 82,
+   "n_instructions": 204,
+   "p": 0.0,
+   "psi": "0",
+   "reproduces_2026_09": "D",
+   "s": 12
+  },
+  {
+   "angles": "vscr_angles_dep.npz",
+   "frame": "IIIII",
+   "ideal_P_data_zero": 0.9999997714221991,
+   "ideal_matches_2026_09_to": 5.440092820663267e-15,
+   "kind": "suppl",
+   "label": "A",
+   "matches_2026_09_inventory": true,
+   "measure": "mid",
+   "n_cnot": 82,
+   "n_instructions": 203,
+   "p": 0.0,
+   "psi": "0",
+   "reproduces_2026_09": "A",
+   "s": 0
+  },
+  {
+   "angles": "vscr_angles_dep.npz",
+   "frame": "IIXII",
+   "ideal_P_data_zero": 0.9999957389414794,
+   "ideal_matches_2026_09_to": 4.884981308350689e-15,
+   "kind": "suppl",
+   "label": "B",
+   "matches_2026_09_inventory": true,
+   "measure": "mid",
+   "n_cnot": 82,
+   "n_instructions": 204,
+   "p": 0.0,
+   "psi": "0",
+   "reproduces_2026_09": "B",
+   "s": 12
+  }
+ ],
+ "n_circuits": 4,
+ "shots": 20000,
+ "stage": "suppl",
+ "use_options": true,
+ "written_utc": "2026-10-24T12:03:30Z"
+}
