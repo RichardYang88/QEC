@@ -1060,6 +1060,30 @@ SUPPL_TARGETS = {
               ideal=0.9999957389414843, implied_eps=0.010396618939971347),
 }
 SUPPL_IDEAL_TOL = 1e-12
+# Degeneracy guard, scoped to the suppl stage.  A healthy suppl circuit spreads its
+# shots over many distinct bitstrings; a failed one collapses onto a handful.  The
+# statistic is the Shannon entropy of the FULL 9-bit outcome distribution NORMALISED
+# by log2(min(n, 512)), the most entropy n shots over a 9-qubit register can carry.
+# Normalising is not cosmetic: raw entropy tracks the shot count, so the archived
+# 2026-09 run measures 5.58-6.05 bits at n~369 while the 2026-10-24 runs measure
+# 7.03-7.45 bits at n=20000, and an absolute bit threshold tuned on the latter sits
+# only 0.58 bits above the former.  The ratio removes that dependence:
+#   degenerate 2026-10-24T141813Z   0.275-0.292
+#   archived 2026-09 (n~369)        0.654-0.709
+#   healthy 2026-10-24 (n=20000)    0.781-0.827
+# 0.45 sits in the empty gap, 0.158 above the degenerate maximum and 0.204 below the
+# archived minimum, so it fires on the failure and cannot fire on either valid run.
+# WHY IT MUST EXIST: the degenerate submission returned ~50 distinct bitstrings with
+# ~50% of all shots in a SINGLE outcome on all four circuits, and near-identical
+# z ~= -36.5 across two frames and two depths -- impossible for genuinely different
+# circuits.  It still yielded F_s = 0.0000 and therefore the SAME "NOT REPRODUCED"
+# string as the two valid runs, so an unguarded pipeline would have accepted it as a
+# third independent confirmation and as the complete 4/4 September record.  Bad data
+# that reproduces the expected verdict string is the failure mode this closes.
+# Not applied across stages: cal9screen circuits are meant to be near-deterministic
+# (entropy 0.238-1.042 bits) and warmcold legitimately reaches down to 1.464, so a
+# uniform threshold would misfire on valid data.
+SUPPL_MIN_OUTCOME_ENTROPY_RATIO = 0.45
 
 
 def suppl_gate_inventory():
@@ -2978,6 +3002,32 @@ def selftests(verbose=True):
     assert suppl_verdict(_mk(0.18))['verdict'] == 'NOT REPRODUCED'  # at 1.5x psi='+'
     assert suppl_verdict(_mk(0.12))['verdict'] == 'NOT REPRODUCED'
     assert suppl_verdict({})['verdict'] == 'NOT ANALYSABLE'
+    # The degeneracy guard and the nan guard beside it.  Both exist because the
+    # 2026-10-24T141813Z submission returned counts collapsed onto ~50 bitstrings
+    # with ~50% of all shots in a single outcome, which yields F_s = 0.0000 and so
+    # the SAME "NOT REPRODUCED" string a valid run produces.  Unguarded, it was
+    # indistinguishable from a third independent confirmation of the verdict, and it
+    # was a COMPLETE 4/4 record on the September block -- strictly more attractive
+    # to a reader than the valid 2/4 one it sat beside.
+    _deg = suppl_verdict(_mk(0.0), degenerate=True, entropy_ratio_max=0.292)
+    assert _deg['verdict'] == 'NOT ANALYSABLE', _deg
+    assert _deg.get('degenerate') is True and '0.292' in _deg['reason']
+    # the guard must not override a genuine verdict when the data is NOT degenerate
+    assert suppl_verdict(_mk(0.80), degenerate=False)['verdict'] == 'REPRODUCED'
+    # an uncomputable implied error rate cannot yield a verdict quoting nan: the
+    # degenerate run printed "moves to eps=nan ... to nanx outside it" into a
+    # sentence the manuscript would have reproduced verbatim.
+    _nan = suppl_verdict({'D': {'F_s': 0.0, 'implied_eps_instr': float('nan')}})
+    assert _nan['verdict'] == 'NOT ANALYSABLE', _nan
+    assert 'nan' not in _nan['reason'].lower(), _nan['reason']
+    # The archived 2026-09 counts are VALID and must clear the guard -- at n~369
+    # shots, low enough that a raw-bit threshold tuned on the 20 000-shot runs
+    # would have rejected them.  This is the assertion that caught the first
+    # implementation of the guard, which thresholded bits instead of the ratio.
+    assert _sup['degenerate'] is False, _sup['entropy_ratio_min']
+    assert _sup['entropy_ratio_min'] > SUPPL_MIN_OUTCOME_ENTROPY_RATIO
+    assert 0.60 < _sup['entropy_ratio_min'] and _sup['entropy_ratio_max'] < 0.75, (
+        _sup['entropy_ratio_min'], _sup['entropy_ratio_max'])
     assert suppl_verdict({'D': {'F_s': None}})['verdict'] == 'NOT ANALYSABLE'
     # build_suppl must REFUSE angles that do not reproduce the archived ideal.
     try:
@@ -5578,11 +5628,26 @@ def analyze_suppl(results, meta, phi_cold, shots_requested=None, verbose=True):
             sb[1] = '0'
             sat = ''.join(sb)
         e2e = (n_sel_hit / float(n_tot)) if n_tot else None
+        # Shannon entropy of the FULL raw outcome distribution, plus the same
+        # quantity normalised by the most entropy these shots could carry.  Must be
+        # measured over the complete bitstring, NOT over `syn`: syn is keyed by the
+        # 4-bit ancilla syndrome and is capped at 4 bits, so thresholding it on a
+        # 9-bit scale flags every healthy run.  (That mistake was made once here and
+        # caught by the archived 2026-09 counts in selftest (q), which sit at only
+        # 5.58-6.05 bits because they carry ~369 shots rather than 20 000 -- the
+        # reason the guard thresholds the RATIO and not the raw bit count.)
+        _items = _counts_items(r)
+        _nc = float(sum(v for _k, v in _items))
+        _p = [v / _nc for _k, v in _items if v > 0] if _nc else []
+        outcome_H = -sum(x * math.log2(x) for x in _p) if _p else 0.0
+        _hcap = math.log2(min(_nc, 2.0 ** 9)) if _nc > 1 else 0.0
+        outcome_Hr = (outcome_H / _hcap) if _hcap > 0 else 0.0
         ref = eb['circuits'][lab]
         out['per_circuit'][lab] = dict(
             label=lab, measure=m['measure'], frame=m['frame'], s=m['s'],
             n_total=n_tot, n_selected=n_sel, n_selected_hit=n_sel_hit,
-            n_data_zero=n_zero,
+            n_data_zero=n_zero, outcome_entropy_bits=outcome_H,
+            outcome_entropy_ratio=outcome_Hr,
             F_s=(n_sel_hit / float(n_sel)) if n_sel else None,
             F_s_wilson95=(list(wilson(n_sel_hit, n_sel)) if n_sel else None),
             P_expected_key=e2e,
@@ -5622,14 +5687,33 @@ def analyze_suppl(results, meta, phi_cold, shots_requested=None, verbose=True):
                      ('%.3f' % c['relaxation_satellite_ratio'])
                      if c['relaxation_satellite_ratio'] is not None else 'n/a'),
                   flush=True)
-    out['comparison'] = suppl_verdict(out['per_circuit'])
+    _srt = sorted(out['per_circuit'].items())
+    out['outcome_entropy_bits'] = dict(
+        (k, v.get('outcome_entropy_bits')) for k, v in _srt)
+    out['outcome_entropy_ratio'] = dict(
+        (k, v.get('outcome_entropy_ratio')) for k, v in _srt)
+    _ents = [v.get('outcome_entropy_bits') for _k, v in _srt
+             if v.get('outcome_entropy_bits') is not None]
+    _rat = [v.get('outcome_entropy_ratio') for _k, v in _srt
+            if v.get('outcome_entropy_ratio') is not None]
+    out['entropy_min'] = min(_ents) if _ents else None
+    out['entropy_max'] = max(_ents) if _ents else None
+    out['entropy_ratio_min'] = min(_rat) if _rat else None
+    out['entropy_ratio_max'] = max(_rat) if _rat else None
+    # Degenerate when EVEN THE BEST returned circuit is below the guard.  Valid runs
+    # measure 0.654-0.827 (archived 2026-09 and both 2026-10-24 submissions), the
+    # failed one 0.275-0.292, so 0.45 cannot fire on good data.
+    out['degenerate'] = bool(_rat) and max(_rat) < SUPPL_MIN_OUTCOME_ENTROPY_RATIO
+    out['comparison'] = suppl_verdict(out['per_circuit'],
+                                      degenerate=out['degenerate'],
+                                      entropy_ratio_max=out['entropy_ratio_max'])
     if verbose:
         print('[suppl] VERDICT: %s' % out['comparison']['verdict'], flush=True)
         print('[suppl]   %s' % out['comparison']['reason'], flush=True)
     return out
 
 
-def suppl_verdict(per):
+def suppl_verdict(per, degenerate=False, entropy_ratio_max=None):
     """The pre-declared reading of the psi='0' reproduction.
 
     Declared here, in code, before the data is bought -- the same discipline the
@@ -5637,7 +5721,28 @@ def suppl_verdict(per):
     called FAILED rather than reinterpreted.  The bar is a factor, not a vibe:
     F_s within 2x of 0.80 reproduces the September device point, and anything at
     or below the psi='+' value does not.  In between is reported as inconclusive
-    rather than rounded into whichever answer is convenient."""
+    rather than rounded into whichever answer is convenient.
+
+    A run whose outcome distribution is degenerate is refused before any of that
+    logic runs, because such a run also produces F_s = 0.0000 and so would
+    otherwise be indistinguishable from a genuine NOT REPRODUCED."""
+    if degenerate:
+        return dict(verdict='NOT ANALYSABLE', degenerate=True,
+                    entropy_ratio_max=entropy_ratio_max,
+                    reason=('outcome distribution is degenerate: even the best '
+                            'returned circuit carries a normalised outcome entropy '
+                            'of only %.3f, below the %.2f suppl guard.  Valid runs on '
+                            'these same circuits measure 0.654-0.827; this one '
+                            'collapsed onto ~50 distinct bitstrings instead of ~500, '
+                            'with ~50%% of all shots in a single outcome, and returned '
+                            'near-identical z ~= -36.5 across two frames and two '
+                            'measurement depths, which genuinely different circuits '
+                            'cannot do.  It is rejected as a device or compilation '
+                            'failure, not read as evidence about the September device '
+                            'point -- noting that its F_s of 0.0000 would otherwise '
+                            'have produced the same verdict string as a real one.'
+                            % (entropy_ratio_max if entropy_ratio_max is not None
+                               else -1.0, SUPPL_MIN_OUTCOME_ENTROPY_RATIO)))
     d = per.get('D')
     if not d or d.get('F_s') is None:
         return dict(verdict='NOT ANALYSABLE',
@@ -5645,6 +5750,19 @@ def suppl_verdict(per):
     fs, tgt = d['F_s'], SUPPL_TARGETS['D']['F_s']
     fs_plus = 0.12092          # the psi='+' value for the same nominal branch
     eps = d.get('implied_eps_instr')
+    # An uncomputable implied error rate means the device point cannot be moved and
+    # the envelope ratio cannot be formed.  Emitting a verdict anyway prints nan
+    # into a sentence the manuscript quotes verbatim -- the degenerate 2026-10-24
+    # submission produced "moves to eps=nan ... to nanx outside it" and still read
+    # NOT REPRODUCED, so the guard is on the number, not on the string.
+    if eps is None or eps != eps:
+        return dict(verdict='NOT ANALYSABLE',
+                    reason=('circuit D has F_s = %.4f but no finite implied error '
+                            'rate, so the device point cannot be moved and the '
+                            'envelope ratio cannot be formed; no reproduction '
+                            'verdict is supportable from this run' % fs),
+                    F_s_D=fs, target_2026_09=tgt, psi_plus_value=fs_plus,
+                    implied_eps_D=eps)
     if fs >= tgt / 2.0:
         v = 'REPRODUCED'
         why = ('F_s = %.4f is within 2x of the 2026-09 %.2f at psi=\'0\', so the '
@@ -5653,8 +5771,8 @@ def suppl_verdict(per):
                'quote the psi=\'+\' value %.4f beside it.' % (fs, tgt, fs_plus))
     elif fs <= fs_plus * 1.5:
         v = 'NOT REPRODUCED'
-        # explicit None test: eps == 0.0 is falsy but is a real (ideal) value
-        _e = eps if eps is not None else float('nan')
+        # eps is guaranteed finite by the guard above
+        _e = eps
         why = ('F_s = %.4f at psi=\'0\' is at or below the psi=\'+\' value %.4f, so '
                'the 2026-09 %.2f does not survive 54x the shots on its own input '
                'state; the device point moves to eps=%.4e and the envelope verdict '

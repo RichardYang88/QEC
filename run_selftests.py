@@ -263,11 +263,18 @@ def _t_hwmixedness():
     assert st['layout_tie_invariance'] < 1e-12, st
     assert st['layout_margin_min'] > 100.0, st
     assert st['fit_p_instr_residual'] < 1e-6, st
+    # `suppl` was added to the stage inventory without this expectation being
+    # updated, which left the repo-level gate red while `hw_mixedness.py --mode
+    # selftest` still passed on its own -- the two are not interchangeable and must
+    # both be run.  The total is now also asserted to equal the sum of the stages,
+    # so adding a stage can no longer slip past a stale absolute pin.
     assert st['stage_sizes'] == {'probe': 8, 'tomo': 19, 'bench': 34,
                                  'ladder': 4 * len(hm.LADDER_ROUNDS),
                                  'warmcold': (hm.WARMCOLD_N_SCIENCE
-                                              + hm.WARMCOLD_N_CAL)}, st
-    assert st['n_circuits_total'] == 71, st
+                                              + hm.WARMCOLD_N_CAL),
+                                 'suppl': len(hm.SUPPL_GRID)}, st
+    assert st['n_circuits_total'] == 75, st
+    assert st['n_circuits_total'] == sum(st['stage_sizes'].values()), st
     assert st['merged_depths'] == [1, 2] + sorted(hm.LADDER_ROUNDS), st
     # (k) the vendor block BEATS its datasheet, so the tomo headline r<1 is weak
     # and must not be sold as significant; and the block that WOULD make it

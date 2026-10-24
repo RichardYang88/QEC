@@ -89,7 +89,7 @@
   "python": "3.11.15",
   "numpy": "2.4.6"
  },
- "updated_utc": "2026-10-24T13:02:56Z",
+ "updated_utc": "2026-10-24T14:47:46Z",
  "warmcold_dry_run": {
   "shots": 4000,
   "spends_qpu_time": false,
@@ -789,6 +789,18 @@
    "budget_remaining_after": 326.72400000000005,
    "margin_s": 30.0,
    "utc": "20261024T120934Z"
+  },
+  {
+   "kind": "stage suppl",
+   "n_shots": 80000,
+   "ms_per_shot": 0.309,
+   "ms_per_shot_source": "dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.",
+   "cost_s": 24.72,
+   "cost_s_pessimistic": 1120.0,
+   "budget_remaining_before": 300.793,
+   "budget_remaining_after": 276.073,
+   "margin_s": 30.0,
+   "utc": "20261024T141813Z"
   }
  ],
  "wcprobe": {
@@ -3004,6 +3016,420 @@
      }
     ]
    }
+  },
+  "suppl@qcloud_raw_suppl_WK_C180_20261024T141813Z.json": {
+   "archived_utc": "2026-10-24T14:35:34Z",
+   "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T141813Z.json",
+   "analysis": [
+    {
+     "psi": "0",
+     "p": 0.0,
+     "shots_requested": 20000,
+     "reproduces": "2026-09 feasibility set (raw_verify_options.json)",
+     "per_circuit": {
+      "C": {
+       "label": "C",
+       "measure": "late",
+       "frame": "IIIII",
+       "s": 0,
+       "n_total": 20000,
+       "n_selected": 3424,
+       "n_selected_hit": 418,
+       "n_data_zero": 2574,
+       "F_s": 0.12207943925233646,
+       "F_s_wilson95": [
+        0.11153519930062475,
+        0.13347075430003172
+       ],
+       "P_expected_key": 0.0209,
+       "implied_eps_instr": 0.018873833250163896,
+       "n_instructions": 203,
+       "p_correct_syndrome": 0.1712,
+       "syndrome_rank": 3,
+       "syndrome_z_vs_code_blind": 63.50660480086566,
+       "relaxation_satellite_s": null,
+       "relaxation_satellite_ratio": null,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999997714221991,
+       "target_2026_09": {
+        "shots_used": 370,
+        "n_sel": 25,
+        "n_hit": 9,
+        "F_s": 0.36,
+        "P_expected_key": 0.024324324324324326,
+        "implied_eps_instr": 0.018140238890985816
+       }
+      },
+      "D": {
+       "label": "D",
+       "measure": "late",
+       "frame": "IIXII",
+       "s": 12,
+       "n_total": 20000,
+       "n_selected": 493,
+       "n_selected_hit": 48,
+       "n_data_zero": 2468,
+       "F_s": 0.0973630831643002,
+       "F_s_wilson95": [
+        0.0742234593930316,
+        0.12672911784687746
+       ],
+       "P_expected_key": 0.0024,
+       "implied_eps_instr": 0.02913711627398685,
+       "n_instructions": 204,
+       "p_correct_syndrome": 0.02465,
+       "syndrome_rank": 9,
+       "syndrome_z_vs_code_blind": -22.113385388341904,
+       "relaxation_satellite_s": 8,
+       "relaxation_satellite_ratio": 3.2190669371196754,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999957389414794,
+       "target_2026_09": {
+        "shots_used": 371,
+        "n_sel": 55,
+        "n_hit": 44,
+        "F_s": 0.8,
+        "P_expected_key": 0.11859838274932614,
+        "implied_eps_instr": 0.010396618939971347
+       }
+      }
+     },
+     "comparison": {
+      "verdict": "NOT REPRODUCED",
+      "reason": "F_s = 0.0974 at psi='0' is at or below the psi='+' value 0.1209, so the 2026-09 0.80 does not survive 54x the shots on its own input state; the device point moves to eps=2.9137e-02 and the envelope verdict goes from 1.35x outside its loose end to 3.78x outside it.",
+      "F_s_D": 0.0973630831643002,
+      "target_2026_09": 0.8,
+      "psi_plus_value": 0.12092,
+      "implied_eps_D": 0.02913711627398685,
+      "rule": "REPRODUCED if F_s >= target/2; NOT REPRODUCED if F_s <= 1.5 x the psi='+' value; else INCONCLUSIVE.  Declared in code before purchase."
+     },
+     "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T120330Z.json",
+     "chip_id": "WK_C180",
+     "block": [
+      147,
+      155,
+      157,
+      164,
+      165,
+      166,
+      174,
+      175,
+      176
+     ],
+     "submitted_utc": "2026-10-24T12:03:30Z",
+     "n_circuits_submitted": 4,
+     "n_circuits_received": 2,
+     "truncated": true
+    },
+    {
+     "psi": "0",
+     "p": 0.0,
+     "shots_requested": 20000,
+     "reproduces": "2026-09 feasibility set (raw_verify_options.json)",
+     "per_circuit": {
+      "C": {
+       "label": "C",
+       "measure": "late",
+       "frame": "IIIII",
+       "s": 0,
+       "n_total": 20000,
+       "n_selected": 2,
+       "n_selected_hit": 0,
+       "n_data_zero": 0,
+       "outcome_entropy_bits": 1.9737645168531701,
+       "F_s": 0.0,
+       "F_s_wilson95": [
+        0.0,
+        0.6576280471103807
+       ],
+       "P_expected_key": 0.0,
+       "implied_eps_instr": null,
+       "n_instructions": 203,
+       "p_correct_syndrome": 0.0001,
+       "syndrome_rank": 11,
+       "syndrome_z_vs_code_blind": -36.45641342754385,
+       "relaxation_satellite_s": null,
+       "relaxation_satellite_ratio": null,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999997714221991,
+       "target_2026_09": {
+        "shots_used": 370,
+        "n_sel": 25,
+        "n_hit": 9,
+        "F_s": 0.36,
+        "P_expected_key": 0.024324324324324326,
+        "implied_eps_instr": 0.018140238890985816
+       }
+      },
+      "D": {
+       "label": "D",
+       "measure": "late",
+       "frame": "IIXII",
+       "s": 12,
+       "n_total": 20000,
+       "n_selected": 9,
+       "n_selected_hit": 0,
+       "n_data_zero": 0,
+       "outcome_entropy_bits": 0.7014822373039941,
+       "F_s": 0.0,
+       "F_s_wilson95": [
+        0.0,
+        0.2991527535509594
+       ],
+       "P_expected_key": 0.0,
+       "implied_eps_instr": null,
+       "n_instructions": 204,
+       "p_correct_syndrome": 0.00045,
+       "syndrome_rank": 6,
+       "syndrome_z_vs_code_blind": -36.251930339408595,
+       "relaxation_satellite_s": 8,
+       "relaxation_satellite_ratio": 0.0,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999957389414794,
+       "target_2026_09": {
+        "shots_used": 371,
+        "n_sel": 55,
+        "n_hit": 44,
+        "F_s": 0.8,
+        "P_expected_key": 0.11859838274932614,
+        "implied_eps_instr": 0.010396618939971347
+       }
+      },
+      "A": {
+       "label": "A",
+       "measure": "mid",
+       "frame": "IIIII",
+       "s": 0,
+       "n_total": 20000,
+       "n_selected": 0,
+       "n_selected_hit": 0,
+       "n_data_zero": 0,
+       "outcome_entropy_bits": 1.3243473695178034,
+       "F_s": null,
+       "F_s_wilson95": null,
+       "P_expected_key": 0.0,
+       "implied_eps_instr": null,
+       "n_instructions": 203,
+       "p_correct_syndrome": 0.0,
+       "syndrome_rank": null,
+       "syndrome_z_vs_code_blind": -36.51483716701107,
+       "relaxation_satellite_s": null,
+       "relaxation_satellite_ratio": null,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999997714221991,
+       "target_2026_09": {
+        "shots_used": 369,
+        "n_sel": 0,
+        "n_hit": null,
+        "F_s": null,
+        "P_expected_key": 0.0,
+        "implied_eps_instr": null
+       }
+      },
+      "B": {
+       "label": "B",
+       "measure": "mid",
+       "frame": "IIXII",
+       "s": 12,
+       "n_total": 20000,
+       "n_selected": 1,
+       "n_selected_hit": 0,
+       "n_data_zero": 0,
+       "outcome_entropy_bits": 1.492721724071637,
+       "F_s": 0.0,
+       "F_s_wilson95": [
+        0.0,
+        0.7934567085261071
+       ],
+       "P_expected_key": 0.0,
+       "implied_eps_instr": null,
+       "n_instructions": 204,
+       "p_correct_syndrome": 5e-05,
+       "syndrome_rank": 9,
+       "syndrome_z_vs_code_blind": -36.485625297277466,
+       "relaxation_satellite_s": 8,
+       "relaxation_satellite_ratio": 0.0,
+       "anc_slice": [
+        5,
+        9
+       ],
+       "rev": true,
+       "ideal_P_data_zero": 0.9999957389414794,
+       "target_2026_09": {
+        "shots_used": 366,
+        "n_sel": 44,
+        "n_hit": 0,
+        "F_s": 0.0,
+        "P_expected_key": 0.0,
+        "implied_eps_instr": null
+       }
+      }
+     },
+     "outcome_entropy_bits": {
+      "A": 1.3243473695178034,
+      "B": 1.492721724071637,
+      "C": 1.9737645168531701,
+      "D": 0.7014822373039941
+     },
+     "entropy_min": 0.7014822373039941,
+     "entropy_max": 1.9737645168531701,
+     "degenerate": true,
+     "comparison": {
+      "verdict": "NOT ANALYSABLE",
+      "degenerate": true,
+      "entropy_max": 1.9737645168531701,
+      "reason": "outcome distribution is degenerate: even the best returned circuit carries only 1.974 bits of Shannon entropy out of 9, below the 5.0-bit suppl guard.  A healthy submission on these same circuits measured 7.03-7.45 bits over ~500 distinct bitstrings; this one collapsed onto ~50 with ~50% of all shots in a single outcome and returned near-identical z ~= -36.5 across different frames and depths, which genuinely different circuits cannot do.  It is rejected as a device or compilation failure, not read as evidence about the September device point."
+     },
+     "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T141813Z.json",
+     "chip_id": "WK_C180",
+     "block": [
+      147,
+      155,
+      157,
+      164,
+      165,
+      166,
+      174,
+      175,
+      176
+     ],
+     "submitted_utc": "2026-10-24T14:18:13Z",
+     "n_circuits_submitted": 4,
+     "n_circuits_received": 4,
+     "truncated": false
+    }
+   ],
+   "run": {
+    "stage": "suppl",
+    "chip_id": "WK_C180",
+    "block": [
+     147,
+     155,
+     157,
+     164,
+     165,
+     166,
+     174,
+     175,
+     176
+    ],
+    "shots_requested": 20000,
+    "shots_used": [
+     20000,
+     20000,
+     20000,
+     20000
+    ],
+    "shots_used_total": 80000,
+    "shots_expected_total": 80000,
+    "shots_return_fraction": 1.0,
+    "wall_s": 301.09541749954224,
+    "dump_raw": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T141813Z.json",
+    "n_circuits": 4,
+    "instruction_counts": [
+     203,
+     204
+    ],
+    "attempts": [],
+    "billing": {
+     "kind": "stage suppl",
+     "n_shots": 80000,
+     "ms_per_shot": 0.309,
+     "ms_per_shot_source": "dashboard-measured 2026-10-21: dashboard delta 389.136 s -> 352.062 s = 37.074 s over 120 000 shots, 2026-10-21 WK_C180_2 warmcold A/B, 3 submissions all FINISHED, 6/6 circuits returned, so the shot denominator is certain.  Corroborated at 0.373-0.621 by the two 2026-10-15 probes.  The 14.0 constant it replaces is 45x larger and is retained only as a historical upper bound.",
+     "cost_s": 24.72,
+     "cost_s_pessimistic": 1120.0,
+     "budget_remaining_before": 300.793,
+     "budget_remaining_after": 276.073,
+     "margin_s": 30.0,
+     "utc": "20261024T141813Z"
+    },
+    "meta": [
+     {
+      "kind": "suppl",
+      "label": "C",
+      "reproduces_2026_09": "C",
+      "psi": "0",
+      "p": 0.0,
+      "frame": "IIIII",
+      "s": 0,
+      "measure": "late",
+      "angles": "vscr_angles_dep.npz",
+      "n_instructions": 203,
+      "n_cnot": 82,
+      "matches_2026_09_inventory": true,
+      "ideal_P_data_zero": 0.9999997714221991,
+      "ideal_matches_2026_09_to": 5.440092820663267e-15
+     },
+     {
+      "kind": "suppl",
+      "label": "D",
+      "reproduces_2026_09": "D",
+      "psi": "0",
+      "p": 0.0,
+      "frame": "IIXII",
+      "s": 12,
+      "measure": "late",
+      "angles": "vscr_angles_dep.npz",
+      "n_instructions": 204,
+      "n_cnot": 82,
+      "matches_2026_09_inventory": true,
+      "ideal_P_data_zero": 0.9999957389414794,
+      "ideal_matches_2026_09_to": 4.884981308350689e-15
+     },
+     {
+      "kind": "suppl",
+      "label": "A",
+      "reproduces_2026_09": "A",
+      "psi": "0",
+      "p": 0.0,
+      "frame": "IIIII",
+      "s": 0,
+      "measure": "mid",
+      "angles": "vscr_angles_dep.npz",
+      "n_instructions": 203,
+      "n_cnot": 82,
+      "matches_2026_09_inventory": true,
+      "ideal_P_data_zero": 0.9999997714221991,
+      "ideal_matches_2026_09_to": 5.440092820663267e-15
+     },
+     {
+      "kind": "suppl",
+      "label": "B",
+      "reproduces_2026_09": "B",
+      "psi": "0",
+      "p": 0.0,
+      "frame": "IIXII",
+      "s": 12,
+      "measure": "mid",
+      "angles": "vscr_angles_dep.npz",
+      "n_instructions": 204,
+      "n_cnot": 82,
+      "matches_2026_09_inventory": true,
+      "ideal_P_data_zero": 0.9999957389414794,
+      "ideal_matches_2026_09_to": 4.884981308350689e-15
+     }
+    ]
+   }
   }
  },
  "warmcold": {
@@ -4250,6 +4676,8 @@
      "n_selected": 3424,
      "n_selected_hit": 418,
      "n_data_zero": 2574,
+     "outcome_entropy_bits": 7.133682933335087,
+     "outcome_entropy_ratio": 0.7926314370372318,
      "F_s": 0.12207943925233646,
      "F_s_wilson95": [
       0.11153519930062475,
@@ -4287,6 +4715,8 @@
      "n_selected": 493,
      "n_selected_hit": 48,
      "n_data_zero": 2468,
+     "outcome_entropy_bits": 7.220191584042889,
+     "outcome_entropy_ratio": 0.8022435093380988,
      "F_s": 0.0973630831643002,
      "F_s_wilson95": [
       0.0742234593930316,
@@ -4316,6 +4746,19 @@
      }
     }
    },
+   "outcome_entropy_bits": {
+    "C": 7.133682933335087,
+    "D": 7.220191584042889
+   },
+   "outcome_entropy_ratio": {
+    "C": 0.7926314370372318,
+    "D": 0.8022435093380988
+   },
+   "entropy_min": 7.133682933335087,
+   "entropy_max": 7.220191584042889,
+   "entropy_ratio_min": 0.7926314370372318,
+   "entropy_ratio_max": 0.8022435093380988,
+   "degenerate": false,
    "comparison": {
     "verdict": "NOT REPRODUCED",
     "reason": "F_s = 0.0974 at psi='0' is at or below the psi='+' value 0.1209, so the 2026-09 0.80 does not survive 54x the shots on its own input state; the device point moves to eps=2.9137e-02 and the envelope verdict goes from 1.35x outside its loose end to 3.78x outside it.",
@@ -4342,6 +4785,418 @@
    "n_circuits_submitted": 4,
    "n_circuits_received": 2,
    "truncated": true
+  },
+  {
+   "psi": "0",
+   "p": 0.0,
+   "shots_requested": 20000,
+   "reproduces": "2026-09 feasibility set (raw_verify_options.json)",
+   "per_circuit": {
+    "C": {
+     "label": "C",
+     "measure": "late",
+     "frame": "IIIII",
+     "s": 0,
+     "n_total": 19996,
+     "n_selected": 181,
+     "n_selected_hit": 24,
+     "n_data_zero": 775,
+     "outcome_entropy_bits": 7.420088540938746,
+     "outcome_entropy_ratio": 0.8244542823265273,
+     "F_s": 0.13259668508287292,
+     "F_s_wilson95": [
+      0.09074834863853101,
+      0.18971665491045364
+     ],
+     "P_expected_key": 0.001200240048009602,
+     "implied_eps_instr": 0.03258646739830573,
+     "n_instructions": 203,
+     "p_correct_syndrome": 0.009051810362072414,
+     "syndrome_rank": 16,
+     "syndrome_z_vs_code_blind": -31.223308264753097,
+     "relaxation_satellite_s": null,
+     "relaxation_satellite_ratio": null,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999997714221991,
+     "target_2026_09": {
+      "shots_used": 370,
+      "n_sel": 25,
+      "n_hit": 9,
+      "F_s": 0.36,
+      "P_expected_key": 0.024324324324324326,
+      "implied_eps_instr": 0.018140238890985816
+     }
+    },
+    "D": {
+     "label": "D",
+     "measure": "late",
+     "frame": "IIXII",
+     "s": 12,
+     "n_total": 19996,
+     "n_selected": 1936,
+     "n_selected_hit": 68,
+     "n_data_zero": 1368,
+     "outcome_entropy_bits": 7.177322837194652,
+     "outcome_entropy_ratio": 0.7974803152438502,
+     "F_s": 0.03512396694214876,
+     "F_s_wilson95": [
+      0.027800639490499348,
+      0.04428854552336983
+     ],
+     "P_expected_key": 0.0034006801360272052,
+     "implied_eps_instr": 0.027477109347350037,
+     "n_instructions": 204,
+     "p_correct_syndrome": 0.09681936387277455,
+     "syndrome_rank": 4,
+     "syndrome_z_vs_code_blind": 20.048650569999356,
+     "relaxation_satellite_s": 8,
+     "relaxation_satellite_ratio": 0.1978305785123967,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999957389414794,
+     "target_2026_09": {
+      "shots_used": 371,
+      "n_sel": 55,
+      "n_hit": 44,
+      "F_s": 0.8,
+      "P_expected_key": 0.11859838274932614,
+      "implied_eps_instr": 0.010396618939971347
+     }
+    },
+    "A": {
+     "label": "A",
+     "measure": "mid",
+     "frame": "IIIII",
+     "s": 0,
+     "n_total": 19993,
+     "n_selected": 345,
+     "n_selected_hit": 80,
+     "n_data_zero": 414,
+     "outcome_entropy_bits": 7.033452707654779,
+     "outcome_entropy_ratio": 0.7814947452949754,
+     "F_s": 0.2318840579710145,
+     "F_s_wilson95": [
+      0.19044987831600982,
+      0.2792234633955291
+     ],
+     "P_expected_key": 0.00400140049017156,
+     "implied_eps_instr": 0.026831066338880993,
+     "n_instructions": 203,
+     "p_correct_syndrome": 0.017256039613864852,
+     "syndrome_rank": 16,
+     "syndrome_z_vs_code_blind": -26.428587323447747,
+     "relaxation_satellite_s": null,
+     "relaxation_satellite_ratio": null,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999997714221991,
+     "target_2026_09": {
+      "shots_used": 369,
+      "n_sel": 0,
+      "n_hit": null,
+      "F_s": null,
+      "P_expected_key": 0.0,
+      "implied_eps_instr": null
+     }
+    },
+    "B": {
+     "label": "B",
+     "measure": "mid",
+     "frame": "IIXII",
+     "s": 12,
+     "n_total": 19990,
+     "n_selected": 2345,
+     "n_selected_hit": 185,
+     "n_data_zero": 346,
+     "outcome_entropy_bits": 7.447330968017266,
+     "outcome_entropy_ratio": 0.8274812186685852,
+     "F_s": 0.07889125799573561,
+     "F_s_wilson95": [
+      0.06865643731205112,
+      0.09050355031759577
+     ],
+     "P_expected_key": 0.009254627313656828,
+     "implied_eps_instr": 0.022692635865356636,
+     "n_instructions": 204,
+     "p_correct_syndrome": 0.11730865432716359,
+     "syndrome_rank": 3,
+     "syndrome_z_vs_code_blind": 32.01325909232282,
+     "relaxation_satellite_s": 8,
+     "relaxation_satellite_ratio": 0.1646055437100213,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999957389414794,
+     "target_2026_09": {
+      "shots_used": 366,
+      "n_sel": 44,
+      "n_hit": 0,
+      "F_s": 0.0,
+      "P_expected_key": 0.0,
+      "implied_eps_instr": null
+     }
+    }
+   },
+   "outcome_entropy_bits": {
+    "A": 7.033452707654779,
+    "B": 7.447330968017266,
+    "C": 7.420088540938746,
+    "D": 7.177322837194652
+   },
+   "outcome_entropy_ratio": {
+    "A": 0.7814947452949754,
+    "B": 0.8274812186685852,
+    "C": 0.8244542823265273,
+    "D": 0.7974803152438502
+   },
+   "entropy_min": 7.033452707654779,
+   "entropy_max": 7.447330968017266,
+   "entropy_ratio_min": 0.7814947452949754,
+   "entropy_ratio_max": 0.8274812186685852,
+   "degenerate": false,
+   "comparison": {
+    "verdict": "NOT REPRODUCED",
+    "reason": "F_s = 0.0351 at psi='0' is at or below the psi='+' value 0.1209, so the 2026-09 0.80 does not survive 54x the shots on its own input state; the device point moves to eps=2.7477e-02 and the envelope verdict goes from 1.35x outside its loose end to 3.57x outside it.",
+    "F_s_D": 0.03512396694214876,
+    "target_2026_09": 0.8,
+    "psi_plus_value": 0.12092,
+    "implied_eps_D": 0.027477109347350037,
+    "rule": "REPRODUCED if F_s >= target/2; NOT REPRODUCED if F_s <= 1.5 x the psi='+' value; else INCONCLUSIVE.  Declared in code before purchase."
+   },
+   "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T120934Z.json",
+   "chip_id": "WK_C180",
+   "block": [
+    52,
+    61,
+    62,
+    70,
+    71,
+    79,
+    80,
+    88,
+    89
+   ],
+   "submitted_utc": "2026-10-24T12:09:34Z",
+   "n_circuits_submitted": 4,
+   "n_circuits_received": 4,
+   "truncated": false
+  },
+  {
+   "psi": "0",
+   "p": 0.0,
+   "shots_requested": 20000,
+   "reproduces": "2026-09 feasibility set (raw_verify_options.json)",
+   "per_circuit": {
+    "C": {
+     "label": "C",
+     "measure": "late",
+     "frame": "IIIII",
+     "s": 0,
+     "n_total": 20000,
+     "n_selected": 2,
+     "n_selected_hit": 0,
+     "n_data_zero": 0,
+     "outcome_entropy_bits": 2.627644063922835,
+     "outcome_entropy_ratio": 0.2919604515469817,
+     "F_s": 0.0,
+     "F_s_wilson95": [
+      0.0,
+      0.6576280471103807
+     ],
+     "P_expected_key": 0.0,
+     "implied_eps_instr": null,
+     "n_instructions": 203,
+     "p_correct_syndrome": 0.0001,
+     "syndrome_rank": 11,
+     "syndrome_z_vs_code_blind": -36.45641342754385,
+     "relaxation_satellite_s": null,
+     "relaxation_satellite_ratio": null,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999997714221991,
+     "target_2026_09": {
+      "shots_used": 370,
+      "n_sel": 25,
+      "n_hit": 9,
+      "F_s": 0.36,
+      "P_expected_key": 0.024324324324324326,
+      "implied_eps_instr": 0.018140238890985816
+     }
+    },
+    "D": {
+     "label": "D",
+     "measure": "late",
+     "frame": "IIXII",
+     "s": 12,
+     "n_total": 20000,
+     "n_selected": 9,
+     "n_selected_hit": 0,
+     "n_data_zero": 0,
+     "outcome_entropy_bits": 2.6159494956516633,
+     "outcome_entropy_ratio": 0.290661055072407,
+     "F_s": 0.0,
+     "F_s_wilson95": [
+      0.0,
+      0.2991527535509594
+     ],
+     "P_expected_key": 0.0,
+     "implied_eps_instr": null,
+     "n_instructions": 204,
+     "p_correct_syndrome": 0.00045,
+     "syndrome_rank": 6,
+     "syndrome_z_vs_code_blind": -36.251930339408595,
+     "relaxation_satellite_s": 8,
+     "relaxation_satellite_ratio": 0.0,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999957389414794,
+     "target_2026_09": {
+      "shots_used": 371,
+      "n_sel": 55,
+      "n_hit": 44,
+      "F_s": 0.8,
+      "P_expected_key": 0.11859838274932614,
+      "implied_eps_instr": 0.010396618939971347
+     }
+    },
+    "A": {
+     "label": "A",
+     "measure": "mid",
+     "frame": "IIIII",
+     "s": 0,
+     "n_total": 20000,
+     "n_selected": 0,
+     "n_selected_hit": 0,
+     "n_data_zero": 0,
+     "outcome_entropy_bits": 2.472331348866796,
+     "outcome_entropy_ratio": 0.2747034832074218,
+     "F_s": null,
+     "F_s_wilson95": null,
+     "P_expected_key": 0.0,
+     "implied_eps_instr": null,
+     "n_instructions": 203,
+     "p_correct_syndrome": 0.0,
+     "syndrome_rank": null,
+     "syndrome_z_vs_code_blind": -36.51483716701107,
+     "relaxation_satellite_s": null,
+     "relaxation_satellite_ratio": null,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999997714221991,
+     "target_2026_09": {
+      "shots_used": 369,
+      "n_sel": 0,
+      "n_hit": null,
+      "F_s": null,
+      "P_expected_key": 0.0,
+      "implied_eps_instr": null
+     }
+    },
+    "B": {
+     "label": "B",
+     "measure": "mid",
+     "frame": "IIXII",
+     "s": 12,
+     "n_total": 20000,
+     "n_selected": 1,
+     "n_selected_hit": 0,
+     "n_data_zero": 0,
+     "outcome_entropy_bits": 2.6194680948400872,
+     "outcome_entropy_ratio": 0.29105201053778745,
+     "F_s": 0.0,
+     "F_s_wilson95": [
+      0.0,
+      0.7934567085261071
+     ],
+     "P_expected_key": 0.0,
+     "implied_eps_instr": null,
+     "n_instructions": 204,
+     "p_correct_syndrome": 5e-05,
+     "syndrome_rank": 9,
+     "syndrome_z_vs_code_blind": -36.485625297277466,
+     "relaxation_satellite_s": 8,
+     "relaxation_satellite_ratio": 0.0,
+     "anc_slice": [
+      5,
+      9
+     ],
+     "rev": true,
+     "ideal_P_data_zero": 0.9999957389414794,
+     "target_2026_09": {
+      "shots_used": 366,
+      "n_sel": 44,
+      "n_hit": 0,
+      "F_s": 0.0,
+      "P_expected_key": 0.0,
+      "implied_eps_instr": null
+     }
+    }
+   },
+   "outcome_entropy_bits": {
+    "A": 2.472331348866796,
+    "B": 2.6194680948400872,
+    "C": 2.627644063922835,
+    "D": 2.6159494956516633
+   },
+   "outcome_entropy_ratio": {
+    "A": 0.2747034832074218,
+    "B": 0.29105201053778745,
+    "C": 0.2919604515469817,
+    "D": 0.290661055072407
+   },
+   "entropy_min": 2.472331348866796,
+   "entropy_max": 2.627644063922835,
+   "entropy_ratio_min": 0.2747034832074218,
+   "entropy_ratio_max": 0.2919604515469817,
+   "degenerate": true,
+   "comparison": {
+    "verdict": "NOT ANALYSABLE",
+    "degenerate": true,
+    "entropy_ratio_max": 0.2919604515469817,
+    "reason": "outcome distribution is degenerate: even the best returned circuit carries a normalised outcome entropy of only 0.292, below the 0.45 suppl guard.  Valid runs on these same circuits measure 0.654-0.827; this one collapsed onto ~50 distinct bitstrings instead of ~500, with ~50% of all shots in a single outcome, and returned near-identical z ~= -36.5 across two frames and two measurement depths, which genuinely different circuits cannot do.  It is rejected as a device or compilation failure, not read as evidence about the September device point -- noting that its F_s of 0.0000 would otherwise have produced the same verdict string as a real one."
+   },
+   "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T141813Z.json",
+   "chip_id": "WK_C180",
+   "block": [
+    147,
+    155,
+    157,
+    164,
+    165,
+    166,
+    174,
+    175,
+    176
+   ],
+   "submitted_utc": "2026-10-24T14:18:13Z",
+   "n_circuits_submitted": 4,
+   "n_circuits_received": 4,
+   "truncated": false,
+   "rejected": true,
+   "rejection_reason": "outcome distribution is degenerate: even the best returned circuit carries a normalised outcome entropy of only 0.292, below the 0.45 suppl guard.  Valid runs on these same circuits measure 0.654-0.827; this one collapsed onto ~50 distinct bitstrings instead of ~500, with ~50% of all shots in a single outcome, and returned near-identical z ~= -36.5 across two frames and two measurement depths, which genuinely different circuits cannot do.  It is rejected as a device or compilation failure, not read as evidence about the September device point -- noting that its F_s of 0.0000 would otherwise have produced the same verdict string as a real one.",
+   "rejection_note": "BOUGHT AND BILLED (24.72 s, ledger \"stage suppl\" -> 276.073 s remaining) BUT UNUSABLE.  This was the attempt to complete September-block circuits A and B after the 12:03 submission was killed mid-batch-2.  All four circuits returned 20 000 shots each and the platform reported FINISHED, yet the outcome distribution had collapsed: ~50 distinct bitstrings instead of ~500, ~50% of shots in a single outcome, normalised outcome entropy 0.275-0.292 against 0.654-0.709 for the archived 2026-09 counts and 0.781-0.827 for the two valid 2026-10-24 submissions.  All four circuits also returned near-identical z ~= -36.5 despite spanning two frames (IIIII, IIXII) and two measurement depths (mid, late), which distinct circuits cannot do.  Read at face value it yields F_s = 0.0000 for C and D and therefore the SAME \"NOT REPRODUCED\" string as the two valid runs, so an unguarded pipeline would have accepted it as a third independent confirmation AND as the complete 4/4 September record.  It is instead the reason SUPPL_MIN_OUTCOME_ENTROPY_RATIO now exists.  Consequence: the September block remains a 2/4 record (entry for the 12:03 dump) and the only complete 4/4 record is the ranked block (12:09 dump).  Root cause not established -- either transient device degradation between 12:09 and 14:18, or a compilation/mapping fault in this submission -- and not diagnosed further, because diagnosing it means buying more shots on a block whose verdict is already decided.",
+   "utc_rejected": "20261024T144746Z"
   }
  ]
 }
