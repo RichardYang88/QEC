@@ -2530,6 +2530,161 @@ if _oe is not None:
     chk('fig_operational_envelope.pdf' in t,
         'main.tex includes the envelope figure')
 
+# ---- 19. the pre-registered replication that the headline fidelity fails ------
+# hw_mixedness.json['suppl'] holds three 2026-10-24 resubmissions of the 2026-09
+# feasibility circuits to the SAME chip at 20 000 shots each.  Two are valid and both
+# return NOT REPRODUCED against a rule hw_mixedness.py declares above the code that
+# spends the shots; the third came back degenerate and is stored as rejected rather
+# than deleted.  The manuscript reports all three and withdraws the headline 0.80, so
+# these numbers are locked exactly like the ones they contradict: a later edit that
+# restores the headline, or that quotes the replication with a friendlier mantissa,
+# fails the build.  This section runs last because it needs _mn_sci and the envelope
+# device block, both defined in section 18.
+_mx19 = json.load(open('hw_mixedness.json'))
+_sp19 = _mx19['suppl']
+_spv = [_e for _e in _sp19 if not _e.get('rejected')]
+_spr = [_e for _e in _sp19 if _e.get('rejected')]
+_S0, _S1 = _spv
+_D0, _D1 = _S0['per_circuit']['D'], _S1['per_circuit']['D']
+_R19 = _spr[0]
+_c9 = _mx19['cal9_screen']
+_led = [_r for _r in _mx19['qpu_billing'] if _r.get('kind') == 'stage suppl']
+_epsR1 = (_oe['device']['eps_instr_half_R1_required'] if _oe is not None
+          else float('nan'))
+_gm = re.findall(r'SUPPL_MIN_OUTCOME_ENTROPY_RATIO\s*=\s*([0-9.]+)',
+                 open('hw_mixedness.py').read())
+_guard = float(_gm[-1]) if _gm else float('nan')
+
+chk(len(_sp19) == 3 and len(_spv) == 2 and len(_spr) == 1,
+    'the replication is three submissions of which two are valid and one is '
+    'rejected (%d/%d/%d), exactly as the manuscript describes it'
+    % (len(_sp19), len(_spv), len(_spr)))
+chk(all(_e['chip_id'] == _hw['chip'] for _e in _sp19),
+    'every replication submission ran on the same chip as the feasibility run '
+    '(%s), which is what makes this a replication rather than a device change'
+    % _hw['chip'])
+chk(_S0['shots_requested'] == _S1['shots_requested'] == 20000
+    and round(_S0['shots_requested']
+              / float(_D0['target_2026_09']['shots_used'])) == 54,
+    'the replication bought %d shots per circuit against the %d the 2026-09 '
+    'injected branch executed, i.e. the 54x the manuscript quotes'
+    % (_S0['shots_requested'], _D0['target_2026_09']['shots_used']))
+chk(_S0['comparison']['verdict'] == 'NOT REPRODUCED'
+    and _S1['comparison']['verdict'] == 'NOT REPRODUCED',
+    'both valid submissions carry the pre-registered NOT REPRODUCED verdict')
+chk(len(_gm) == 1 and _guard == 0.45,
+    'the degeneracy guard the manuscript quotes is the single '
+    'SUPPL_MIN_OUTCOME_ENTROPY_RATIO constant declared in hw_mixedness.py (%r)'
+    % (_guard,))
+for _e, _d in ((_S0, _D0), (_S1, _D1)):
+    _lo, _hi = _wilson95(_d['n_selected_hit'], _d['n_selected'])
+    chk(abs(_d['F_s'] - _d['n_selected_hit'] / float(_d['n_selected'])) < 1e-12
+        and abs(_lo - _d['F_s_wilson95'][0]) < 1e-12
+        and abs(_hi - _d['F_s_wilson95'][1]) < 1e-12,
+        'replication block %s: F_s = %d/%d = %.4f with the Wilson interval this '
+        'audit recomputes bit for bit'
+        % (_e['block'][0], _d['n_selected_hit'], _d['n_selected'], _d['F_s']))
+    chk(_d['F_s'] < _e['comparison']['target_2026_09'] / 2.0
+        and _d['F_s'] <= 1.5 * _e['comparison']['psi_plus_value'],
+        'replication block %s: F_s fails BOTH arms of the pre-registered rule -- '
+        'below half the 2026-09 value and at or below 1.5x the psi-plus control'
+        % (_e['block'][0],))
+chk(_R19.get('degenerate') is True and _R19.get('rejected') is True
+    and _R19['comparison']['verdict'] == 'NOT ANALYSABLE',
+    'the third submission is stored as degenerate and rejected under an explicit '
+    'NOT ANALYSABLE verdict, neither silently dropped nor counted as a third '
+    'independent confirmation')
+chk(_R19['entropy_ratio_max'] < _guard
+    <= min(_e['entropy_ratio_min'] for _e in _spv),
+    'the rejected run peaks at normalised outcome entropy %.3f, below the %.2f '
+    'guard, while both valid runs stay at or above %.3f'
+    % (_R19['entropy_ratio_max'], _guard,
+       min(_e['entropy_ratio_min'] for _e in _spv)))
+_zR = sorted(_v['syndrome_z_vs_code_blind']
+             for _v in _R19['per_circuit'].values())
+_zV = sorted(_v['syndrome_z_vs_code_blind']
+             for _v in _S1['per_circuit'].values())
+chk(len(_R19['per_circuit']) == 4 and (_zR[-1] - _zR[0]) < 0.5
+    and (_zV[-1] - _zV[0]) > 50.0,
+    'the rejected run returned near-identical z across all four circuits (%.2f to '
+    '%.2f, a spread of %.2f) despite spanning two Pauli frames and two measurement '
+    'depths, where the valid complete run spans %.1f to %+.1f'
+    % (_zR[0], _zR[-1], _zR[-1] - _zR[0], _zV[0], _zV[-1]))
+chk(_c9['block_usable'] is False and _c9['screen']['block_usable'] is False
+    and len(_c9['cal9_per_qubit']) == 9,
+    'the 2026-10-25 readout screen of the original block returns '
+    'block_usable=false over all %d channels, so that block cannot arbitrate the '
+    'discrepancy' % len(_c9['cal9_per_qubit']))
+chk(len(_led) == 2 and all(abs(_r['cost_s'] - 24.72) < 1e-9 for _r in _led)
+    and all(abs(_r['ms_per_shot'] - 0.309) < 1e-12 for _r in _led),
+    'the ledger carries the replication as %d stage-suppl entries of %.2f s each '
+    'at the dashboard-measured %.3f ms/shot'
+    % (len(_led), _led[0]['cost_s'], _led[0]['ms_per_shot']))
+
+
+_f0 = _D0['implied_eps_instr'] / _epsR1
+_f1 = _D1['implied_eps_instr'] / _epsR1
+_eV = (min(_e['entropy_ratio_min'] for _e in _spv),
+       max(_e['entropy_ratio_max'] for _e in _spv))
+for _q, _why in (
+        ('$F_s=%d/%d=%.4f$' % (_D0['n_selected_hit'], _D0['n_selected'],
+                               _D0['F_s']),
+         'the replicated fidelity on the original block'),
+        ('$[%.4f,%.4f]$' % tuple(_D0['F_s_wilson95']), 'its Wilson interval'),
+        ('$F_s=%d/%d=%.4f$' % (_D1['n_selected_hit'], _D1['n_selected'],
+                               _D1['F_s']),
+         'the replicated fidelity on the second block'),
+        ('$[%.4f,%.4f]$' % tuple(_D1['F_s_wilson95']), 'its Wilson interval'),
+        ('$%.2f$' % (_S0['comparison']['target_2026_09'] / 2.0),
+         'the reproduced-if threshold, half the 2026-09 value'),
+        ('$%.5f$' % _S0['comparison']['psi_plus_value'],
+         'the psi-plus control the not-reproduced arm is priced against'),
+        (_mn_sci(_D0['implied_eps_instr']),
+         'the replicated per-instruction error on the original block'),
+        (_mn_sci(_D1['implied_eps_instr']),
+         'the replicated per-instruction error on the second block'),
+        ('$%.2f' % _f0,
+         'how far the replicated device point sits above the loose end'),
+        ('$%.2f' % _f1, 'the same factor on the second block'),
+        ('same chip ' + BS + 'texttt{WK' + BS + '_C180}',
+         'the replication is attributed to the same chip in the prose too'),
+        ('$%.3f$--$%.3f$' % (_R19['entropy_ratio_min'],
+                             _R19['entropy_ratio_max']),
+         "the rejected run's collapsed outcome entropy"),
+        ('$%.2f$' % _guard, 'the entropy guard it falls below'),
+        ('$%.3f$--$%.3f$' % _eV, 'the entropy the two valid submissions measure'),
+        ('$z=%.2f,%.2f,%.2f,%.2f$' % tuple(_zR),
+         'the four near-identical z values that expose the collapse'),
+        ('a spread of $%.2f$' % (_zR[-1] - _zR[0]), 'how tight that spread is'),
+        ('spans $%.1f$ to $+%.1f$' % (_zV[0], _zV[-1]),
+         'the z span of the valid complete run, for contrast'),
+        ('$F_s=%.4f$' % _R19['per_circuit']['D']['F_s'],
+         'the face-value fidelity of the rejected run, which is why an unguarded '
+         'pipeline would have counted it as a third confirmation'),
+        ('($%.2f$~s)' % _led[-1]['cost_s'], "the rejected submission's billing"),
+        ('$%.2f$~s' % _led[0]['cost_s'], 'the per-entry replication cost'),
+        ('$%.3f$~ms/shot' % _led[0]['ms_per_shot'],
+         'the dashboard-measured shot rate the ledger bills at'),
+        ('$%.2f$~s' % _c9['billing']['cost_s'], "the screen's cost"),
+        ('$%.2f$~s of budget remained'
+         % _c9['billing']['budget_remaining_after'],
+         'the budget left afterwards, which the dashboard delta confirms'),
+        (BS + 'texttt{block' + BS + '_usable=false}', "the screen's verdict"),
+        ('$%d$ of $%d$ channels broken ($%d$ data, $%d$ ancilla)'
+         % (_c9['screen']['n_broken_data'] + _c9['screen']['n_broken_ancilla'],
+            len(_c9['cal9_per_qubit']), _c9['screen']['n_broken_data'],
+            _c9['screen']['n_broken_ancilla']),
+         'the screen tally behind that verdict'),
+        ('withdraw $0.80$ as an estimate',
+         'the withdrawal of the headline value in Results'),
+        ):
+    chk(_q in _tfn15, 'main.tex quotes %s as %s' % (_why, _q))
+chk(_tfn15.count('as an estimate') >= 3,
+    'main.tex withdraws the 0.80 as an estimate in at least three places (%d '
+    'found), so deleting any one mention cannot silently restore the headline'
+    % _tfn15.count('as an estimate'))
+
+
 # the paper quotes the size of this audit.  The check is self-referential by
 # construction, so it counts itself: `n_checks` assertions have run and this one
 # makes n_checks + 1, which is the total the manuscript must quote.

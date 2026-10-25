@@ -67,7 +67,13 @@ instrument \emph{costs} rather than what it wins: a syndrome-conditioned branch
 reaches post-selected logical fidelity $0.80$ ($95\%$ Wilson interval
 $[0.68,0.88]$) against an ideal reference of $1.000$, and the run's own data give
 an effective per-instruction error of $1.04\%$, a mid-circuit measurement that
-carries no usable syndrome information, and a relaxing ancilla. Two facts then
+carries no usable syndrome information, and a relaxing ancilla. That fidelity
+rests on $55$ post-selected shots, and a pre-registered replication of the same
+circuits at $54\times$ the shots on the same chip did \emph{not} reproduce it,
+returning $0.097$ and $0.035$ on two blocks and moving the per-instruction error
+to $2.9\%$; we report both, withdraw the $0.80$ as an estimate, and take the
+replication as the device point---which widens rather than narrows the gap
+measured here. Two facts then
 close the hardware-advantage question in the negative for devices of this
 generation: the one channel a Pauli-frame benchmark emulates \emph{exactly} is
 depolarizing noise, on which the criterion certifies the decoder optimal and VSCR
@@ -1021,6 +1027,61 @@ and deferring its readout---which lengthens its idle wait by the $126$
 instructions of the recovery and decode sections---flips that asymmetry from
 $-0.301$ to $+0.169$ while $a_0$'s stays at $-0.363$.
 
+\subsubsection*{The headline fidelity does not survive a pre-registered
+replication at $54\times$ the shots}
+
+The $0.80$ above rests on $55$ post-selected shots, and the text says so where it
+quotes it. Because that is the one number a reader is most likely to carry away,
+we bought a replication of it rather than leaving the caveat rhetorical. On
+2026-10-24 the identical circuits were resubmitted to the same chip
+\texttt{WK\_C180} at $20\,000$ shots each, $54\times$ the $371$ executed on this
+branch in 2026-09, under a decision rule committed to in code \emph{before} any
+shot was purchased: \emph{reproduced} if $F_s$ reaches $0.40$, half the original
+value; \emph{not reproduced} if $F_s$ falls to or below $1.5\times$ the value
+measured on a $\ket{+}$ control input, $0.12092$; otherwise inconclusive. Both
+valid submissions returned \textbf{not reproduced}, on both criteria. On the
+original block $[147,155,157,164,165,166,174,175,176]$ the injected branch gave
+$F_s=48/493=0.0974$ (Wilson $95\%$ interval $[0.0742,0.1267]$); on a second block
+$[52,61,62,70,71,79,80,88,89]$ chosen by the same backend quality query it gave
+$F_s=68/1936=0.0351$ ($[0.0278,0.0443]$). Neither interval reaches a quarter of
+$0.80$, and both lie at or below the $\ket{+}$ control---the stronger statement,
+since on its own input state the branch does not outperform a control that
+carries no injected-error information. We therefore withdraw $0.80$ as an
+estimate of the branch fidelity and retain it only as what the $55$-shot run
+returned.
+
+The effect on the error budget runs against the original run rather than for it.
+Recomputed from the replication's own counts, the implied per-instruction error is
+$2.91\times10^{-2}$ on the original block and $2.75\times10^{-2}$ on the second,
+against the $1.04\times10^{-2}$ of the $371$-shot run: a factor $2.8$ worse.
+Because the envelope is priced on that error, the device moves from
+$1.35\times$ above the loose end at $R=1$ to $3.78\times$ above it, or
+$3.57\times$ on the second block. Every qualitative verdict in this section
+survives the replication and is strengthened by it---the platform sits outside the
+certified envelope by a wider margin than the original run indicated---and the
+negative conclusion on hardware advantage does not depend on which of the two
+device points is used.
+
+A third submission was \emph{rejected} rather than analysed, and the reason is a
+failure mode of the platform rather than of the protocol. It was bought to
+complete the two mid-measure circuits on the September block after the first
+submission was killed mid-batch; all four circuits returned $20\,000$ shots and
+the platform reported \texttt{FINISHED}, yet the outcome distribution had
+collapsed. Its normalised outcome entropy is $0.275$--$0.292$ against a $0.45$
+guard, where the two valid submissions of these same circuits measure
+$0.781$--$0.827$; and its four circuits return $z=-36.51,-36.49,-36.46,-36.25$
+against code-blind, a spread of $0.26$ across two different Pauli frames and two
+different measurement depths, where the valid complete run spans $-31.2$ to
+$+32.0$. Genuinely distinct circuits cannot do that. Read at face value the run
+yields $F_s=0.0000$ and therefore the \emph{same} ``not reproduced'' string as the
+two valid ones, so an unguarded pipeline would have accepted it as a third
+independent confirmation and as a complete record. It is stored with
+\texttt{rejected=true}, its rejection reason and its billing ($24.72$~s) rather
+than deleted, and it is the reason the entropy guard exists. A nine-qubit readout
+screen of that block on 2026-10-25 returns \texttt{block\_usable=false} with $4$
+of $9$ channels broken ($2$ data, $2$ ancilla), so the block is not in a condition
+to arbitrate the discrepancy and no further budget was spent on the question.
+
 \subsubsection*{A warm-vs-cold recovery comparison, and why it is reported as
 inconclusive rather than as a result}
 
@@ -1256,7 +1317,9 @@ sixteen branches of that run the ancilla marginal is close to uniform (Shannon
 entropy $3.67$--$3.97$ bits out of a maximum of $4.00$), and on one circuit the
 target syndrome branch received $0$ of $369$ shots. The late-measure variant of
 that same branch did better---a syndrome-conditional fidelity of $0.80$ ($44$ of
-$55$ selected shots) where the mid-circuit variant of it returned $0.00$ ($0$ of
+$55$ selected shots, which the $54\times$-shot replication in Results does not
+confirm and which we therefore withdraw as an estimate) where the mid-circuit
+variant of it returned $0.00$ ($0$ of
 $44$)---though its output distribution still sat at total-variation distance
 $0.88$ from ideal, so our protocol is branch-fixed and feedback-free. Whether the
 mid-circuit path is architecturally unavailable on this device, or merely
@@ -1876,6 +1939,24 @@ distribution against the deterministic ideal syndrome, so no error model enters
 it; it also records that the vendor calibration query was refused, with the
 timestamp and the error string, rather than omitting the gap.
 
+\paragraph{Pre-registered replication of the feasibility set.}
+On 2026-10-24 the 2026-09 feasibility circuits were resubmitted unmodified to
+chip \texttt{WK\_C180} at $20\,000$ shots per circuit, in three submissions
+recorded in \texttt{hw\_mixedness.json} under \texttt{suppl} together with their
+raw cloud dumps. The first, on the original block
+$[147,155,157,164,165,166,174,175,176]$, was killed mid-batch and returned $2$ of
+$4$ circuits, including the injected late-measure branch the headline $F_{12}$
+comes from; the second, on block $[52,61,62,70,71,79,80,88,89]$ returned by the
+backend's own quality query, returned $4/4$; the third, again on the original
+block, returned $4/4$ but was rejected as degenerate by the guard
+\texttt{SUPPL\_MIN\_OUTCOME\_ENTROPY\_RATIO}$=0.45$ and is stored with its
+rejection reason and its billing rather than deleted. The comparison rule is
+declared in \texttt{hw\_mixedness.py} above the code that spends the shots, so it
+could not have been chosen after seeing them. The ledger records the replication
+as two \texttt{stage suppl} entries of $24.72$~s each at the dashboard-measured
+$0.309$~ms/shot, and the readout screen as $0.63$~s; $275.45$~s of budget remained
+afterwards and no further hardware was bought for this question.
+
 \paragraph{Warm-versus-cold comparison: platform, artifacts and analysis path.}
 The inconclusive comparison reported in Results ran on \texttt{WK\_C180\_2} on
 2026-10-12 through the same interface, on the physical block
@@ -2022,7 +2103,9 @@ post-selected shots, half-width $0.104$, i.e.\ $65\times$ the signal). Source:
 (a) Syndrome distribution for the late-measure circuit with injected $X_2$
 (frame $IIXII$): the $a_1$-relaxation satellite $s=8$ is the mode and the
 correctly read $s=12$ is second, versus the ideal delta. (b) Post-selected recovery fidelity
-$F_{12}=0.80$ ($44/55$ shots, Wilson $95\%$ interval) against ideal $1.0$.
+$F_{12}=0.80$ ($44/55$ shots, Wilson $95\%$ interval) against ideal $1.0$; a
+pre-registered $54\times$-shot replication on the same chip returns $0.097$ and
+$0.035$, so this value is withdrawn as an estimate (Results).
 (c) Identity branch: hardware syndrome distribution nearly uniform.
 (d) Probability of the expected bitstring per circuit: mid-measure circuits
 yield no signal; late-measure circuits retain syndrome correlation.}
@@ -2038,7 +2121,7 @@ will be deposited in a persistent archive (Zenodo) and cited by DOI at acceptanc
 and that deposit is the version of record for the data.
 \texttt{paper/audit\_numbers.py} in the same tree re-derives each number quoted in
 the manuscript and in the Extended Data from those artifacts and fails on any
-mismatch; it verifies 1274 assertions across the artifacts, the figures, the
+mismatch; it verifies 1315 assertions across the artifacts, the figures, the
 manuscript text, the Extended Data tables and the reference list, and it is the
 last step of the build, so the data are not merely available but machine-checked
 against the text. That count is itself one of the assertions, which is why it
