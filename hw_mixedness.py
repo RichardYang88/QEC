@@ -1120,27 +1120,54 @@ SUPPL_IDEAL_TOL = 1e-12
 # channels BROKEN, VERDICT "block NOT USABLE, primary estimator INVALID,
 # post-selected F_s uninterpretable".  Two are DATA channels, so by the rule quoted
 # in selftest (m) any science run there is INVALID however many shots it buys.
-# They are the same channels the degenerate counts implicate: re-read against
-# exact_probs, that dump gives TV distance 1.0000 and ZERO overlap with the ideal
-# support on all four circuits, with q2/q3 pinned at p1=0.998-1.000 and q8 at
-# 0.997-1.000 where the ideal is exactly 0.000.  So the collapse is ~5 of 9 readout
-# channels reporting a constant, NOT extra noise: entropy FELL 7.2 -> 2.6 bits and
-# distinct outcomes 502 -> 50 while the answer went wrong, which is the opposite of
-# a device getting noisier.  Neither re-routing (adds depth, raises entropy) nor a
-# bit permutation (preserves entropy) can produce it, and gcd(counts)=1 excludes a
-# rescaled histogram.
+# The degenerate dump carries the same signature, measured independently of the
+# screen.  Re-read against exact_probs it gives TV distance 1.0000 on all four
+# circuits and ZERO shots on the ideal outcome -- overlap with the p>1e-9 ideal
+# support 0.0000-0.0004, against 0.0068-0.1058 for the valid 12:09 run and 418/48
+# shots on the mode for the valid 12:03 run on this same block -- which is exactly
+# where its F_s of 0.0000 comes from.  And precisely 5 of the 9 measured bits are
+# deterministic in EVERY circuit (p1 <= 0.02 or >= 0.98) where the two valid runs
+# have none at all, with P(Hamming <= 2 from the mode) 0.975-0.983 against
+# 0.33-0.51.  So the collapse is ~5 of 9 readout channels reporting a constant, NOT
+# extra noise: entropy FELL 7.2 -> 2.6 bits and distinct outcomes 502 -> 50 while
+# the answer went wrong, which is the opposite of a device getting noisier.  Neither
+# re-routing (adds depth, raises entropy) nor a bit permutation (preserves entropy)
+# can produce it, and gcd(counts)=1 on every circuit excludes a rescaled histogram.
+# WHAT IS *NOT* ESTABLISHED, and was over-claimed in an earlier revision of this
+# comment: WHICH channels were dead in the 14:18 job.  mapping=True hands
+# logical->physical routing to the server per circuit (submit_cloud ->
+# _build_options(block, mapping=True)) and neither dump records the assignment it
+# chose, and the deterministic-bit set does move per circuit -- C {1,2,3,4,6},
+# D {2,3,6,7,8}, A {0,1,3,7,8}, B {0,1,2,6,8}, intersection EMPTY -- which is what
+# a fixed set of dead PHYSICAL channels looks like once the server re-maps between
+# circuits.  So logical q2/q3/q8 sitting at p1=0.995-1.000 where the ideal is
+# exactly 0.000 is consistent with the screen's data2/data3/anc3 but does not
+# identify them.  The defensible statement is "~5 of 9 channels reported constants,
+# on a block measured NOT USABLE 12 h later with 4 of 9 dead", not "these four".
 # The "near-identical z ~= -36.5 across two frames and two depths" above is likewise
 # explained rather than mysterious: z = (p_s - n/16)/sd at n=20000 gives exp=1250 and
-# sd=34.23, so an EMPTY expected-syndrome bin yields exactly -36.52, the statistic's
-# floor.  All four circuits sit at the floor because dead data channels make the
-# correct syndrome unattainable, not because the circuits are alike.
+# sd=34.2327, so an EMPTY expected-syndrome bin yields exactly -36.5148, i.e.
+# -36.51 to two decimals -- the statistic's floor, which is why the smallest of the
+# four observed z values IS -36.51 and none can fall below it.  All four circuits
+# sit at the floor because dead data channels make the correct syndrome
+# unattainable, not because the circuits are alike.
 # Onset is bracketed, not guessed: the same block returned healthy suppl data at
-# 2026-10-24T12:03Z (ratio 0.793/0.802, 502 distinct, ideal overlap 0.021) and
+# 2026-10-24T12:03Z (ratio 0.793/0.802, 502 distinct, 418 and 48 shots on the two
+# ideal modes, overlap 0.141/0.021) and
 # degenerate data at 14:18Z, and was still NOT USABLE 12 h later -- a sustained
 # fault, unlike the 2026-10-12 dead q3, which had recovered by the 2026-10-13
 # screen.  The 14:18 submission carried NO prior screen on that block, while the
 # valid 12:09 run on [52,61,62,70,71,79,80,88,89] was preceded by a PASSING screen
-# on that same block at 12:05:12Z.  That is the whole difference, and it is why
+# on that same block at 12:05:12Z.  "Passing" had been asserted here from the
+# existence of that dump only -- no verdict for it was ever stored, and suppl[1]
+# carries no screen record.  Recomputed from its own raw counts through
+# _analyze_cal9 at the science layout (anc=slice(5,9), rev=True) it is
+# block_usable=true, 0 of 9 broken, mean readout fidelity 0.9781, worst channel
+# data2 at e01=0.002 e10=0.348 contrast +0.650 -- degraded but above the cut,
+# against 0.521-0.572 for the four the September block failed on.  So the two
+# submissions of the same day differ in exactly one respect that is recorded: one
+# block was screened clean 4 minutes before it was used and the other was never
+# screened at all.  That is the whole difference, and it is why
 # launch_mixedness.sh's suppl branch says to run `screen` first: an explicit --block
 # bypasses resolve_block entirely, so nothing else validates it before the job does.
 # Not applied across stages: cal9screen circuits are meant to be near-deterministic
@@ -5800,8 +5827,21 @@ def suppl_verdict(per, degenerate=False, entropy_ratio_max=None):
                             'with ~50%% of all shots in a single outcome, and returned '
                             'near-identical z ~= -36.5 across two frames and two '
                             'measurement depths, which genuinely different circuits '
-                            'cannot do.  It is rejected as a device or compilation '
-                            'failure, not read as evidence about the September device '
+                            'cannot do.  It is rejected as an APPARATUS FAULT on the '
+                            'block, measured rather than inferred: a cal9screen of '
+                            'that same block returns block_usable=false with 4 of 9 '
+                            'readout channels dead, 2 of them data channels, and by '
+                            'the rule quoted in selftest (m) a broken data channel '
+                            'invalidates any science run there however many shots it '
+                            'buys.  The dump agrees independently: it puts ZERO shots '
+                            'on the ideal outcome of all four circuits at '
+                            'total-variation distance 1.0000, and entropy FELL while '
+                            'the answer went wrong, which is the opposite of a device '
+                            'getting noisier.  A compilation or mapping fault is '
+                            'excluded, not merely unevidenced: the submitted specs are '
+                            'identical to the valid same-block run of two hours '
+                            'earlier and match the 2026-09 archive ideal to 5e-15.  '
+                            'Not read as evidence about the September device '
                             'point -- noting that its F_s of 0.0000 would otherwise '
                             'have produced the same verdict string as a real one.'
                             % (entropy_ratio_max if entropy_ratio_max is not None

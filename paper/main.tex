@@ -1077,10 +1077,40 @@ yields $F_s=0.0000$ and therefore the \emph{same} ``not reproduced'' string as t
 two valid ones, so an unguarded pipeline would have accepted it as a third
 independent confirmation and as a complete record. It is stored with
 \texttt{rejected=true}, its rejection reason and its billing ($24.72$~s) rather
-than deleted, and it is the reason the entropy guard exists. A nine-qubit readout
-screen of that block on 2026-10-25 returns \texttt{block\_usable=false} with $4$
-of $9$ channels broken ($2$ data, $2$ ancilla), so the block is not in a condition
-to arbitrate the discrepancy and no further budget was spent on the question.
+than deleted, and it is the reason the entropy guard exists.
+
+The cause was subsequently measured rather than left open, and it lies on the
+device side. A nine-qubit readout screen of that block on 2026-10-25, bought for
+$0.63$~s and not for a re-run of the science circuits, returns
+\texttt{block\_usable=false} with $4$ of $9$ channels dead ($2$ data, $2$
+ancilla), at readout fidelities $0.521$--$0.572$ against $0.837$--$0.958$ for the
+five that pass; two of the four are data channels, which invalidates any science
+run on that block however many shots it buys. The rejected counts exhibit the same
+failure independently of the screen: exactly $5$ of the $9$ measured bits are
+deterministic in every one of its four circuits, at $p_1\le0.02$ or $\ge0.98$,
+where both valid submissions have none at all, and its outcome entropy fell to
+$2.47$--$2.63$~bits from the $7.03$--$7.45$~bits of the valid ones. Entropy
+\emph{falling} while the answer goes wrong is the opposite of a device becoming
+noisier; it excludes re-routing, which adds depth and raises entropy, and a bit
+permutation, which preserves entropy, and the counts of every circuit are coprime,
+which excludes a rescaled histogram. A compilation or mapping fault in that
+submission is excluded rather than merely unevidenced: its recorded specification
+is field-for-field identical to the valid same-block submission of two hours
+earlier, down to instruction counts $203,204,203,204$, $82$ two-qubit gates and
+the same measurement map in all four circuits, and its ideal references match the
+2026-09 archive to $5.4\times10^{-15}$. The near-identical $z$ is likewise the
+statistic's floor and not evidence that the circuits are alike, since at
+$n=20\,000$ an empty expected-syndrome bin gives exactly $-36.51$. What remains
+undetermined, and is reported as such, is \emph{which} physical channels failed in
+that job: the platform performs the logical-to-physical routing per circuit and
+does not return the assignment it chose, so the deterministic bits move between
+circuits and their intersection across the four is empty. The preventable part is
+procedural. That submission carried no prior screen on its block, whereas the
+valid one was preceded four minutes earlier by a screen on its own block which
+clears it with $0$ of $9$ broken at mean readout fidelity $0.9781$; an explicit
+block argument bypasses block resolution entirely, so nothing else validated the
+block before the job spent $24.72$~s on it. The block is not in a condition to
+arbitrate the discrepancy and no further budget was spent on the question.
 
 \subsubsection*{A warm-vs-cold recovery comparison, and why it is reported as
 inconclusive rather than as a result}
@@ -2121,7 +2151,7 @@ will be deposited in a persistent archive (Zenodo) and cited by DOI at acceptanc
 and that deposit is the version of record for the data.
 \texttt{paper/audit\_numbers.py} in the same tree re-derives each number quoted in
 the manuscript and in the Extended Data from those artifacts and fails on any
-mismatch; it verifies 1315 assertions across the artifacts, the figures, the
+mismatch; it verifies 1339 assertions across the artifacts, the figures, the
 manuscript text, the Extended Data tables and the reference list, and it is the
 last step of the build, so the data are not merely available but machine-checked
 against the text. That count is itself one of the assertions, which is why it

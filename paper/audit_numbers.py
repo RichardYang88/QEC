@@ -118,6 +118,7 @@ for f in ('ssvr_qec.py', 'vscr_paper.py', 'vscr_paper_abl.py', 'vscr_paper_coh.p
           'vscr_general.py', 'scaling_analysis.py', 'stationarity_boundary.py',
           'mixed_input_boundary.py',
           'run_selftests.py', 'diag_check.py', 'diag_optunit.py',
+          'diag_third_submission.py',
           'ancilla_recovery.py', 'multiseed_stats.py', 'storage_rounds.py',
           'hw_verify_analysis.py', 'hw_error_budget.py',
           'paper/make_ed.py', 'paper/fill_numbers.py',
@@ -2670,7 +2671,7 @@ for _q, _why in (
          % _c9['billing']['budget_remaining_after'],
          'the budget left afterwards, which the dashboard delta confirms'),
         (BS + 'texttt{block' + BS + '_usable=false}', "the screen's verdict"),
-        ('$%d$ of $%d$ channels broken ($%d$ data, $%d$ ancilla)'
+        ('$%d$ of $%d$ channels dead ($%d$ data, $%d$ ancilla)'
          % (_c9['screen']['n_broken_data'] + _c9['screen']['n_broken_ancilla'],
             len(_c9['cal9_per_qubit']), _c9['screen']['n_broken_data'],
             _c9['screen']['n_broken_ancilla']),
@@ -2683,6 +2684,171 @@ chk(_tfn15.count('as an estimate') >= 3,
     'main.tex withdraws the 0.80 as an estimate in at least three places (%d '
     'found), so deleting any one mention cannot silently restore the headline'
     % _tfn15.count('as an estimate'))
+
+# ---- 19b. the rejected submission's root cause: measured, and its limits ------
+# The manuscript states that the third submission's collapse was DIAGNOSED as an
+# apparatus fault on the September block, rather than left as the hedge the record
+# used to carry ("device degradation or a compilation/mapping fault, one of the
+# two").  Every number behind that diagnosis is recomputable from committed
+# artifacts with no simulator and no new shots, so it is locked here: the two
+# readout screens, the outcome entropy of all three submissions, the
+# deterministic-bit count in the rejected dumps, the recorded identity of the two
+# same-block submissions' specs, and the floor of the z statistic.  The last check
+# pins the one thing the diagnosis does NOT establish -- which physical channels
+# were dead in that job -- so the manuscript cannot quietly upgrade
+# "consistent with" into an identification.
+_c9r = _mx19['cal9_screen_ranked_20261024']
+_pq19 = _c9['cal9_per_qubit']
+_fidB = sorted(v['readout_fidelity'] for v in _pq19.values() if v['broken'])
+_fidH = sorted(v['readout_fidelity'] for v in _pq19.values() if not v['broken'])
+_bitsR = sorted(_R19['outcome_entropy_bits'].values())
+_bitsV = sorted(list(_S0['outcome_entropy_bits'].values())
+                + list(_S1['outcome_entropy_bits'].values()))
+
+
+def _marg19(counts):
+    """p(bit=1) per LOGICAL qubit, from a raw vendor-order counts dict.
+
+    Logical qubit j lands at vendor key position 8-j: the science circuit's MEAS
+    map is q0->c4..q4->c8 and q5->c0..q8->c3 (identical in all four circuits, and
+    the same for the mid- and late-measure pairs), and sim_key_to_vendor_key then
+    writes each register in descending classical-bit order, giving
+    [a3 a2 a1 a0][d4 d3 d2 d1 d0]."""
+    tot = float(sum(counts.values()))
+    return [sum(v for k, v in counts.items() if k[8 - j] == '1') / tot
+            for j in range(9)]
+
+
+def _det19(marg):
+    """The logical qubits reporting a constant, at the thresholds the paper quotes.
+
+    0.02/0.98 rather than a tighter cut: at these thresholds every rejected
+    circuit shows exactly 5 of 9 constant bits and no circuit of either valid
+    submission shows any (their extremes are 0.066 and 0.833), so the cut sits in
+    an empty gap and the count is not threshold-sensitive in either direction."""
+    return sorted(j for j, x in enumerate(marg) if x <= 0.02 or x >= 0.98)
+
+
+def _gcd19(vals):
+    g = 0
+    for v in vals:
+        g = math.gcd(g, int(v))
+    return g
+
+
+_rj19 = json.load(open(os.path.basename(_R19['source_dump'])))
+_vd19 = [json.load(open(os.path.basename(_e['source_dump']))) for _e in _spv]
+_detR = [_det19(_marg19(_c)) for _c in _rj19]
+_detV = [_det19(_marg19(_c)) for _d in _vd19 for _c in _d]
+
+chk(len(_fidB) == 4 and len(_fidH) == 5 and max(_fidB) < min(_fidH),
+    'the September block\'s %d dead channels (%.3f-%.3f readout fidelity) are '
+    'separated from its %d passing ones (%.3f-%.3f) by a gap, so "dead" reports a '
+    'bimodal measurement and not a threshold chosen to fit'
+    % (len(_fidB), _fidB[0], _fidB[-1], len(_fidH), _fidH[0], _fidH[-1]))
+chk(_c9['screen']['n_broken_data'] == 2,
+    'two of the four dead channels are DATA channels, which is what makes any '
+    'science run on that block invalid however many shots it buys -- the reason '
+    'the third submission could not have been rescued by buying more')
+chk(_c9r['block_usable'] is True
+    and _c9r['screen']['n_broken_data'] + _c9r['screen']['n_broken_ancilla'] == 0,
+    'the screen that preceded the VALID submission cleared its own block (%s, %d '
+    'of %d broken), so the two same-day submissions differ in a recorded respect '
+    'and not only in luck'
+    % (_c9r['block'], _c9r['screen']['n_broken_data']
+       + _c9r['screen']['n_broken_ancilla'], len(_c9r['cal9_per_qubit'])))
+chk(_c9r['block'] == _S1['block'] and _c9r['block'] != _R19['block'],
+    'that clearing screen ran on the valid submission\'s block %s and not on the '
+    'rejected one\'s %s: the rejected submission carried no prior screen at all, '
+    'which is the procedural cause' % (_c9r['block'], _R19['block']))
+chk(len(_rj19) == 4 and [len(_d) for _d in _detR] == [5, 5, 5, 5],
+    'exactly 5 of the 9 measured bits report a constant in EVERY circuit of the '
+    'rejected submission (%s), which is the collapse the entropy guard fires on'
+    % [len(_d) for _d in _detR])
+chk(all(len(_d) == 0 for _d in _detV),
+    'not one bit reports a constant in any circuit of the two valid submissions '
+    '(%d circuits), so the determinism is the fault and not a property of these '
+    'circuits' % len(_detV))
+chk(not set.intersection(*[set(_d) for _d in _detR]),
+    'the constant-reporting bits MOVE between the rejected submission\'s four '
+    'circuits (intersection empty: %s), which is what a fixed set of dead '
+    'PHYSICAL channels looks like once the server re-maps per circuit -- and why '
+    'the dump cannot identify them' % _detR)
+chk(all(_gcd19(_c.values()) == 1 for _c in _rj19),
+    'the counts of every rejected circuit are coprime (gcd 1), excluding a '
+    'rescaled or subsampled histogram as the explanation')
+chk(max(_bitsR) < min(_bitsV),
+    'outcome entropy FELL to %.2f-%.2f bits from the %.2f-%.2f bits of the valid '
+    'submissions while the answer went wrong: the opposite of a device getting '
+    'noisier, and what excludes both re-routing (adds depth, raises entropy) and '
+    'a bit permutation (preserves entropy)'
+    % (_bitsR[0], _bitsR[-1], _bitsV[0], _bitsV[-1]))
+
+_mA19 = json.load(open('qcloud_raw_suppl_WK_C180_20261024T120330Z.json.meta.json'))
+_mB19 = json.load(open(os.path.basename(_R19['source_dump']) + '.meta.json'))
+_ide19 = max(max(_m['ideal_matches_2026_09_to'] for _m in _x['meta'])
+             for _x in (_mA19, _mB19))
+_n19 = _R19['shots_requested']
+_zfl19 = (0 - _n19 / 16.0) / math.sqrt(_n19 / 16.0 * (1 - 1.0 / 16))
+
+chk(_mA19['block'] == _mB19['block'] == _R19['block'],
+    'the rejected submission and the valid one two hours earlier ran on the SAME '
+    'block %s, so the block is held fixed and the comparison isolates the device'
+    % (_R19['block'],))
+chk(_mA19['instruction_counts'] == _mB19['instruction_counts']
+    and [_m['n_cnot'] for _m in _mA19['meta']]
+    == [_m['n_cnot'] for _m in _mB19['meta']]
+    and _mA19['mapping'] == _mB19['mapping']
+    and _mA19['shots'] == _mB19['shots'],
+    'the rejected submission\'s recorded specification is field-for-field '
+    'identical to the valid same-block one (instruction counts %s, %d two-qubit '
+    'gates in every circuit, mapping %s, %d shots), which EXCLUDES a compilation '
+    'or mapping fault instead of merely failing to evidence one'
+    % (_mB19['instruction_counts'], _mB19['meta'][0]['n_cnot'],
+       _mB19['mapping'], _mB19['shots']))
+chk(_ide19 < 1e-14,
+    'both submissions\' ideal references match the 2026-09 archive to %.2e, so '
+    'what differed between healthy and collapsed data was the device and not what '
+    'was sent' % _ide19)
+chk(abs(_zfl19 + 36.51) < 5e-3
+    and all(_zfl19 - 1e-9 <= _z <= _zfl19 + 0.30 for _z in _zR),
+    'the four near-identical z values (%s) all sit at the statistic\'s floor '
+    '%.2f, which an empty expected-syndrome bin reaches exactly at n=%d: they are '
+    'identical because the correct syndrome was unattainable, not because the '
+    'circuits are alike' % (['%.2f' % _z for _z in _zR], _zfl19, _n19))
+for _q, _why in (
+        ('$%.3f$--$%.3f$ against $%.3f$--$%.3f$'
+         % (_fidB[0], _fidB[-1], _fidH[0], _fidH[-1]),
+         'the readout fidelities separating the dead channels from the passing '
+         'ones'),
+        ('$%.2f$--$%.2f$~bits from the $%.2f$--$%.2f$~bits'
+         % (_bitsR[0], _bitsR[-1], _bitsV[0], _bitsV[-1]),
+         'the entropy fall that identifies the fault as stuck channels rather '
+         'than added noise'),
+        ('exactly $%d$ of the $%d$ measured bits are deterministic'
+         % (len(_detR[0]), len(_detR[0]) + 4),
+         'how many bits report a constant in every rejected circuit'),
+        ('$p_1' + BS + 'le0.02$ or $' + BS + 'ge0.98$',
+         'the determinism thresholds, which are the observed margins and not a '
+         'free parameter'),
+        ('instruction counts $%s$' % ','.join(str(int(_x)) for _x
+                                              in _mB19['instruction_counts']),
+         'the recorded circuit sizes that match the valid same-block submission'),
+        ('$%d$ two-qubit gates' % _mB19['meta'][0]['n_cnot'],
+         'the entangling content that matches it too'),
+        ('$5.4' + BS + 'times10^{-15}$',
+         'how closely both submissions reproduce the archived ideal circuit'),
+        ('exactly $%.2f$' % _zfl19, 'the floor of the z statistic at this shot '
+                                    'count'),
+        ('$%d$ of $%d$ broken at mean readout fidelity $%.4f$'
+         % (_c9r['screen']['n_broken_data'] + _c9r['screen']['n_broken_ancilla'],
+            len(_c9r['cal9_per_qubit']), _c9r['mean_readout_fidelity']),
+         'the control screen that cleared the valid submission\'s block'),
+        ('intersection across the four is empty',
+         'the explicit statement of what the diagnosis does NOT establish'),
+        ):
+    chk(_q in _tfn15, 'main.tex quotes %s as %s' % (_why, _q))
+
 
 
 # the paper quotes the size of this audit.  The check is self-referential by

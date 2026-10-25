@@ -1328,6 +1328,192 @@
    }
   }
  },
+ "cal9_screen_ranked_20261024": {
+  "available": true,
+  "block": [
+   52,
+   61,
+   62,
+   70,
+   71,
+   79,
+   80,
+   88,
+   89
+  ],
+  "chip_id": "WK_C180",
+  "shots": 1000,
+  "dump_raw": "/home/yqc/github/QEC/qcloud_raw_cal9screen_WK_C180_20261024T120512Z.json",
+  "n_returned": 2,
+  "block_usable": true,
+  "layout": {
+   "anc_slice": [
+    5,
+    9
+   ],
+   "rev": true
+  },
+  "screen": {
+   "n_broken_data": 0,
+   "n_broken_ancilla": 0,
+   "primary_estimator_valid": true,
+   "secondary_estimator_valid": true,
+   "block_usable": true,
+   "note": "all 9 channels screened; 0 broken (0 data, 0 ancilla)"
+  },
+  "cal9_per_qubit": {
+   "data0": {
+    "role": "data",
+    "index": 0,
+    "key_pos": 0,
+    "logical_qubit": 0,
+    "science_key_pos": 0,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 0,
+    "n_e10": 0,
+    "e01": 0.0,
+    "e10": 0.0,
+    "readout_fidelity": 1.0,
+    "contrast": 1.0,
+    "broken": false
+   },
+   "data1": {
+    "role": "data",
+    "index": 1,
+    "key_pos": 1,
+    "logical_qubit": 1,
+    "science_key_pos": 1,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 0,
+    "n_e10": 0,
+    "e01": 0.0,
+    "e10": 0.0,
+    "readout_fidelity": 1.0,
+    "contrast": 1.0,
+    "broken": false
+   },
+   "data2": {
+    "role": "data",
+    "index": 2,
+    "key_pos": 2,
+    "logical_qubit": 2,
+    "science_key_pos": 2,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 2,
+    "n_e10": 347,
+    "e01": 0.002004008016032064,
+    "e10": 0.34769539078156314,
+    "readout_fidelity": 0.8251503006012024,
+    "contrast": 0.6503006012024048,
+    "broken": false
+   },
+   "data3": {
+    "role": "data",
+    "index": 3,
+    "key_pos": 3,
+    "logical_qubit": 3,
+    "science_key_pos": 3,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 2,
+    "n_e10": 4,
+    "e01": 0.002004008016032064,
+    "e10": 0.004008016032064128,
+    "readout_fidelity": 0.996993987975952,
+    "contrast": 0.9939879759519038,
+    "broken": false
+   },
+   "data4": {
+    "role": "data",
+    "index": 4,
+    "key_pos": 4,
+    "logical_qubit": 4,
+    "science_key_pos": 4,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 0,
+    "n_e10": 0,
+    "e01": 0.0,
+    "e10": 0.0,
+    "readout_fidelity": 1.0,
+    "contrast": 1.0,
+    "broken": false
+   },
+   "anc0": {
+    "role": "anc",
+    "index": 0,
+    "key_pos": 5,
+    "logical_qubit": 5,
+    "science_key_pos": 5,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 27,
+    "n_e10": 0,
+    "e01": 0.027054108216432865,
+    "e10": 0.0,
+    "readout_fidelity": 0.9864729458917836,
+    "contrast": 0.9729458917835672,
+    "broken": false
+   },
+   "anc1": {
+    "role": "anc",
+    "index": 1,
+    "key_pos": 6,
+    "logical_qubit": 6,
+    "science_key_pos": 6,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 0,
+    "n_e10": 0,
+    "e01": 0.0,
+    "e10": 0.0,
+    "readout_fidelity": 1.0,
+    "contrast": 1.0,
+    "broken": false
+   },
+   "anc2": {
+    "role": "anc",
+    "index": 2,
+    "key_pos": 7,
+    "logical_qubit": 7,
+    "science_key_pos": 7,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 2,
+    "n_e10": 10,
+    "e01": 0.002004008016032064,
+    "e10": 0.01002004008016032,
+    "readout_fidelity": 0.9939879759519038,
+    "contrast": 0.9879759519038076,
+    "broken": false
+   },
+   "anc3": {
+    "role": "anc",
+    "index": 3,
+    "key_pos": 8,
+    "logical_qubit": 8,
+    "science_key_pos": 8,
+    "n_zero": 998,
+    "n_one": 998,
+    "n_e01": 0,
+    "n_e10": 0,
+    "e01": 0.0,
+    "e10": 0.0,
+    "readout_fidelity": 1.0,
+    "contrast": 1.0,
+    "broken": false
+   }
+  },
+  "mean_readout_fidelity": 0.978067245602316,
+  "mean_readout_fidelity_healthy": 0.978067245602316,
+  "screen_utc": "20261024T120512Z",
+  "billing": null,
+  "billing_note": "no purchase: recomputed 2026-10-25 from the committed raw dump.  The screen itself was bought on 2026-10-24 as part of that day's suppl work.",
+  "provenance": "RECOMPUTED, NOT RE-RUN.  _analyze_cal9(raw_counts, anc=slice(5,9), rev=True) on qcloud_raw_cal9screen_WK_C180_20261024T120512Z.json.  This is the screen that cleared block [52, 61, 62, 70, 71, 79, 80, 88, 89] 4 min 22 s before the valid suppl[1] submission at 20261024T120934Z used it, and it is the control against the rejected 20261024T141813Z submission on [147,155,157,164,165,166,174,175,176], which carried NO prior screen at all and whose block measured NOT USABLE 12 h later.  Stored because the PASSING verdict had been asserted in the SUPPL_MIN_OUTCOME_ENTROPY_RATIO comment with no artifact behind it."
+ },
  "hardware_run_archive": {
   "warmcold@qcloud_raw_warmcold.json": {
    "archived_utc": "2026-10-21T04:22:07Z",
@@ -5190,7 +5376,7 @@
     "verdict": "NOT ANALYSABLE",
     "degenerate": true,
     "entropy_ratio_max": 0.2919604515469817,
-    "reason": "outcome distribution is degenerate: even the best returned circuit carries a normalised outcome entropy of only 0.292, below the 0.45 suppl guard.  Valid runs on these same circuits measure 0.654-0.827; this one collapsed onto ~50 distinct bitstrings instead of ~500, with ~50% of all shots in a single outcome, and returned near-identical z ~= -36.5 across two frames and two measurement depths, which genuinely different circuits cannot do.  It is rejected as a device or compilation failure, not read as evidence about the September device point -- noting that its F_s of 0.0000 would otherwise have produced the same verdict string as a real one."
+    "reason": "outcome distribution is degenerate: even the best returned circuit carries a normalised outcome entropy of only 0.292, below the 0.45 suppl guard.  Valid runs on these same circuits measure 0.654-0.827; this one collapsed onto ~50 distinct bitstrings instead of ~500, with ~50% of all shots in a single outcome, and returned near-identical z ~= -36.5 across two frames and two measurement depths, which genuinely different circuits cannot do.  It is rejected as an APPARATUS FAULT on the block, measured rather than inferred: a cal9screen of that same block returns block_usable=false with 4 of 9 readout channels dead, 2 of them data channels, and by the rule quoted in selftest (m) a broken data channel invalidates any science run there however many shots it buys.  The dump agrees independently: it puts ZERO shots on the ideal outcome of all four circuits at total-variation distance 1.0000, and entropy FELL while the answer went wrong, which is the opposite of a device getting noisier.  A compilation or mapping fault is excluded, not merely unevidenced: the submitted specs are identical to the valid same-block run of two hours earlier and match the 2026-09 archive ideal to 5e-15.  Not read as evidence about the September device point -- noting that its F_s of 0.0000 would otherwise have produced the same verdict string as a real one."
    },
    "source_dump": "/home/yqc/github/QEC/qcloud_raw_suppl_WK_C180_20261024T141813Z.json",
    "chip_id": "WK_C180",
@@ -5210,8 +5396,8 @@
    "n_circuits_received": 4,
    "truncated": false,
    "rejected": true,
-   "rejection_reason": "outcome distribution is degenerate: even the best returned circuit carries a normalised outcome entropy of only 0.292, below the 0.45 suppl guard.  Valid runs on these same circuits measure 0.654-0.827; this one collapsed onto ~50 distinct bitstrings instead of ~500, with ~50% of all shots in a single outcome, and returned near-identical z ~= -36.5 across two frames and two measurement depths, which genuinely different circuits cannot do.  It is rejected as a device or compilation failure, not read as evidence about the September device point -- noting that its F_s of 0.0000 would otherwise have produced the same verdict string as a real one.",
-   "rejection_note": "BOUGHT AND BILLED (24.72 s, ledger \"stage suppl\" -> 276.073 s remaining) BUT UNUSABLE.  This was the attempt to complete September-block circuits A and B after the 12:03 submission was killed mid-batch-2.  All four circuits returned 20 000 shots each and the platform reported FINISHED, yet the outcome distribution had collapsed: ~50 distinct bitstrings instead of ~500, ~50% of shots in a single outcome, normalised outcome entropy 0.275-0.292 against 0.654-0.709 for the archived 2026-09 counts and 0.781-0.827 for the two valid 2026-10-24 submissions.  All four circuits also returned near-identical z ~= -36.5 despite spanning two frames (IIIII, IIXII) and two measurement depths (mid, late), which distinct circuits cannot do.  Read at face value it yields F_s = 0.0000 for C and D and therefore the SAME \"NOT REPRODUCED\" string as the two valid runs, so an unguarded pipeline would have accepted it as a third independent confirmation AND as the complete 4/4 September record.  It is instead the reason SUPPL_MIN_OUTCOME_ENTROPY_RATIO now exists.  Consequence: the September block remains a 2/4 record (entry for the 12:03 dump) and the only complete 4/4 record is the ranked block (12:09 dump).  Root cause not established -- either transient device degradation between 12:09 and 14:18, or a compilation/mapping fault in this submission -- and not diagnosed further, because diagnosing it means buying more shots on a block whose verdict is already decided.",
+   "rejection_reason": "outcome distribution is degenerate: even the best returned circuit carries a normalised outcome entropy of only 0.292, below the 0.45 suppl guard.  Valid runs on these same circuits measure 0.654-0.827; this one collapsed onto ~50 distinct bitstrings instead of ~500, with ~50% of all shots in a single outcome, and returned near-identical z ~= -36.5 across two frames and two measurement depths, which genuinely different circuits cannot do.  It is rejected as an APPARATUS FAULT on the block, measured rather than inferred: a cal9screen of that same block returns block_usable=false with 4 of 9 readout channels dead, 2 of them data channels, and by the rule quoted in selftest (m) a broken data channel invalidates any science run there however many shots it buys.  The dump agrees independently: it puts ZERO shots on the ideal outcome of all four circuits at total-variation distance 1.0000, and entropy FELL while the answer went wrong, which is the opposite of a device getting noisier.  A compilation or mapping fault is excluded, not merely unevidenced: the submitted specs are identical to the valid same-block run of two hours earlier and match the 2026-09 archive ideal to 5e-15.  Not read as evidence about the September device point -- noting that its F_s of 0.0000 would otherwise have produced the same verdict string as a real one.",
+   "rejection_note": "BOUGHT AND BILLED (24.72 s, ledger \"stage suppl\" -> 276.073 s remaining) BUT UNUSABLE.  This was the attempt to complete September-block circuits A and B after the 12:03 submission was killed mid-batch-2.  All four circuits returned 20 000 shots each and the platform reported FINISHED, yet the outcome distribution had collapsed: ~50 distinct bitstrings instead of ~500, ~50% of shots in a single outcome, normalised outcome entropy 0.275-0.292 against 0.654-0.709 for the archived 2026-09 counts and 0.781-0.827 for the two valid 2026-10-24 submissions.  All four circuits also returned near-identical z ~= -36.5 despite spanning two frames (IIIII, IIXII) and two measurement depths (mid, late), which distinct circuits cannot do.  Read at face value it yields F_s = 0.0000 for C and D and therefore the SAME \"NOT REPRODUCED\" string as the two valid runs, so an unguarded pipeline would have accepted it as a third independent confirmation AND as the complete 4/4 September record.  It is instead the reason SUPPL_MIN_OUTCOME_ENTROPY_RATIO now exists.  Consequence: the September block remains a 2/4 record (entry for the 12:03 dump) and the only complete 4/4 record is the ranked block (12:09 dump).  ROOT CAUSE ESTABLISHED 2026-10-25, and it is an APPARATUS FAULT on the September block, not a compilation or mapping fault in this submission.  The text that stood here before said the cause was not established and that establishing it would mean buying more shots; both halves are now false.  The diagnosis cost 0.6252 s -- one cal9screen of this same block (2 x 1000 shots, 2026-10-25T02:26:33Z, ledger 276.073 -> 275.4478 s), not a re-run of the science circuits -- and it returns block_usable=false with 4 of 9 readout channels dead: data2 (e01=0.117 e10=0.827 contrast +0.056), data3 (0.086/0.844/+0.070), anc0 (0.037/0.820/+0.143), anc3 (0.099/0.859/+0.042), readout fidelities 0.521-0.572 against 0.837-0.958 for the five that pass.  Two are DATA channels, so by the rule quoted in selftest (m) any science run on this block is INVALID however many shots it buys.  The rejected dump shows the same thing independently: re-read against exact_probs it puts ZERO shots on the ideal outcome of all four circuits (TV distance 1.0000, overlap with the p>1e-9 ideal support 0.0000-0.0004) where the valid 12:09 run puts 0.0068-0.1058 and the valid 12:03 run on THIS block put 418 and 48 shots on the mode; exactly 5 of the 9 measured bits are deterministic in every circuit (p1 <= 0.02 or >= 0.98) where both valid runs have none; P(Hamming <= 2 from the mode) is 0.975-0.983 against 0.33-0.51; and entropy FELL 7.13-7.45 -> 2.47-2.63 bits while the answer went wrong, which is the opposite of a device getting noisier.  gcd(counts)=1 on every circuit excludes a rescaled histogram, re-routing is excluded because it adds depth and raises entropy, and a bit permutation is excluded because it preserves entropy.  COMPILATION IS EXCLUDED, not merely unevidenced: this submission's meta is field-for-field identical to the valid 12:03 submission on this same block -- instruction_counts [203,204,203,204], n_cnot 82, mapping true, shots 20000, the same MEAS map (q0->c4..q4->c8, q5->c0..q8->c3) in all four circuits, and ideal references matching the 2026-09 archive to 5.44e-15 and 4.88e-15 -- so what differed was the device, not what was sent.  The near-identical z ~= -36.5 is the statistic's floor rather than a mystery: at n=20000 exp=1250 and sd=34.23, so an empty expected-syndrome bin gives exactly -36.51, and all four circuits sit there because dead data channels make the correct syndrome unattainable, not because the circuits are alike.  Onset is bracketed: this block returned healthy suppl data at 12:03Z (ratio 0.793/0.802, 502 distinct) and degenerate data at 14:18Z, and was still NOT USABLE 12 h later, so it is a sustained fault, unlike the 2026-10-12 dead data channel, which had self-recovered by the 2026-10-13 screen.  NOT ESTABLISHED, and deliberately left so: WHICH physical channels were dead in this job.  mapping=True leaves logical->physical routing to the server per circuit and neither dump records the assignment it chose, and the deterministic-bit set moves between circuits (C {1,2,3,4,6}, D {2,3,6,7,8}, A {0,1,3,7,8}, B {0,1,2,6,8}, intersection empty), which is what a fixed set of dead PHYSICAL channels looks like once the server re-maps; so the dump's pinned logical q2/q3/q8 are consistent with the screen's data2/data3/anc3 but do not identify them.  PROCESS CAUSE, which is the preventable part: this submission carried no prior screen on its block, while the valid 12:09 run was preceded by a cal9screen on ITS block at 12:05:12Z which, recomputed from its own raw counts through _analyze_cal9, returns block_usable=true with 0 of 9 broken and mean readout fidelity 0.9781.  An explicit --block bypasses resolve_block entirely, so nothing else validated the block before the job spent 24.72 s on it; that is why launch_mixedness.sh's suppl branch says to run `screen` first, and why a 0.63 s screen was the cheap gate that would have caught this for 0.63 s.",
    "utc_rejected": "20261024T144746Z"
   }
  ]
