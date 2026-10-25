@@ -1386,6 +1386,35 @@ _hwc, _hws = _hw['circuits'], _hw['summary']
 _REQ = _hw['shots_requested']
 _tfn15 = ' '.join(t.split())
 _efn15 = ' '.join(e.split())
+# DEVICE PROVENANCE, LOCKED.  This manuscript reports TWO device experiments on two
+# backends of the same cloud, and says so explicitly: the feasibility run behind every
+# headline number is WK_C180 (Methods, "Hardware platform and protocol"), while the
+# warm-versus-cold comparison is WK_C180_2 (Methods, "Warm-versus-cold comparison";
+# Results, "why it is reported as inconclusive rather than as a result").  Results goes
+# further and refuses to apply WK_C180_2's vendor calibration to WK_C180's counts,
+# because that "would attribute one chip's figures of merit to another chip's data".
+# So the exposure here is not concealment -- both chips, both physical blocks and both
+# dates are in the text -- but a future edit that swaps an attribution, which would
+# read identically to a reviewer and silently make a headline number cross-chip.
+# These assertions tie each quoted device to the artifact that recorded it, to the
+# block that went with it, and to the inconclusive label that keeps the second chip's
+# numbers out of the physics.
+_FEAS_BLOCK = '[147,155,157,164,165,166,174,175,176]'
+_WC_BLOCK = '[39,48,49,57,58,66,67,75,85]'
+chk(_hw.get('chip') == 'WK_C180',
+    'the feasibility artifact names the device behind every headline hardware number: '
+    'chip=%r' % (_hw.get('chip'),))
+chk('chip \\texttt{WK\\_C180} via' in _tfn15 and 'WK\\_C180\\_2' in _tfn15
+    and _FEAS_BLOCK in _tfn15 and _WC_BLOCK in _tfn15,
+    'main.tex attributes the feasibility run to WK_C180 on block %s and the '
+    'warm-vs-cold comparison to WK_C180_2 on block %s; a block index is '
+    'chip-specific, so quoting both keeps the two experiments distinguishable'
+    % (_FEAS_BLOCK, _WC_BLOCK))
+chk('Neither number is reported as physics' in _tfn15
+    and 'inconclusive rather than as a result' in _tfn15,
+    'the WK_C180_2 comparison is still labelled inconclusive in Results, so no '
+    'headline number rests on the second chip')
+
 
 
 def _grp(x):
