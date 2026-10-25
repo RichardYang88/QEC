@@ -1059,6 +1059,37 @@ SUPPL_TARGETS = {
     'D': dict(shots_used=371, n_sel=55, n_hit=44, F_s=0.80,
               ideal=0.9999957389414843, implied_eps=0.010396618939971347),
 }
+# DECISION RECORDED 2026-10-25: the September-block record stays 2/4 BY CHOICE.  The
+# 24.72 s to buy its missing A/B was evaluated against the remaining 275.4 s budget and
+# deliberately NOT spent.  Five reasons, each checkable in this file rather than
+# asserted, so nobody re-litigates the spend later:
+#   1. THE VERDICT NEVER READS A OR B.  suppl_verdict takes per['D'] and nothing else
+#      (see `d = per.get('D')` below), and its psi='+' comparator is the literal
+#      0.12092, not a measurement.  A's 2026-09 target F_s is None -- that circuit
+#      produced no post-selected shot at all (n_sel=0) -- and B's is 0.0.  Buying them
+#      cannot feed any formula that exists.
+#   2. WHAT IS MISSING IS ONLY THE mid-DEPTH PAIR.  Per SUPPL_GRID, C/D are 'late' and
+#      A/B are 'mid'.  The truncated 2026-10-24T12:03:30Z record already holds BOTH
+#      late circuits, D included -- the sole verdict input.  A/B would add a second
+#      measurement depth, not a second opinion on the claim.
+#   3. D IS IN HAND TWICE, FAR FROM EVERY THRESHOLD.  F_s_D = 0.0974 on the September
+#      block and 0.0351 on the ranked one, against REPRODUCED >= tgt/2 = 0.40 and
+#      NOT REPRODUCED <= 0.12092 * 1.5 = 0.18138.  Both sit 4.1x and 11.4x below the
+#      reproduction floor, so no A/B outcome can move either verdict.
+#   4. A COMPLETE 4/4 ALREADY EXISTS.  suppl[1], 2026-10-24T12:09:34Z, WK_C180 block
+#      [52,61,62,70,71,79,80,88,89], truncated=False, all four entropy ratios
+#      0.781-0.827, verdict NOT REPRODUCED.  The 2/4 record is the redundant second
+#      block, not the only one -- "finish the 4/4" is already satisfied.
+#   5. THE MANUSCRIPT DOES NOT CITE THIS STAGE.  `grep suppl paper/*.tex` returns only
+#      the unrelated "does not supply", and paper/audit_numbers.py references it zero
+#      times; all 1271 audit assertions pass without it.
+# It is also NOT BUYABLE at present: the 2026-10-25T02:26:33Z cal9screen returns NOT
+# USABLE for that block (measured cause at SUPPL_MIN_OUTCOME_ENTROPY_RATIO), so spending
+# now would add a fourth rejected record instead of removing a truncation note -- which
+# is exactly what 14:18 did.  If tidiness is ever wanted, the cheap gate is a 0.63 s
+# re-screen at roughly daily intervals (the 2026-10-12 dead data channel self-recovered
+# by the next day) and only then the 24.72 s.  HOLDING the budget is the recommendation:
+# this stage has already answered its question twice, on two blocks, consistently.
 SUPPL_IDEAL_TOL = 1e-12
 # Degeneracy guard, scoped to the suppl stage.  A healthy suppl circuit spreads its
 # shots over many distinct bitstrings; a failed one collapses onto a handful.  The
