@@ -1080,6 +1080,38 @@ SUPPL_IDEAL_TOL = 1e-12
 # string as the two valid runs, so an unguarded pipeline would have accepted it as a
 # third independent confirmation and as the complete 4/4 September record.  Bad data
 # that reproduces the expected verdict string is the failure mode this closes.
+# CAUSE, MEASURED 2026-10-25 -- not inferred from the symptom.  The degenerate
+# submission was an APPARATUS FAULT on the September block.  A cal9screen bought for
+# 0.6252 s (2 x 1000 shots, WK_C180 block [147,155,157,164,165,166,174,175,176],
+# 2026-10-25T02:26:33Z) reproduces it independently: data2 e01=0.117 e10=0.827
+# contrast=+0.056, data3 e01=0.086 e10=0.844 contrast=+0.070, anc0 e01=0.037
+# e10=0.820 contrast=+0.143, anc3 e01=0.099 e10=0.859 contrast=+0.042 -- 4 of 9
+# channels BROKEN, VERDICT "block NOT USABLE, primary estimator INVALID,
+# post-selected F_s uninterpretable".  Two are DATA channels, so by the rule quoted
+# in selftest (m) any science run there is INVALID however many shots it buys.
+# They are the same channels the degenerate counts implicate: re-read against
+# exact_probs, that dump gives TV distance 1.0000 and ZERO overlap with the ideal
+# support on all four circuits, with q2/q3 pinned at p1=0.998-1.000 and q8 at
+# 0.997-1.000 where the ideal is exactly 0.000.  So the collapse is ~5 of 9 readout
+# channels reporting a constant, NOT extra noise: entropy FELL 7.2 -> 2.6 bits and
+# distinct outcomes 502 -> 50 while the answer went wrong, which is the opposite of
+# a device getting noisier.  Neither re-routing (adds depth, raises entropy) nor a
+# bit permutation (preserves entropy) can produce it, and gcd(counts)=1 excludes a
+# rescaled histogram.
+# The "near-identical z ~= -36.5 across two frames and two depths" above is likewise
+# explained rather than mysterious: z = (p_s - n/16)/sd at n=20000 gives exp=1250 and
+# sd=34.23, so an EMPTY expected-syndrome bin yields exactly -36.52, the statistic's
+# floor.  All four circuits sit at the floor because dead data channels make the
+# correct syndrome unattainable, not because the circuits are alike.
+# Onset is bracketed, not guessed: the same block returned healthy suppl data at
+# 2026-10-24T12:03Z (ratio 0.793/0.802, 502 distinct, ideal overlap 0.021) and
+# degenerate data at 14:18Z, and was still NOT USABLE 12 h later -- a sustained
+# fault, unlike the 2026-10-12 dead q3, which had recovered by the 2026-10-13
+# screen.  The 14:18 submission carried NO prior screen on that block, while the
+# valid 12:09 run on [52,61,62,70,71,79,80,88,89] was preceded by a PASSING screen
+# on that same block at 12:05:12Z.  That is the whole difference, and it is why
+# launch_mixedness.sh's suppl branch says to run `screen` first: an explicit --block
+# bypasses resolve_block entirely, so nothing else validates it before the job does.
 # Not applied across stages: cal9screen circuits are meant to be near-deterministic
 # (entropy 0.238-1.042 bits) and warmcold legitimately reaches down to 1.464, so a
 # uniform threshold would misfire on valid data.

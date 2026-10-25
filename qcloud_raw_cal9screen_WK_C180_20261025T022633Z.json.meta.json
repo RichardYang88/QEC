@@ -1,0 +1,40 @@
+{
+ "block": [
+  147,
+  155,
+  157,
+  164,
+  165,
+  166,
+  174,
+  175,
+  176
+ ],
+ "chip_id": "WK_C180",
+ "instruction_counts": [
+  9,
+  18
+ ],
+ "kinds": [
+  "cal9",
+  "cal9"
+ ],
+ "mapping": true,
+ "meta": [
+  {
+   "cal": "zero",
+   "kind": "cal9",
+   "rep": 0
+  },
+  {
+   "cal": "one",
+   "kind": "cal9",
+   "rep": 0
+  }
+ ],
+ "n_circuits": 2,
+ "shots": 1000,
+ "stage": "cal9screen",
+ "use_options": true,
+ "written_utc": "2026-10-25T02:26:33Z"
+}

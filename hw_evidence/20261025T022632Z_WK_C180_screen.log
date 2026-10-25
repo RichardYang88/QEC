@@ -1,0 +1,33 @@
+# launch_mixedness.sh screen
+# utc=20261025T022632Z chip=WK_C180 stage=warmcold --cal9-screen
+# dashboard_before=276.073s ms_per_shot=0.3126
+# block=147,155,157,164,165,166,174,175,176 shots=default cal_first=1
+# angles=/home/yqc/github/QEC/vscr_angles_paper_dep.npz vendor=0.9988,0.9790,0.9260
+# WHEN THE JOB LANDS: read the dashboard again and append the reading, so the
+# billed ms/shot stops being a hypothesis:
+#   echo 'dashboard_after=<seconds>' >> hw_evidence/20261025T022632Z_WK_C180_screen.log
+[encoder] gates=36  ok=True  {'overlap0': 0.9999999999999993, 'overlap1': 0.9999999999999993, 'rel_phase': (1+2.3551386880256644e-16j)}
+[budget] cal9screen: 2000 shots = 0.6 s at 0.313 ms/shot (caller-supplied dashboard delta (0.3126 ms/shot)); 276.1 s remain, 30 s margin held back -> 245.4 s left after this submission
+[cal9screen] chip=WK_C180 block=[147, 155, 157, 164, 165, 166, 174, 175, 176] shots/circuit=1000 -> 2000 shots = 0.6 s at 0.313 ms/shot; mapping=True
+[cloud] backend: WK_C180
+[cloud] options: amend=True, mapping=True, optimization=True, specified_block=[147, 155, 157, 164, 165, 166, 174, 175, 176]
+[cloud]   batch 1: submitting 2 circuits ...
+[cloud]   job JobStatus.WAITING after 0 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.COMPUTING after 11 s (poll 5 s, timeout 21600 s)
+[cloud]   job JobStatus.FINISHED after 16 s (poll 5 s, timeout 21600 s)
+[cloud]   batch 1: received
+[cal9screen] 1000/1000 and 1000/1000 shots; mean readout fidelity 0.7414 (0.9034 over healthy channels)
+[cal9screen]   data0  logical q0  e01=0.0170 e10=0.0680 fid=0.9575 contrast=+0.9150  ok
+[cal9screen]   data1  logical q1  e01=0.1960 e10=0.0160 fid=0.8940 contrast=+0.7880  ok
+[cal9screen]   data2  logical q2  e01=0.1170 e10=0.8270 fid=0.5280 contrast=+0.0560  BROKEN
+[cal9screen]   data3  logical q3  e01=0.0860 e10=0.8440 fid=0.5350 contrast=+0.0700  BROKEN
+[cal9screen]   data4  logical q4  e01=0.0060 e10=0.1130 fid=0.9405 contrast=+0.8810  ok
+[cal9screen]   anc0   logical q5  e01=0.0370 e10=0.8200 fid=0.5715 contrast=+0.1430  BROKEN
+[cal9screen]   anc1   logical q6  e01=0.0150 e10=0.2090 fid=0.8880 contrast=+0.7760  ok
+[cal9screen]   anc2   logical q7  e01=0.0140 e10=0.3120 fid=0.8370 contrast=+0.6740  ok
+[cal9screen]   anc3   logical q8  e01=0.0990 e10=0.8590 fid=0.5210 contrast=+0.0420  BROKEN
+[cal9screen] SCREEN: all 9 channels screened; 4 broken (2 data, 2 ancilla)
+[cal9screen] VERDICT: block [147, 155, 157, 164, 165, 166, 174, 175, 176] is NOT USABLE -- primary estimator INVALID, post-selected F_s uninterpretable
+[cal9screen] -> DO NOT buy science circuits on this block.  Re-screen another ranked block (2000 shots = 0.6 s each).  A dead DATA channel makes the primary estimator uninterpretable however many shots are spent on it; a dead ANCILLA would only cost the post-selected F_s.
+[out] /home/yqc/github/QEC/hw_mixedness.json
+[cal9screen] dump qcloud_raw_cal9screen_WK_C180_20261025T022633Z.json (screen only -- no warm-vs-cold claim is made or implied).  Read the dashboard again: the delta over 2000 shots is the billed ms/shot to pass as --ms-per-shot next.
