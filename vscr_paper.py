@@ -876,7 +876,10 @@ def plot_training(hist_warm, fname='fig_training'):
             label='decoder warm start (ours)')
     ax.set_xlabel('epoch'); ax.set_ylabel('validation fidelity ($p=0.06$)')
     ax.set_ylim(0.5, 1.02); ax.grid(alpha=0.3, lw=0.5)
-    ax.legend(loc='lower right', fontsize=7)
+    # 'lower right' laid the key across the random-walk curve it is meant to
+    # identify; above the axes it covers no curve at all.
+    ax.legend(loc='lower center', bbox_to_anchor=(0.5, 1.01), ncol=1,
+              fontsize=7, frameon=False)
     save_fig(fig, fname)
 
 
@@ -888,11 +891,14 @@ def plot_branch_cf(cf_dec, cf_cold, cf_warm, fname='fig_branch_cf'):
     if cf_cold is not None:
         ax.bar(x, cf_cold, bw, color='#a65628', label='VSCR cold-start (v1)')
     ax.bar(x + bw, cf_warm, bw, color='#1f4e9c', label='VSCR warm (ours)')
-    ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=6)
+    ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=7)
     ax.set_xlabel('syndrome $s$ / decoder correction $C_s$')
     ax.set_ylabel('conditional fidelity $\\mathrm{cf}_s$')
     ax.set_ylim(0, 1.08); ax.grid(alpha=0.3, lw=0.5, axis='y')
-    ax.legend(fontsize=7, loc='lower left', ncol=3)
+    # 'lower left' laid the three-key legend across the s=0..4 bars; above the
+    # axes it clears every bar.
+    ax.legend(fontsize=7.5, loc='lower center', bbox_to_anchor=(0.5, 1.01),
+              ncol=3, frameon=False)
     save_fig(fig, fname)
 
 

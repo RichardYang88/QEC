@@ -746,8 +746,11 @@ def make_figure(art):
     ax[0].set_xlabel(r'per-instruction error $\varepsilon_{\rm instr}$')
     ax[0].set_ylabel('net advantage over the Pauli decoder')
     ax[0].set_title(r'(a) operational envelope, $N_{\rm rec}=%d$ instructions'
-                    % n_rec, fontsize=10)
-    ax[0].legend(fontsize=7.5, loc='lower left')
+                    % n_rec, fontsize=10, pad=40)
+    # the four-key legend sat inside the axes on top of the R=40 curves; above
+    # the axes, under the raised title, it covers nothing.
+    ax[0].legend(fontsize=7.5, loc='lower center', bbox_to_anchor=(0.5, 1.01),
+                 ncol=2, frameon=False)
     ax[0].grid(alpha=0.25, which='both', lw=0.5)
 
     shots = np.logspace(2, 9, 300)
@@ -762,13 +765,15 @@ def make_figure(art):
     ax[1].axvline(sb['shots_per_arm_3sigma'], color='0.5', lw=1.0, ls=':')
     ax[1].set_xlabel('shots per arm')
     ax[1].set_ylabel('statistical half-width')
-    ax[1].set_title('(b) shot budget', fontsize=10)
+    ax[1].set_title('(b) shot budget', fontsize=10, pad=40)
     ax[1].legend(fontsize=7.5, loc='lower left')
     ax[1].grid(alpha=0.25, which='both', lw=0.5)
 
     fig.tight_layout()
     for ext in ('pdf', 'png'):
-        fig.savefig(FIG + '.' + ext, dpi=200)
+        # bbox='tight' so the legend and title that now sit above panel (a)'s
+        # axes are inside the page instead of clipped by the figure edge
+        fig.savefig(FIG + '.' + ext, dpi=200, bbox_inches='tight')
     plt.close(fig)
     print('wrote %s.{pdf,png}' % FIG)
 

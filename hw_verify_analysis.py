@@ -167,14 +167,23 @@ def make_figure(out):
     import matplotlib
     matplotlib.use('Agg')
     import matplotlib.pyplot as plt
-    plt.rcParams.update({'font.size': 9, 'axes.labelsize': 10,
-                         'axes.titlesize': 10, 'legend.fontsize': 8,
+    # One typographic scale for all four panels: 8 pt ticks, 9 pt axis labels,
+    # 9.5 pt titles, 7.5 pt legends and in-plot annotations.  The previous mix
+    # (7 pt annotations against 10 pt titles over 8 pt two-line tick labels, in
+    # a 2x2 grid with default spacing) is what made the figure read as clutter:
+    # the (a)/(b) titles touched, the (c)/(d) titles sat on the row above's tick
+    # labels, and the two annotations in (a) lay on the bars they name and on
+    # each other.  Every label now has its own space.
+    plt.rcParams.update({'font.size': 8, 'axes.labelsize': 9,
+                         'axes.titlesize': 9.5, 'legend.fontsize': 7.5,
+                         'xtick.labelsize': 8, 'ytick.labelsize': 8,
                          'savefig.dpi': 600, 'savefig.bbox': 'tight'})
     os.makedirs('paper/figures', exist_ok=True)
     C_HW, C_ID = '#1f4e9c', '#e41a1c'
     xs = np.arange(16)
 
-    fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.4))
+    fig, axes = plt.subplots(2, 2, figsize=(7.2, 6.0))
+    fig.subplots_adjust(hspace=0.62, wspace=0.28)
 
     # (a) circuit D syndrome distribution HW vs ideal
     ax = axes[0][0]
@@ -183,13 +192,23 @@ def make_figure(out):
     idl = np.zeros(16); idl[12] = 1.0
     ax.bar(xs - 0.2, idl, 0.4, color=C_ID, alpha=0.75, label='ideal')
     ax.bar(xs + 0.2, hw, 0.4, color=C_HW, alpha=0.85, label='WK_C180')
-    ax.annotate('injected $X_2$: $s$=12', (12, hw[12] + 0.03), ha='center',
-                fontsize=7)
-    ax.annotate('$a_1$ relaxation: $s$=8', (8, hw[8] + 0.03), ha='center',
-                fontsize=7)
+    # Each annotation sits in empty space with a leader line to its own bar:
+    # s=8 labelled from the left, s=12 from the right, so neither crosses the
+    # unit ideal bar at s=12 nor the other's text.
+    ax.annotate('$a_1$ relaxation: $s=8$', xy=(7.8, hw[8] + 0.02),
+                xytext=(0.6, 0.60), fontsize=7.5, ha='left', va='center',
+                arrowprops=dict(arrowstyle='->', lw=0.8, color='0.3',
+                                shrinkA=2, shrinkB=2))
+    ax.annotate('injected $X_2$: $s=12$', xy=(12.2, hw[12] + 0.02),
+                xytext=(15.6, 0.60), fontsize=7.5, ha='right', va='center',
+                arrowprops=dict(arrowstyle='->', lw=0.8, color='0.3',
+                                shrinkA=2, shrinkB=2))
     ax.set_xlabel('syndrome $s$'); ax.set_ylabel('probability $P(s)$')
-    ax.set_title('(a) late-measure, frame $IIXII$: syndrome distribution')
-    ax.legend(loc='upper right'); ax.set_ylim(0, 1.15)
+    ax.set_title('(a) circuit D, frame $IIXII$: syndrome distribution')
+    # the band above 1.05 is empty in every panel, so a frameless legend centred
+    # there labels the colours without covering a single bar
+    ax.set_ylim(0, 1.28)
+    ax.legend(loc='upper center', ncol=2, frameon=False)
     ax.grid(alpha=0.3, axis='y', lw=0.5)
 
     # (b) conditional data outcomes given s=12
@@ -201,14 +220,28 @@ def make_figure(out):
                     [st['F_s_hi95'] - st['F_s'],
                      (1 - st['F_s_lo95']) - (1 - st['F_s'])]]).T
     ax.bar([0, 1], [1.0, 0.0], 0.5, color=C_ID, alpha=0.35, label='ideal')
-    ax.bar([0, 1], vals, 0.5, yerr=err, capsize=4, color=C_HW, alpha=0.85,
+    ax.bar([0, 1], vals, 0.5, yerr=err, capsize=3, color=C_HW, alpha=0.85,
+           error_kw=dict(ecolor='black', elinewidth=1.0, capthick=1.0),
            label=f"WK_C180 ({st['n_hit']}/{st['n_sel']} shots)")
     ax.set_xticks([0, 1])
-    ax.set_xticklabels(['data = 00000\n(correct recovery)',
-                        'other\n(logical error)'])
+    ax.set_xticklabels(['data = 00000', 'data $\\neq$ 00000'])
+    # The Wilson interval the whiskers draw, printed once above each bar with
+    # the outcome it belongs to, instead of two-line tick labels that used to
+    # collide with panel (d)'s title.
+    # side margins so the centred interval labels never touch a spine
+    ax.set_xlim(-0.8, 1.8)
+    # the left label starts above the unit ideal bar so it sits on no colour
+    ax.text(0, 1.02,
+            '$%.3f\\;[%.3f,\\,%.3f]$\ncorrect recovery'
+            % (st['F_s'], st['F_s_lo95'], st['F_s_hi95']),
+            ha='center', va='bottom', fontsize=7.5, linespacing=1.5)
+    ax.text(1, (1 - st['F_s_lo95']) + 0.05,
+            '$%.3f\\;[%.3f,\\,%.3f]$\nlogical error'
+            % (1 - st['F_s'], 1 - st['F_s_hi95'], 1 - st['F_s_lo95']),
+            ha='center', va='bottom', fontsize=7.5, linespacing=1.5)
     ax.set_ylabel('probability given $s=12$')
     ax.set_title('(b) post-selected branch fidelity $F_{12}$')
-    ax.set_ylim(0, 1.18); ax.legend(loc='upper right')
+    ax.set_ylim(0, 1.42); ax.legend(loc='upper center', ncol=2, frameon=False)
     ax.grid(alpha=0.3, axis='y', lw=0.5)
 
     # (c) circuit C syndrome distribution (identity branch)
@@ -219,24 +252,25 @@ def make_figure(out):
     ax.bar(xs - 0.2, idl, 0.4, color=C_ID, alpha=0.75, label='ideal')
     ax.bar(xs + 0.2, hw, 0.4, color=C_HW, alpha=0.85, label='WK_C180')
     ax.set_xlabel('syndrome $s$'); ax.set_ylabel('probability $P(s)$')
-    ax.set_title('(c) late-measure, frame $IIIII$: identity branch')
-    ax.legend(loc='upper right'); ax.set_ylim(0, 1.15)
+    ax.set_title('(c) circuit C, frame $IIIII$: identity branch')
+    ax.set_ylim(0, 1.28)
+    ax.legend(loc='upper center', ncol=2, frameon=False)
     ax.grid(alpha=0.3, axis='y', lw=0.5)
 
     # (d) mid vs late summary
     ax = axes[1][1]
-    names = ['A mid $s$=0', 'B mid $s$=12', 'C late $s$=0', 'D late $s$=12']
+    names = ['A mid\n$s$=0', 'B mid\n$s$=12', 'C late\n$s$=0', 'D late\n$s$=12']
     pk = [out['circuits'][n]['P_expected_key_hw'] for n in 'ABCD']
     pi = [out['circuits'][n]['P_expected_key_ideal'] for n in 'ABCD']
     x4 = np.arange(4)
     ax.bar(x4 - 0.2, pi, 0.4, color=C_ID, alpha=0.75, label='ideal')
     ax.bar(x4 + 0.2, pk, 0.4, color=C_HW, alpha=0.85, label='WK_C180')
     for i, v in enumerate(pk):
-        ax.text(i + 0.2, v + 0.02, f'{v:.3f}', ha='center', fontsize=7)
-    ax.set_xticks(x4); ax.set_xticklabels(names, fontsize=8)
+        ax.text(i + 0.2, v + 0.03, f'{v:.3f}', ha='center', fontsize=7.5)
+    ax.set_xticks(x4); ax.set_xticklabels(names, fontsize=7.5)
     ax.set_ylabel('probability of expected bitstring')
     ax.set_title('(d) mid-circuit vs late measurement')
-    ax.set_ylim(0, 1.18); ax.legend(loc='upper right')
+    ax.set_ylim(0, 1.28); ax.legend(loc='upper center', ncol=2, frameon=False)
     ax.grid(alpha=0.3, axis='y', lw=0.5)
 
     for tag in ('pdf', 'png'):
